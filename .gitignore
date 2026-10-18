@@ -1,0 +1,32 @@
+# Rust
+core/target/
+
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+*.jsonl
+
+# Android
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/app/src/main/jniLibs/
+*.apk
+*.aab
+
+# Secrets and station state: never commit
+*.code
+*.key
+*state*.json
+field.json
+base.json
+prototype/*.toml
+!prototype/config.example.toml
+core/crates/nvl-daemon/base.toml
+
+# Editors
+.idea/
+*.iml
+.DS_Store

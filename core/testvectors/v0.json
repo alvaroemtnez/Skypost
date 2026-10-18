@@ -1,0 +1,73 @@
+{
+  "ack": {
+    "fields": {
+      "acked_counter_lo": 2,
+      "dst": 1,
+      "dt_ds": 4,
+      "snr_db": -17,
+      "src": 0
+    },
+    "sender": 0,
+    "wire_hex": "070102EF04347DC128"
+  },
+  "frames": [
+    {
+      "encrypted": false,
+      "message": {
+        "Text": "Llegamos al refugio, todo bien."
+      },
+      "name": "text_signed",
+      "sender": 1,
+      "wire_hex": "011F0000D6B53CD68CE15449F0CF3A371176B30E5431C370473319EE1A72C54D"
+    },
+    {
+      "encrypted": true,
+      "message": {
+        "Text": "Llegamos al refugio, todo bien."
+      },
+      "name": "text_encrypted",
+      "sender": 1,
+      "wire_hex": "211F0001468606EAB63A8BFB544AE49641C5B3D376CFEAA3E674A245E5DFC44B"
+    },
+    {
+      "encrypted": true,
+      "message": {
+        "Canned": 0
+      },
+      "name": "canned_encrypted",
+      "sender": 1,
+      "wire_hex": "221F00026FCAAE65211F6695A5"
+    },
+    {
+      "encrypted": true,
+      "message": {
+        "StatusOk": {
+          "lat": 42.6311,
+          "lon": 0.6588
+        }
+      },
+      "name": "ok_with_position_encrypted",
+      "sender": 1,
+      "wire_hex": "231F00033F0D60E3D028A561727BE5A7D5E7"
+    },
+    {
+      "encrypted": true,
+      "message": {
+        "Sos": null
+      },
+      "name": "sos_encrypted",
+      "sender": 1,
+      "wire_hex": "241F00045CCD9048B2A9932A"
+    },
+    {
+      "encrypted": false,
+      "message": "Poll",
+      "name": "poll_signed",
+      "sender": 1,
+      "wire_hex": "061F0005D6BA1F0FAADC525B"
+    }
+  ],
+  "group_key_hex": "4242424242424242424242424242424242424242424242424242424242424242",
+  "protocol": 0,
+  "tag_len": 8
+}

@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- TODO(phase 2): replace with the real vendor/product ids, read with
+         `lsusb` on Linux: the QDX, and the G90's XGGComms adapter (its sound
+         card and its USB-serial chip). Until then, match any USB audio-class
+         device. -->
+    <usb-device class="1" />
+</resources>

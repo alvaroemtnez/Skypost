@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">nvislink</string>
+    <string name="btn_ok">Estoy bien</string>
+    <string name="btn_help">Necesito ayuda</string>
+    <string name="btn_message">Mensaje</string>
+    <string name="btn_inbox">Recibidos</string>
+    <string name="help_confirm_title">¿Pedir ayuda?</string>
+    <string name="help_confirm_body">Se enviará un aviso de emergencia con tu posición.</string>
+    <string name="send">Enviar</string>
+    <string name="cancel">Cancelar</string>
+    <string name="message_hint">Escribe un mensaje corto</string>
+    <string name="radio_disconnected">Radio no conectada</string>
+    <string name="radio_ready">Radio lista</string>
+    <string name="no_time_fix">Esperando hora GPS</string>
+    <string name="band_now">Banda: %1$s</string>
+    <string name="state_queued">En cola</string>
+    <string name="state_sent">Enviado</string>
+    <string name="state_heard">Recibido por la base</string>
+    <string name="state_delivered">Entregado</string>
+    <string name="state_read">Leído</string>
+    <string name="state_failed">No entregado, reintentando</string>
+    <string name="inbox_empty">Sin mensajes</string>
+</resources>
