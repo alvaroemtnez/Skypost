@@ -1,4 +1,4 @@
-# nvislink
+# Skypost
 
 Encrypted off-grid messaging over HF NVIS for a family: phone + small HF radio
 in the field, a 24/7 base station at home that bridges to Matrix, Signal,
@@ -18,8 +18,8 @@ and [docs/roadmap.md](docs/roadmap.md).
 
 ```sh
 make test                                   # Rust + Python tests
-make nvl                                    # builds core/target/release/nvl
-N=core/target/release/nvl
+make keryx                                    # builds core/target/release/keryx
+N=core/target/release/keryx
 $N keygen > group.code                      # secret: the QR payload
 $N provision --code @group.code --me 1 --state field.json
 $N provision --code @group.code --me 0 --state base.json
@@ -31,7 +31,7 @@ Phase 0 on-air testing with JS8Call: [prototype/README.md](prototype/README.md).
 ## Layout
 
 ```
-core/       Rust: nvl-proto (protocol), nvl-cli (`nvl`), nvl-daemon (base)
+core/       Rust: keryx (protocol), keryx-cli (`keryx`), pharos (base)
 android/    Kotlin + Compose Material 3 app
 prototype/  Phase 0 Python glue for JS8Call
 docs/       design, specs, decisions, regulatory and research notes

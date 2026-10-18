@@ -1,5 +1,5 @@
 """Phase 0 tests. The end-to-end test runs field and base against a fake
-JS8Call "air" and the real Rust `nvl` binary (skipped if it is not built)."""
+JS8Call "air" and the real Rust `keryx` binary (skipped if it is not built)."""
 
 from __future__ import annotations
 
@@ -11,9 +11,9 @@ from pathlib import Path
 
 import pytest
 
-from nvl_p0 import base, field
-from nvl_p0.framing import extract, wrap
-from nvl_p0.nvlcli import NvlError, find_binary, is_ack
+from skypost_p0 import base, field
+from skypost_p0.framing import extract, wrap
+from skypost_p0.keryxcli import KeryxError, find_binary, is_ack
 
 
 def test_framing_roundtrip_and_noise():
@@ -27,11 +27,11 @@ def test_is_ack_by_type_bits():
     assert not is_ack("AEPQAAGWWU6NNDHB")  # a Text frame header
 
 
-def nvl_or_skip() -> str:
+def keryx_or_skip() -> str:
     try:
         return find_binary()
-    except NvlError:
-        pytest.skip("nvl binary not built")
+    except KeryxError:
+        pytest.skip("keryx binary not built")
 
 
 class FakeAir:
@@ -91,10 +91,10 @@ def write_cfg(path: Path, call: str, state: Path, port: int, peer: str) -> Path:
 
 
 def test_end_to_end_field_to_base_with_ack(tmp_path: Path):
-    nvl = nvl_or_skip()
-    code = subprocess.run([nvl, "keygen"], capture_output=True, text=True, check=True).stdout.strip()
+    keryx = keryx_or_skip()
+    code = subprocess.run([keryx, "keygen"], capture_output=True, text=True, check=True).stdout.strip()
     for me, name in ((1, "field"), (0, "base")):
-        subprocess.run([nvl, "provision", "--code", code, "--me", str(me), "--state", str(tmp_path / f"{name}.json")],
+        subprocess.run([keryx, "provision", "--code", code, "--me", str(me), "--state", str(tmp_path / f"{name}.json")],
                        check=True, capture_output=True)
     air = FakeAir({"field": "EA5FLD", "base": "EA5BAS"})
     base_cfg = write_cfg(tmp_path / "base.toml", "EA5BAS", tmp_path / "base.json", air.ports["base"], "EA5BAS")
@@ -121,6 +121,6 @@ def test_encrypt_needs_explicit_opt_in(tmp_path: Path):
 
 
 def test_duplicate_message_parsing_matches_cli_wording():
-    # Must match nvl_proto::Error::Duplicate's Display text.
+    # Must match keryx::Error::Duplicate's Display text.
     msg = "error: duplicate of an already delivered frame (sender 1, counter 300)"
     assert base._parse_dup(msg) == (1, 300)

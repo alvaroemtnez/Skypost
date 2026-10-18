@@ -1,6 +1,6 @@
 # Text codec — protocol v0
 
-Implemented in `core/crates/nvl-proto/src/textcodec.rs`.
+Implemented in `core/crates/keryx/src/textcodec.rs`.
 
 ## Design
 

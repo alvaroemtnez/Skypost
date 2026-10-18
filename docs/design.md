@@ -1,4 +1,7 @@
-# nvislink — design
+# Skypost — design
+
+Skypost is the project and app, Keryx the wire protocol, Pharos the base
+station (`decisions/0011-naming.md`).
 
 Status: phase 0/1 groundwork. Last updated 2026-10-18.
 Source of truth for the project. Detailed specs live in `docs/spec/`, decisions
@@ -58,7 +61,7 @@ signal comes down almost vertically, so valley walls do not shadow it.
   0.1–0.25 λ, pre-cut and colour-coded per band.
 
 The default schedule is in [spec/band-plan.md](spec/band-plan.md) and
-`nvl_proto::bandplan`. It is an initial guess; Phase 0 logs replace it.
+`keryx::bandplan`. It is an initial guess; Phase 0 logs replace it.
 
 ## 4. Physical layer: two lanes
 
@@ -112,9 +115,9 @@ Mercury lane later; it is not the core.
  │ Compose M3)          │                         │ WhatsApp via mautrix),       │
  │  family / advanced   │                         │ MeshCore, ntfy               │
  ├──────────────────────┤                         ├──────────────────────────────┤
- │ Rust core (nvl-proto)│                         │ nvl-daemon (Rust):           │
+ │ Rust core (keryx)│                         │ pharos (Rust):           │
  │  codec, crypto, ARQ, │                         │  store and forward, ACKs,    │
- │  lane choice         │                         │  same nvl-proto              │
+ │  lane choice         │                         │  same keryx              │
  ├──────────────────────┤                         ├──────────────────────────────┤
  │ Modem: JS8 engine    │                         │ Multi-decoder: every JS8     │
  │  (+ Mercury later)   │                         │  speed + OFDM in parallel    │
@@ -193,11 +196,11 @@ One app, two profiles.
 
 | Part | Language | Why |
 |---|---|---|
-| Protocol core (`core/crates/nvl-proto`) | Rust | Memory-safe parsing of untrusted RF input; one implementation for app and base; good crypto crates; builds for Android (NDK) and aarch64 Pi |
-| Base daemon (`core/crates/nvl-daemon`) | Rust | Same crate as the app, single static binary on the Pi |
+| Protocol core (`core/crates/keryx`) | Rust | Memory-safe parsing of untrusted RF input; one implementation for app and base; good crypto crates; builds for Android (NDK) and aarch64 Pi |
+| Base daemon (`core/crates/pharos`) | Rust | Same crate as the app, single static binary on the Pi |
 | JS8 engine, Mercury, codec2 | C++ / C (upstream) | Reused as is behind one narrow FFI boundary |
 | Android UI and platform glue | Kotlin + Jetpack Compose M3 | MD3's reference implementation; native USB, audio, services |
-| Phase 0 prototype | Python (stdlib) | Throwaway glue to JS8Call's API; protocol work done by the `nvl` CLI |
+| Phase 0 prototype | Python (stdlib) | Throwaway glue to JS8Call's API; protocol work done by the `keryx` CLI |
 
 Why not the alternatives:
 
@@ -216,9 +219,9 @@ Why not the alternatives:
 Layout:
 
 ```
-core/           Rust workspace: nvl-proto, nvl-cli (`nvl`), nvl-daemon; testvectors/
+core/           Rust workspace: keryx, keryx-cli (`keryx`), pharos; testvectors/
 android/        Kotlin/Compose app (Gradle)
-prototype/      Phase 0 Python glue (JS8Call API ↔ nvl CLI ↔ Matrix/ntfy)
+prototype/      Phase 0 Python glue (JS8Call API ↔ keryx CLI ↔ Matrix/ntfy)
 docs/           this file, specs, decisions, research notes, roadmap
 ```
 

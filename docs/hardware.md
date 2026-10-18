@@ -25,7 +25,7 @@
 
 ## Base station
 
-- Raspberry Pi 5 or a small x86 box; `nvl-daemon`.
+- Raspberry Pi 5 or a small x86 box; `pharos`.
 - Receive: wideband HF SDR covering 80/60/40 m at once, so the base hears
   every band without retuning.
 - Transmit: G90 (≤ 50 W for an unattended HF station in Spain).

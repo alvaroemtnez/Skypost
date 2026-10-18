@@ -2,9 +2,9 @@
 
 [station]
 callsign = "EA5XXX"
-# State file from `nvl provision`. Field: --me 1 (or 2..14). Base: --me 0.
-state = "~/.local/share/nvislink/field.json"
-# nvl_bin = "/path/to/nvl"   # default: core/target/{release,debug}/nvl, then $PATH
+# State file from `keryx provision`. Field: --me 1 (or 2..14). Base: --me 0.
+state = "~/.local/share/skypost/field.json"
+# keryx_bin = "/path/to/keryx"   # default: core/target/{release,debug}/keryx, then $PATH
 
 [js8call]
 # Enable the TCP API in JS8Call (Settings > Reporting). VERIFY port on 3.x.
@@ -19,13 +19,13 @@ base_callsign = "EA5YYY"   # field side: the base station's callsign
 allow_encrypted_tx = false
 
 [log]
-path = "~/nvislink-p0.jsonl"   # the propagation dataset; keep these files
+path = "~/skypost-p0.jsonl"   # the propagation dataset; keep these files
 
 # Base side only:
 # [bridges.matrix]
 # homeserver = "https://matrix.example.org"
 # room_id = "!abcdef:example.org"
-# access_token_env = "NVL_MATRIX_TOKEN"
+# access_token_env = "SKYPOST_MATRIX_TOKEN"
 #
 # [bridges.ntfy]
 # url = "https://ntfy.example.org/familia"

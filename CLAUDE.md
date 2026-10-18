@@ -1,4 +1,7 @@
-# nvislink
+# Skypost
+
+Names (`docs/decisions/0011-naming.md`): **Skypost** = project and app,
+**Keryx** = wire protocol, **Pharos** = base station.
 
 Encrypted off-grid family messaging over HF NVIS (40/60/80 m). A field kit
 (Android phone + QDX or G90 over USB OTG) talks to another kit, or to a 24/7
@@ -9,11 +12,11 @@ Read `docs/design.md` first. Then `docs/roadmap.md` for what is next.
 
 ## Layout
 
-- `core/` — Rust workspace. `nvl-proto` (wire protocol, no I/O), `nvl-cli`
-  (binary `nvl`), `nvl-daemon` (base station, skeleton). Golden vectors in
+- `core/` — Rust workspace. `keryx` (wire protocol, no I/O), `keryx-cli`
+  (binary `keryx`), `pharos` (base station, skeleton). Golden vectors in
   `core/testvectors/`.
 - `android/` — Kotlin + Compose Material 3 app. Skeleton, never built yet.
-- `prototype/` — Phase 0 Python glue: JS8Call API ↔ `nvl` ↔ Matrix/ntfy.
+- `prototype/` — Phase 0 Python glue: JS8Call API ↔ `keryx` ↔ Matrix/ntfy.
 - `docs/` — design, specs (`docs/spec/`), decisions (`docs/decisions/`),
   regulatory notes, research notes with sources.
 
@@ -21,21 +24,23 @@ Read `docs/design.md` first. Then `docs/roadmap.md` for what is next.
 
 ```sh
 make test          # Rust tests + clippy + Python tests
-make nvl           # release build of the nvl CLI
-cd core && cargo test -p nvl-proto
+make keryx           # release build of the keryx CLI
+cd core && cargo test -p keryx
 cd prototype && python3 -m pytest -q
 cd android && ./gradlew assembleDebug     # needs the Android SDK
 ```
 
 ## Rules
 
-- **One protocol implementation.** All protocol logic lives in `nvl-proto`.
-  Kotlin and Python call it (UniFFI / the `nvl` CLI); never re-implement
+- **Never commit or push.** Leave changes in the working tree; the owner
+  reviews and commits everything by hand.
+- **One protocol implementation.** All protocol logic lives in `keryx`.
+  Kotlin and Python call it (UniFFI / the `keryx` CLI); never re-implement
   codec, crypto, ARQ or lane choice elsewhere.
 - **Wire format changes** (anything that changes bytes on air: layouts, type
   values, codec weights, phrase order, KDF labels) need: an updated
   `docs/spec/` page, regenerated vectors
-  (`NVL_REGEN=1 cargo test -p nvl-proto --test vectors`), and a version bump
+  (`KERYX_REGEN=1 cargo test -p keryx --test vectors`), and a version bump
   unless old and new still interoperate. Never regenerate vectors to make a
   failing test pass without understanding why the bytes changed.
 - **Append only:** `MsgType` values and `canned::PHRASES`.
@@ -53,6 +58,6 @@ cd android && ./gradlew assembleDebug     # needs the Android SDK
 
 - JS8 frame payload is 9 bytes (72 bits) and JS8 frame-type bits can mark
   first/last segments (`JS8_FRAME_PAYLOAD_BYTES`).
-- JS8Call 3.x API shape used by `prototype/nvl_p0/js8api.py`.
+- JS8Call 3.x API shape used by `prototype/skypost_p0/js8api.py`.
 - Android Gradle versions in `android/gradle/libs.versions.toml`.
-- The band schedule in `nvl_proto::bandplan` is a guess until Phase 0 data.
+- The band schedule in `keryx::bandplan` is a guess until Phase 0 data.

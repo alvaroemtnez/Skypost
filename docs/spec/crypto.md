@@ -1,6 +1,6 @@
 # Crypto — protocol v0
 
-Implemented in `core/crates/nvl-proto/src/crypto.rs`. Rationale:
+Implemented in `core/crates/keryx/src/crypto.rs`. Rationale:
 [decision 0007](../decisions/0007-crypto.md).
 
 ## Threat model
@@ -14,7 +14,7 @@ Implemented in `core/crates/nvl-proto/src/crypto.rs`. Rationale:
 
 ## Provisioning
 
-- `nvl keygen` → `nvislink:v0:t<8|16>:<BASE32(32 random bytes)>`. This string
+- `keryx keygen` → `keryx:v0:t<8|16>:<BASE32(32 random bytes)>`. This string
   is the QR payload. Hand it over in person.
 - Each station runs `provision(group_key, me, tag_len)`, which derives every
   sender chain and the ACK key, then forgets the group key.
@@ -24,8 +24,8 @@ Implemented in `core/crates/nvl-proto/src/crypto.rs`. Rationale:
 
 | Value | Derivation |
 |---|---|
-| Chain key, sender `s`, step 0 | HKDF(salt = `"nvislink-v0"`, ikm = group key, info = `"chain"` ‖ s) → 32 B |
-| ACK key | HKDF(salt = `"nvislink-v0"`, ikm = group key, info = `"ack"`) → 32 B |
+| Chain key, sender `s`, step 0 | HKDF(salt = `"keryx-v0"`, ikm = group key, info = `"chain"` ‖ s) → 32 B |
+| ACK key | HKDF(salt = `"keryx-v0"`, ikm = group key, info = `"ack"`) → 32 B |
 | Ratchet step | `mk = HMAC(ck, 0x01)`, `ck' = HMAC(ck, 0x02)` |
 | Message keys | HKDF-Expand(prk = mk, info = `"keys"`) → 64 B: enc = [0..32], mac = [32..64] |
 

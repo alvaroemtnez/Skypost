@@ -6,11 +6,13 @@ Tick items as they land. Keep this file current; it is how a new session
 ## Phase 0 — real NVIS data with off-the-shelf parts
 
 Done in the repo:
-- [x] `nvl` CLI: keygen, provision, encode/decode, ACKs, band, lane
-- [x] Python glue: JS8Call API ↔ `nvl` ↔ Matrix/ntfy, JSONL logs
+- [x] `keryx` CLI: keygen, provision, encode/decode, ACKs, band, lane
+- [x] Python glue: JS8Call API ↔ `keryx` ↔ Matrix/ntfy, JSONL logs
 - [x] End-to-end test against a fake JS8Call
 
 To do:
+- [ ] Regenerate golden vectors for the `keryx-v0` salt (rename, decision 0011) and check only key-dependent bytes moved
+- [ ] Revisit the lane set (five lanes may be too many) and the logic between them; name them after
 - [ ] Verify the JS8Call 3.x API (port, message types, `TDRIFT`) and fix `js8api.py`
 - [ ] Bench test: two radios into attenuators/dummy loads, signed and encrypted
 - [ ] Choose dial frequencies (see `spec/band-plan.md`)
@@ -21,9 +23,9 @@ To do:
 ## Phase 1 — real PHY and base daemon
 
 - [ ] Confirm JS8 frame payload size and frame-type bits in the JS8Call-improved engine; freeze `JS8_FRAME_PAYLOAD_BYTES`
-- [ ] `nvl-js8` crate: FFI to the JS8Call-improved C++ core (`cxx`), binary frames in/out, multi-speed decode
+- [ ] `keryx-js8` crate: FFI to the JS8Call-improved C++ core (`cxx`), binary frames in/out, multi-speed decode
 - [ ] Callsign identification in binary mode (Art. 29)
-- [ ] `nvl-daemon`: PHY task, wideband SDR input, all lanes in parallel, persist session + outbox
+- [ ] `pharos`: PHY task, wideband SDR input, all lanes in parallel, persist session + outbox
 - [ ] Matrix bridge (and ntfy, MeshCore companion protocol)
 - [ ] Channel-simulator tests (codec2 `ch`, Watterson fading) in CI
 - [ ] Decide tag length (8 vs 16)
@@ -33,7 +35,7 @@ To do:
 ## Phase 2 — Android app
 
 - [ ] First Gradle sync and build; bump versions
-- [ ] `nvl-ffi` crate (UniFFI) + cargo-ndk build into `jniLibs`
+- [ ] `keryx-ffi` crate (UniFFI) + cargo-ndk build into `jniLibs`
 - [ ] Radio foreground service: USB permission, CAT (usb-serial-for-android), USB audio routing
 - [ ] GNSS time and position
 - [ ] QR provisioning, Keystore-encrypted state, PIN for advanced mode

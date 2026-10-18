@@ -24,7 +24,7 @@ field.json
 base.json
 prototype/*.toml
 !prototype/config.example.toml
-core/crates/nvl-daemon/base.toml
+core/crates/pharos/base.toml
 
 # Editors
 .idea/

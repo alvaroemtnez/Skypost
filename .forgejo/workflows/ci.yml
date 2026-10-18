@@ -1,0 +1,22 @@
+# Forgejo Actions. Needs a runner with the `docker` label; the job brings its
+# own image and toolchain, so it does not depend on what the runner host has.
+name: ci
+on: [push, pull_request]
+
+jobs:
+  core:
+    runs-on: docker
+    container:
+      image: node:20-bookworm # node for checkout; already has python3, curl, make
+    steps:
+      - uses: https://code.forgejo.org/actions/checkout@v4
+      - name: Install Rust
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
+            | sh -s -- -y --profile minimal --component clippy,rustfmt
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+      - name: Install pytest
+        run: apt-get update -q && apt-get install -y -q --no-install-recommends python3-pytest
+      - run: make lint
+      - run: make rust
+      - run: make python

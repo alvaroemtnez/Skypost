@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">nvislink</string>
+    <string name="app_name">Skypost</string>
     <string name="btn_ok">Estoy bien</string>
     <string name="btn_help">Necesito ayuda</string>
     <string name="btn_message">Mensaje</string>

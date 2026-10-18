@@ -8,7 +8,7 @@ The protocol must run inside the Android app and on the Pi. It parses untrusted 
 
 ## Decision
 
-`nvl-proto` (no I/O) holds framing, codec, crypto, ARQ, lane choice, band plan. `nvl-daemon` and `nvl-cli` build on it. C/C++ engines sit behind one narrow FFI boundary (`cxx` / `bindgen`).
+`keryx` (no I/O) holds framing, codec, crypto, ARQ, lane choice, band plan. `pharos` and `keryx-cli` build on it. C/C++ engines sit behind one narrow FFI boundary (`cxx` / `bindgen`).
 
 ## Consequences
 

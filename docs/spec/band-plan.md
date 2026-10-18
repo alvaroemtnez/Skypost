@@ -1,7 +1,7 @@
 # Band plan
 
-Implemented as a default table in `core/crates/nvl-proto/src/bandplan.rs`
-(`nvl band --month M --hour H`). Both ends must use the same table, so it is
+Implemented as a default table in `core/crates/keryx/src/bandplan.rs`
+(`keryx band --month M --hour H`). Both ends must use the same table, so it is
 versioned with the protocol and delivered in the provisioning profile later.
 
 ## Default schedule (initial guess)

@@ -1,4 +1,4 @@
-.PHONY: test rust python lint fmt nvl daemon vectors
+.PHONY: test rust python lint fmt keryx daemon vectors
 
 test: rust lint python
 
@@ -11,15 +11,15 @@ lint:
 fmt:
 	cd core && cargo fmt --all
 
-python: nvl
+python: keryx
 	cd prototype && python3 -m pytest -q
 
-nvl:
-	cd core && cargo build --release -q -p nvl-cli
+keryx:
+	cd core && cargo build --release -q -p keryx-cli
 
 daemon:
-	cd core && cargo build --release -q -p nvl-daemon
+	cd core && cargo build --release -q -p pharos
 
 # Only after an intended wire-format change (see CLAUDE.md).
 vectors:
-	cd core && NVL_REGEN=1 cargo test -q -p nvl-proto --test vectors
+	cd core && KERYX_REGEN=1 cargo test -q -p keryx --test vectors

@@ -1,6 +1,6 @@
 # Frame format — protocol v0
 
-Implemented in `core/crates/nvl-proto` (`header.rs`, `message.rs`, `ack.rs`,
+Implemented in `core/crates/keryx` (`header.rs`, `message.rs`, `ack.rs`,
 `segment.rs`). Golden vectors: `core/testvectors/v0.json`.
 
 ## Message frame
@@ -76,6 +76,6 @@ JS8Call text layer, directed message: `<TOCALL> NV0 <BASE32(wire frame)>`
 
 - Any change to bytes on air (layouts, type values, codec weights, phrase
   list order, KDF labels) is a wire change: update this spec, regenerate the
-  golden vectors (`NVL_REGEN=1 cargo test -p nvl-proto --test vectors`), and
+  golden vectors (`KERYX_REGEN=1 cargo test -p keryx --test vectors`), and
   bump `VERSION` unless old and new apps still interoperate.
 - Additive changes (new type values, new phrases appended) keep v0.

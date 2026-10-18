@@ -358,26 +358,26 @@ dependencies = [
 ]
 
 [[package]]
-name = "nvl-cli"
+name = "keryx-cli"
 version = "0.1.0"
 dependencies = [
  "anyhow",
  "clap",
  "data-encoding",
  "getrandom",
- "nvl-proto",
+ "keryx",
  "serde",
  "serde_json",
 ]
 
 [[package]]
-name = "nvl-daemon"
+name = "pharos"
 version = "0.1.0"
 dependencies = [
  "anyhow",
  "clap",
  "data-encoding",
- "nvl-proto",
+ "keryx",
  "serde",
  "serde_json",
  "tokio",
@@ -387,7 +387,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "nvl-proto"
+name = "keryx"
 version = "0.1.0"
 dependencies = [
  "chacha20",

@@ -5,11 +5,11 @@ plugins {
 }
 
 android {
-    namespace = "es.nvislink"
+    namespace = "io.alvaroedo.skypost"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "es.nvislink"
+        applicationId = "io.alvaroedo.skypost"
         minSdk = 26 // Android 8.0: USB host + AudioRecord device routing
         targetSdk = 35
         versionCode = 1
@@ -35,8 +35,8 @@ android {
         compose = true
     }
 
-    // Phase 2: the Rust core (core/crates/nvl-ffi, UniFFI) is built with
-    // cargo-ndk into src/main/jniLibs/<abi>/libnvl_ffi.so, and its generated
+    // Phase 2: the Rust core (core/crates/keryx-ffi, UniFFI) is built with
+    // cargo-ndk into src/main/jniLibs/<abi>/libkeryx_ffi.so, and its generated
     // Kotlin bindings go into src/main/java/uniffi/.
 }
 

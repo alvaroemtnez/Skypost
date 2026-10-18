@@ -1,9 +1,9 @@
 [workspace]
 resolver = "3"
-members = ["crates/nvl-proto", "crates/nvl-cli", "crates/nvl-daemon"]
+members = ["crates/keryx", "crates/keryx-cli", "crates/pharos"]
 
 [workspace.package]
 version = "0.1.0"
 edition = "2024"
 license = "GPL-3.0-or-later"
-repository = "https://example.invalid/nvislink"
+repository = "https://code.alvaroedo.io/alvaroemtnez/skypost"

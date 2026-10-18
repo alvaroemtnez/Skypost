@@ -16,5 +16,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "nvislink-android"
+rootProject.name = "skypost-android"
 include(":app")

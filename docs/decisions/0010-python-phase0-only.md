@@ -8,7 +8,7 @@ Real propagation data is needed before investing in PHY work. JS8Call has a TCP 
 
 ## Decision
 
-A stdlib-only Python prototype drives JS8Call and calls the Rust `nvl` CLI for all protocol work. It is thrown away in Phase 1.
+A stdlib-only Python prototype drives JS8Call and calls the Rust `keryx` CLI for all protocol work. It is thrown away in Phase 1.
 
 ## Consequences
 

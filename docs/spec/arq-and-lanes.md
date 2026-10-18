@@ -1,7 +1,7 @@
 # ARQ and lanes — protocol v0
 
-Implemented in `core/crates/nvl-proto/src/lane.rs` and `arq.rs`; base-side
-flow in `core/crates/nvl-daemon/src/station.rs`.
+Implemented in `core/crates/keryx/src/lane.rs` and `arq.rs`; base-side
+flow in `core/crates/pharos/src/station.rs`.
 
 ## Lanes
 
