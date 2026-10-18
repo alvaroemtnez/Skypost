@@ -11,7 +11,7 @@ Done in the repo:
 - [x] End-to-end test against a fake JS8Call
 
 To do:
-- [ ] Regenerate golden vectors for the `keryx-v0` salt (rename, decision 0011) and check only key-dependent bytes moved
+- [x] Regenerate golden vectors for the `keryx-v0` salt (rename, decision 0011) and check only key-dependent bytes moved
 - [ ] Revisit the lane set (five lanes may be too many) and the logic between them; name them after
 - [ ] Verify the JS8Call 3.x API (port, message types, `TDRIFT`) and fix `js8api.py`
 - [ ] Bench test: two radios into attenuators/dummy loads, signed and encrypted
