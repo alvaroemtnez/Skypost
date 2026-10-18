@@ -15,7 +15,8 @@ Read `docs/design.md` first. Then `docs/roadmap.md` for what is next.
 - `core/` — Rust workspace. `keryx` (wire protocol, no I/O), `keryx-cli`
   (binary `keryx`), `pharos` (base station, skeleton). Golden vectors in
   `core/testvectors/`.
-- `android/` — Kotlin + Compose Material 3 app. Skeleton, never built yet.
+- `android/` — Kotlin + Compose Material 3 app. Skeleton on fakes; builds with
+  `android/build.sh` (self-contained toolchain, no Android Studio).
 - `prototype/` — Phase 0 Python glue: JS8Call API ↔ `keryx` ↔ Matrix/ntfy.
 - `docs/` — design, specs (`docs/spec/`), decisions (`docs/decisions/`),
   regulatory notes, research notes with sources.
@@ -27,7 +28,8 @@ make test          # Rust tests + clippy + Python tests
 make keryx           # release build of the keryx CLI
 cd core && cargo test -p keryx
 cd prototype && python3 -m pytest -q
-cd android && ./gradlew assembleDebug     # needs the Android SDK
+make apk           # android/build.sh: fetches JDK + SDK into android/.tools/
+android/build.sh test      # Android unit tests + lint (help: android/build.sh help)
 ```
 
 ## Rules
@@ -59,5 +61,6 @@ cd android && ./gradlew assembleDebug     # needs the Android SDK
 - JS8 frame payload is 9 bytes (72 bits) and JS8 frame-type bits can mark
   first/last segments (`JS8_FRAME_PAYLOAD_BYTES`).
 - JS8Call 3.x API shape used by `prototype/skypost_p0/js8api.py`.
-- Android Gradle versions in `android/gradle/libs.versions.toml`.
+- Android library/plugin versions in `android/gradle/libs.versions.toml` build,
+  but are late-2024 releases; bump before relying on newer APIs.
 - The band schedule in `keryx::bandplan` is a guess until Phase 0 data.

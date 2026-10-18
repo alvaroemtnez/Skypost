@@ -1,4 +1,4 @@
-.PHONY: test rust python lint fmt keryx daemon vectors
+.PHONY: test rust python lint fmt keryx daemon vectors apk apk-install
 
 test: rust lint python
 
@@ -23,3 +23,10 @@ daemon:
 # Only after an intended wire-format change (see CLAUDE.md).
 vectors:
 	cd core && KERYX_REGEN=1 cargo test -q -p keryx --test vectors
+
+# Android: downloads its own JDK + SDK into android/.tools/ (see android/README.md).
+apk:
+	android/build.sh debug
+
+apk-install:
+	android/build.sh install

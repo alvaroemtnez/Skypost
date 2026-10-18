@@ -34,7 +34,9 @@ To do:
 
 ## Phase 2 — Android app
 
-- [ ] First Gradle sync and build; bump versions
+- [x] First build; script-based toolchain (`android/build.sh`, [0012](decisions/0012-android-script-build.md))
+- [ ] Bump `libs.versions.toml` (AGP 9, Compose BOM, AndroidX) and SDK 36
+- [ ] Try the debug APK on a phone
 - [ ] `keryx-ffi` crate (UniFFI) + cargo-ndk build into `jniLibs`
 - [ ] Radio foreground service: USB permission, CAT (usb-serial-for-android), USB audio routing
 - [ ] GNSS time and position

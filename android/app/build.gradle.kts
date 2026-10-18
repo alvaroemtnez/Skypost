@@ -7,6 +7,7 @@ plugins {
 android {
     namespace = "io.alvaroedo.skypost"
     compileSdk = 35
+    buildToolsVersion = "35.0.0"
 
     defaultConfig {
         applicationId = "io.alvaroedo.skypost"
