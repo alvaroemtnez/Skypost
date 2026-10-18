@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.AlertDialog
@@ -113,7 +114,7 @@ fun FamilyScreen(
                     }
                 }
             },
-            confirmButton = { TextButton(onClick = { showInbox = false }) { Text("OK") } },
+            confirmButton = { TextButton(onClick = { showInbox = false }) { Text(stringResource(R.string.close)) } },
         )
     }
 }
@@ -136,8 +137,9 @@ private fun StatusStrip(ui: FamilyUiState, onLongPress: () -> Unit) {
         tonalElevation = 2.dp,
         modifier = Modifier.fillMaxWidth().pointerInput(Unit) { detectTapGestures(onLongPress = { onLongPress() }) },
     ) {
+        // Edge-to-edge: the strip's colour runs under the status bar, its text below it.
         Row(
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+            modifier = Modifier.statusBarsPadding().padding(horizontal = 16.dp, vertical = 12.dp),
             horizontalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             val radio = if (ui.radio == RadioState.READY) R.string.radio_ready else R.string.radio_disconnected

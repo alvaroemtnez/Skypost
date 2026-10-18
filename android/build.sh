@@ -8,7 +8,7 @@
 #   install     build the debug APK and install it on the connected phone
 #   run         install, then launch the app and follow its log
 #   logcat      follow the log of the running app
-#   test        run the JVM unit tests and Android lint
+#   test        run the JVM unit tests and Android lint (debug + release checks)
 #   gradle ...  run any Gradle task with the bundled toolchain
 #   env         print exports for using gradlew/adb directly: eval "$(./build.sh env)"
 #   setup       only download the toolchain into .tools/
@@ -25,7 +25,7 @@ DIST_DIR="$ANDROID_DIR/dist"
 TOOLS_DIR="$ANDROID_DIR/.tools"
 APP_GRADLE="$ANDROID_DIR/app/build.gradle.kts"
 
-# AGP 8.x needs JDK 17+; 21 is the current LTS and runs Gradle 8.14.
+# AGP 9 and Gradle 9 need JDK 17+; 21 is the LTS they are tested with.
 JDK_VERSION=21
 # https://developer.android.com/studio#command-line-tools-only
 CMDLINE_TOOLS_VERSION=16111833
@@ -34,12 +34,16 @@ CMDLINE_TOOLS_SHA256=0877a1d048fe4a24efe2eff536ca4223f7adeb58648bb81909d33c44691
 JDK_DIR="$TOOLS_DIR/jdk-$JDK_VERSION"
 SDK_DIR="$TOOLS_DIR/android-sdk"
 ADB="$SDK_DIR/platform-tools/adb"
+ANDROID_CLI="$SDK_DIR/cmdline-tools/latest/bin/android"
 
 # Make every tool use the copies in .tools/, regardless of what the system has.
 export JAVA_HOME="$JDK_DIR"
 export ANDROID_HOME="$SDK_DIR"
 unset ANDROID_SDK_ROOT
 export GRADLE_USER_HOME="$TOOLS_DIR/gradle"
+# Instead of ~/.android: AGP's debug keystore, the Android CLI and its caches.
+# (adb ignores it and keeps its key in ~/.android/adbkey.)
+export ANDROID_USER_HOME="$TOOLS_DIR/android-user"
 export PATH="$JDK_DIR/bin:$SDK_DIR/platform-tools:$PATH"
 
 info() { printf '\033[1;34m==>\033[0m %s\n' "$*"; }
@@ -84,9 +88,21 @@ setup_jdk() {
     rm -rf "$tmp"
 }
 
+# The Android CLI (`android sdk`), which replaces sdkmanager. Usage metrics are off.
+android_cli() {
+    "$ANDROID_CLI" --no-metrics --sdk="$SDK_DIR" "$@"
+}
+
+# Install SDK package $1 (e.g. "platform-tools") unless $SDK_DIR/$1 exists.
+# Installing accepts its licence (the Android SDK terms, developer.android.com/studio/terms).
+sdk_package() {
+    [ -d "$SDK_DIR/$1" ] && return
+    info "Installing SDK package $1"
+    android_cli sdk install "$1"
+}
+
 setup_sdk() {
-    local sdkmanager="$SDK_DIR/cmdline-tools/latest/bin/sdkmanager"
-    if [ ! -x "$sdkmanager" ]; then
+    if [ ! -x "$ANDROID_CLI" ]; then
         info "Downloading Android command line tools"
         local tmp
         tmp="$(mktemp -d)"
@@ -100,16 +116,14 @@ setup_sdk() {
 
     # The SDK packages follow app/build.gradle.kts, so bumping compileSdk or
     # buildToolsVersion there is enough; the next build installs them.
-    local api build_tools
+    # Since API 37 the platform packages carry a minor version (android-37.0).
+    local api platform
     api="$(gradle_value compileSdk)"
-    build_tools="$(gradle_value buildToolsVersion)"
-    if [ ! -d "$SDK_DIR/platforms/android-$api" ] || [ ! -d "$SDK_DIR/build-tools/$build_tools" ] \
-        || [ ! -d "$SDK_DIR/platform-tools" ]; then
-        info "Accepting Android SDK licenses"
-        yes | "$sdkmanager" --sdk_root="$SDK_DIR" --licenses >/dev/null || true
-        info "Installing platform-tools, platforms;android-$api and build-tools;$build_tools"
-        "$sdkmanager" --sdk_root="$SDK_DIR" "platform-tools" "platforms;android-$api" "build-tools;$build_tools"
-    fi
+    platform="platforms/android-$api"
+    [ "$api" -ge 37 ] && platform="$platform.0"
+    sdk_package platform-tools
+    sdk_package "$platform"
+    sdk_package "build-tools/$(gradle_value buildToolsVersion)"
 
     # For running ./gradlew by hand and for editor tooling; ignored by git.
     echo "sdk.dir=$SDK_DIR" > "$ANDROID_DIR/local.properties"
@@ -128,8 +142,9 @@ gradle() {
     (cd "$ANDROID_DIR" && ./gradlew --no-daemon "$@")
 }
 
-application_id() {
-    sed -n 's/^ *applicationId *= *"\(.*\)".*/\1/p' "$APP_GRADLE"
+# The debug build installs next to the release one, as <applicationId>.debug.
+debug_app_id() {
+    echo "$(sed -n 's/^ *applicationId *= *"\(.*\)".*/\1/p' "$APP_GRADLE").debug"
 }
 
 build_debug() {
@@ -168,32 +183,43 @@ build_release() {
 install_debug() {
     build_debug
     info "Installing on connected device"
-    "$ADB" install -r "$DIST_DIR/skypost-debug.apk"
+    local out
+    if ! out="$("$ADB" install -r "$DIST_DIR/skypost-debug.apk" 2>&1)"; then
+        echo "$out" >&2
+        # After distclean the debug key is new, and Android refuses the update.
+        # Uninstalling wipes the app's data, so leave that to the user.
+        case "$out" in
+            *INSTALL_FAILED_UPDATE_INCOMPATIBLE*)
+                die "Signed with a different debug key. Run: $ADB uninstall $(debug_app_id)" ;;
+        esac
+        die "adb install failed."
+    fi
 }
 
 logcat() {
     local pid
-    pid="$("$ADB" shell pidof -s "$(application_id)" || true)"
-    [ -n "$pid" ] || die "$(application_id) is not running."
+    pid="$("$ADB" shell pidof -s "$(debug_app_id)" || true)"
+    [ -n "$pid" ] || die "$(debug_app_id) is not running."
     "$ADB" logcat --pid="$pid"
 }
 
 run_app() {
     install_debug
-    info "Launching $(application_id)"
-    "$ADB" shell am start -W -n "$(application_id)/.MainActivity" >/dev/null
+    info "Launching $(debug_app_id)"
+    "$ADB" shell am start -W -n "$(debug_app_id)/io.alvaroedo.skypost.MainActivity" >/dev/null
     logcat
 }
 
 check() {
     setup
-    gradle testDebugUnitTest lintDebug
+    gradle testDebugUnitTest lintDebug lintVitalRelease
 }
 
 print_env() {
     setup >&2
-    printf 'export JAVA_HOME=%q ANDROID_HOME=%q GRADLE_USER_HOME=%q\n' "$JAVA_HOME" "$ANDROID_HOME" "$GRADLE_USER_HOME"
-    printf 'export PATH=%q:"$PATH"\n' "$JDK_DIR/bin:$SDK_DIR/platform-tools"
+    printf 'export JAVA_HOME=%q ANDROID_HOME=%q GRADLE_USER_HOME=%q ANDROID_USER_HOME=%q\n' \
+        "$JAVA_HOME" "$ANDROID_HOME" "$GRADLE_USER_HOME" "$ANDROID_USER_HOME"
+    printf 'export PATH=%q:"$PATH"\n' "$JDK_DIR/bin:$SDK_DIR/platform-tools:$SDK_DIR/cmdline-tools/latest/bin"
     printf 'unset ANDROID_SDK_ROOT\n'
 }
 

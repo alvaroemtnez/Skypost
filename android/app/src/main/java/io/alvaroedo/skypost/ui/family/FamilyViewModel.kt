@@ -12,6 +12,7 @@ import io.alvaroedo.skypost.radio.RadioLink
 import io.alvaroedo.skypost.radio.RadioState
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 
 data class FamilyUiState(
@@ -20,6 +21,8 @@ data class FamilyUiState(
     val timeFix: Boolean = false,
     val outgoing: List<OutgoingItem> = emptyList(),
     val inbox: List<IncomingItem> = emptyList(),
+    /** Set from the advanced screen. Off = signed plaintext (legal default). */
+    val emergencyEncryption: Boolean = false,
 )
 
 /**
@@ -32,10 +35,9 @@ class FamilyViewModel(
 ) : ViewModel() {
 
     private val _ui = MutableStateFlow(FamilyUiState(radio = radio.state.value))
-    val ui: StateFlow<FamilyUiState> = _ui
+    val ui: StateFlow<FamilyUiState> = _ui.asStateFlow()
 
-    /** Set from the advanced screen. Off = signed plaintext (legal default). */
-    var emergencyEncryption: Boolean = false
+    fun setEmergencyEncryption(on: Boolean) = _ui.update { it.copy(emergencyEncryption = on) }
 
     // TODO(phase 2): attach the GNSS position when there is a recent fix.
     fun sendOk() = enqueue("Estoy bien", OutMessage.StatusOk(lat = null, lon = null))
@@ -48,7 +50,7 @@ class FamilyViewModel(
     }
 
     private fun enqueue(label: String, msg: OutMessage) {
-        val frame = core.encode(msg, encrypted = emergencyEncryption)
+        val frame = core.encode(msg, encrypted = _ui.value.emergencyEncryption)
         val item = OutgoingItem(id = frame.counter.toLong(), label = label, state = DeliveryState.QUEUED)
         _ui.update { it.copy(outgoing = listOf(item) + it.outgoing) }
         // TODO(phase 2): hand frame.wire to the radio service; update the item

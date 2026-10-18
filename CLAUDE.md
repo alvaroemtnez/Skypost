@@ -61,6 +61,4 @@ android/build.sh test      # Android unit tests + lint (help: android/build.sh h
 - JS8 frame payload is 9 bytes (72 bits) and JS8 frame-type bits can mark
   first/last segments (`JS8_FRAME_PAYLOAD_BYTES`).
 - JS8Call 3.x API shape used by `prototype/skypost_p0/js8api.py`.
-- Android library/plugin versions in `android/gradle/libs.versions.toml` build,
-  but are late-2024 releases; bump before relying on newer APIs.
 - The band schedule in `keryx::bandplan` is a guess until Phase 0 data.

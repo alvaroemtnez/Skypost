@@ -35,7 +35,8 @@ To do:
 ## Phase 2 — Android app
 
 - [x] First build; script-based toolchain (`android/build.sh`, [0012](decisions/0012-android-script-build.md))
-- [ ] Bump `libs.versions.toml` (AGP 9, Compose BOM, AndroidX) and SDK 36
+- [x] Bump to current stable (AGP 9.4, Kotlin 2.4, Gradle 9.8, SDK 37); R8, Navigation 3, splash, icon, theme, backup rules
+- [ ] Material 3 Expressive once material3 1.5 is stable
 - [ ] Try the debug APK on a phone
 - [ ] `keryx-ffi` crate (UniFFI) + cargo-ndk build into `jniLibs`
 - [ ] Radio foreground service: USB permission, CAT (usb-serial-for-android), USB audio routing

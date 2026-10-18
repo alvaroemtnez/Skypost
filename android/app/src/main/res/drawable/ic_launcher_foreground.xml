@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Adaptive icon foreground and themed (monochrome) icon. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Antenna mast radiating up and out: the NVIS skywave. Keep inside the 66dp safe zone. -->
+    <path
+        android:fillColor="@android:color/white"
+        android:pathData="M54,46m-5,0a5,5 0,1 1,10 0a5,5 0,1 1,-10 0M51.5,52h5v26h-5zM44,78h20v4h-20z" />
+    <path
+        android:strokeColor="@android:color/white"
+        android:strokeWidth="5"
+        android:strokeLineCap="round"
+        android:pathData="M62.49,37.51A12,12 0,0 1,62.49 54.49M45.51,37.51A12,12 0,0 0,45.51 54.49M68.85,31.15A21,21 0,0 1,68.85 60.85M39.15,31.15A21,21 0,0 0,39.15 60.85" />
+</vector>

@@ -21,4 +21,15 @@
     <string name="state_read">Leído</string>
     <string name="state_failed">No entregado, reintentando</string>
     <string name="inbox_empty">Sin mensajes</string>
+    <string name="close">Cerrar</string>
+    <string name="back">Volver</string>
+    <string name="advanced_title">Avanzado</string>
+    <string name="advanced_encryption">Modo emergencia: cifrado</string>
+    <string name="advanced_encryption_body">Solo en una emergencia real o con carga ficticia. Por defecto: texto firmado.</string>
+    <string name="advanced_provision">Provisionar con QR</string>
+    <string name="advanced_radio">Radio</string>
+    <string name="advanced_radio_body">QDX / G90 · pendiente (fase 2)</string>
+    <string name="advanced_band">Banda y velocidad</string>
+    <string name="advanced_band_body">Automático</string>
+    <string name="pending_phase2">Pendiente (fase 2)</string>
 </resources>

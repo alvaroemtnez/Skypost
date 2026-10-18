@@ -1,5 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!-- Window theme only; all UI is Compose Material 3 (see ui/theme/Theme.kt). -->
-    <style name="Theme.Skypost" parent="android:Theme.Material.Light.NoActionBar" />
+    <style name="Theme.Skypost" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/splash_background</item>
+    </style>
+
+    <!-- Launch theme: the same splash on Android 8-11 as on 12+ (core-splashscreen). -->
+    <style name="Theme.Skypost.Starting" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/splash_background</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_splash</item>
+        <item name="postSplashScreenTheme">@style/Theme.Skypost</item>
+    </style>
 </resources>
