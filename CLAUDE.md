@@ -34,8 +34,10 @@ android/build.sh test      # Android unit tests + lint (help: android/build.sh h
 
 ## Rules
 
-- **Never commit or push.** Leave changes in the working tree; the owner
-  reviews and commits everything by hand.
+- **Commit freely, never push.** Commit on your own judgement in small,
+  coherent commits with clear messages (work on `main` unless a branch is
+  useful). The owner reviews the history and does all pushing. Never
+  `git push`, force-push, or rewrite already-pushed history.
 - **One protocol implementation.** All protocol logic lives in `keryx`.
   Kotlin and Python call it (UniFFI / the `keryx` CLI); never re-implement
   codec, crypto, ARQ or lane choice elsewhere.
