@@ -1,4 +1,4 @@
-# ARQ and lanes — protocol v0
+# ARQ and lanes — protocol v1
 
 Implemented in `core/crates/keryx/src/lane.rs` and `arq.rs`; base-side
 flow in `core/crates/pharos/src/station.rs`.
@@ -24,7 +24,15 @@ No report yet → `policy.initial` (Js8Normal). Nothing qualifies → Js8Slow.
 Default margin: 6 dB (to tune from Phase 0 logs).
 
 The reported SNR is what the **other end** measured, carried in its ACK. No
-separate negotiation: the base decodes all lanes in parallel.
+separate negotiation: the base decodes all lanes in parallel. Reports older
+than 30 minutes are ignored (HF changes).
+
+Fixed lanes:
+
+- `Discover`, `Announce`, pings (compact `Poll`) and their ACKs: Js8Slow.
+  They are short and must get through when nothing else does.
+- An ACK goes out on the lane of the frame it acknowledges (the sender is
+  listening there).
 
 ## Stop-and-wait sender
 
@@ -36,13 +44,21 @@ separate negotiation: the base decodes all lanes in parallel.
 - On an authenticated ACK whose counter low byte matches: `Delivered`;
   remember the reported SNR for the next lane choice.
 
-## Receiver (base)
+## Receiver
 
 - Every authentic message → ACK with measured SNR and clock offset.
 - Duplicate of a delivered frame → re-ACK, no second delivery.
-- `Poll` → ACK, then send the first queued message for that member; each ACK
-  of a queued message releases the next.
-- Replies mirror the member's last mode (encrypted iff it last sent encrypted).
+- Pharos: `Poll` → ACK with `more` set if messages are queued, then send them
+  one at a time while the client listens (see [pharos.md](pharos.md)).
+- Replies mirror the peer's last mode (encrypted iff it last sent encrypted).
+
+## Groups
+
+Every member that verifies a group message ACKs it, after a random delay of
+0–2 frame slots and at a random audio offset (JS8 decodes several signals in
+the passband). The sender shows how many members acknowledged (✓ 2/3) and
+does not retry once at least one ACK arrived. Groups are meant for a handful
+of people; larger groups should not expect every ACK.
 
 ## Clock offset
 
@@ -52,7 +68,6 @@ phone's UTC comes from GNSS (or the QMX+'s GPS).
 
 ## Open items
 
-- Listen windows: when the field station listens (battery) and polls.
 - Mercury integration: hand a whole message to Mercury's ARQ over its TCP
   interface instead of running ours.
 - Soft combining of repeated JS8 frames.

@@ -23,8 +23,11 @@ the MeshCore LoRa community network (deep valleys, remote areas).
 
 | | Scenario | Who |
 |---|---|---|
-| A | Point to point between two field kits, fully off-grid. Short keyboard messages. | Licensed operator(s) |
-| B | Field kit ↔ 24/7 base station that bridges to Signal, WhatsApp and the MeshCore network. | Normal use: licensed operator. Emergency: anyone. |
+| A | Direct and group chats between field kits, fully off-grid. Short keyboard messages. | Licensed operator(s) |
+| B | Field kit ↔ a 24/7 base station (Pharos) that bridges to Signal, WhatsApp and the MeshCore network. People there write to the Pharos and address a field user by alias. | Normal use: licensed operator. Emergency: anyone. |
+
+Every station (phone or Pharos) has its own cryptographic identity, shared
+by QR code, with a friendly alias and, for licensed operators, a callsign.
 
 ## 2. Decisions at a glance
 
@@ -36,11 +39,14 @@ the MeshCore LoRa community network (deep valleys, remote areas).
 | Robust PHY | JS8 waveform carrying our own binary frames | [0004](decisions/0004-js8-waveform-binary-frames.md) |
 | Fast PHY | Mercury (codec2 OFDM), later, G90-class radios only | [0005](decisions/0005-mercury-fast-lane.md) |
 | Reticulum | Not used for the core | [0006](decisions/0006-no-reticulum-core.md) |
-| Crypto | Pre-shared group key, per-sender hash ratchets, ChaCha20 + HMAC-SHA256 | [0007](decisions/0007-crypto.md) |
+| Crypto | ChaCha20 + truncated HMAC-SHA256 (v0 group-key provisioning superseded) | [0007](decisions/0007-crypto.md) |
+| Identities | X25519 identity per station, pairwise and group keys, 8-byte tags, no signatures on air (protocol v1) | [0015](decisions/0015-identities.md) |
 | On-air default | Signed plaintext; encryption only in emergencies or into a dummy load | [0008](decisions/0008-signed-plaintext-default.md) |
 | Lane choice | Base decodes every lane; sender picks from the SNR in ACKs | [0009](decisions/0009-no-lane-negotiation.md) |
 | Python | Phase 0 prototype only, protocol via the Rust CLI (one exception: the MeshCore sidecar) | [0010](decisions/0010-python-phase0-only.md) |
 | Bridges | Signal (signal-cli), WhatsApp (wacli), MeshCore (meshcore_py) as sidecars; no Matrix, no ntfy | [0014](decisions/0014-bridges-sidecars.md) |
+| Pharos | Trusted Pharos list, discovery, registration, handles for bridged chats, alias-routing bot | [0016](decisions/0016-pharos-registration-and-bridging.md) |
+| App | One Material 3 chat client (chat list, bubbles, new-chat picker, Pharos screen) | [0017](decisions/0017-chat-app-ui.md) |
 
 ## 3. Propagation
 
@@ -131,12 +137,15 @@ Mercury lane later; it is not the core.
 - **No lane negotiation.** The base decodes every lane on every band at once
   (wideband SDR). Each ACK carries "heard you at X dB, clock offset Y". The
   sender picks its next lane from that report ([spec/arq-and-lanes.md](spec/arq-and-lanes.md)).
-- **Store and forward.** Family replies wait at the base until the field
-  station sends a `Poll` during a listen window.
-- **Mirrored mode.** The base replies encrypted to a member iff that member's
-  last message was encrypted, so emergency mode on the field side switches
-  the base too.
-- **A priori decoding (later).** The base knows which sender ids and slots to
+- **Store and forward.** Messages for a field user go out while it listens
+  (each ping says for how long); otherwise they wait at Pharos until it hears
+  the user again ([spec/pharos.md](spec/pharos.md)).
+- **Mirrored mode.** Pharos replies encrypted to a user iff that user's last
+  message was encrypted, so emergency mode on the field side switches Pharos
+  too.
+- **Bridge bot.** Signal/WhatsApp/MeshCore contacts write to the Pharos
+  account and pick the field user by `@alias`; the bot asks when unclear.
+- **A priori decoding (later).** The base knows which short ids and slots to
   expect; FT8-style AP decoding can recover a couple of dB.
 
 ## 6. Protocol summary
@@ -144,27 +153,32 @@ Mercury lane later; it is not the core.
 Full specs: [frame-format](spec/frame-format.md), [crypto](spec/crypto.md),
 [text codec](spec/text-codec.md), [ARQ and lanes](spec/arq-and-lanes.md).
 
-Measured with the v0 code (8-byte tag, 9-byte JS8 frames):
+Full specs also cover [identities and URIs](spec/identity.md) and
+[Pharos](spec/pharos.md). Measured with the v1 code (8-byte tag, 9-byte JS8
+frames):
 
 | Message | Wire bytes | JS8 frames | Normal | Turbo |
 |---|---|---|---|---|
-| ACK | 9 | 1 | 15 s | 6 s |
+| ACK, ping | 9 | 1 | 15 s | 6 s |
 | Stock phrase ("Estoy bien") | 13 | 2 | 30 s | 12 s |
 | Estoy bien + position | 18 | 2 | 30 s | 12 s |
 | 60-character Spanish text | 49 | 6 | 90 s | 36 s |
 
-Add one ACK slot per exchange. With a 16-byte tag, add 8 bytes (usually one
-more frame).
+Add one ACK slot per exchange. Discovery, registration and bridge set-up
+costs: [frame-format.md](spec/frame-format.md#airtime-8-byte-tag-9-byte-frames).
 
 ## 7. Security and regulation (summary)
 
-- One pre-shared 256-bit group key per family, handed over by QR in person.
-  Each member derives every sender's chain and then discards the group key, so
-  a stolen phone cannot read traffic from before the theft.
-- Per-message keys from per-sender hash ratchets; ChaCha20 encryption;
-  HMAC-SHA256 tag truncated to 8 bytes (16 optional; pending decision).
-- Two modes, one wire format: **signed plaintext** (default, legal on air) and
-  **encrypted** (emergencies; dummy load for tests).
+- Each station has an X25519 identity, exchanged by QR in person. Two
+  stations derive a pairwise key; groups share a random group key by QR.
+- Stateless per-message keys (link, sender, counter); ChaCha20 encryption;
+  HMAC-SHA256 tag truncated to 8 bytes. No signatures on air: 64 bytes would
+  double a typical message.
+- Two modes, one wire format: **signed plaintext** (default, legal on air,
+  shield icon) and **encrypted** (emergencies; dummy load for tests; padlock).
+  Both authenticate the sender (in groups: a member of the group).
+- No forward secrecy since v1: a stolen identity key reads recorded encrypted
+  traffic. Rotate identities after a loss.
 - Spain: Orden IET/1311/2013 Art. 30.2 forbids coding to hide meaning; 30.3
   limits third-party traffic to emergencies; Art. 29 requires the callsign at
   start, end and every 10 minutes. A 24/7 auto-replying base is an unattended
@@ -182,16 +196,26 @@ offset in ACKs.
 
 ## 9. App UX
 
-One app, two profiles.
+One Material 3 chat app ([0017](decisions/0017-chat-app-ui.md)).
 
-- **Setup:** a QR code generated by the admin sets keys, member id, contacts,
-  tag length and the band schedule.
-- **Family mode:** four big buttons — *Estoy bien* (sends position),
-  *Necesito ayuda* (confirm step), *Mensaje*, *Recibidos*. Delivery ticks:
-  sent → heard by base → delivered → read. Bands and lanes are automatic.
+- **First run:** create an identity (alias, optional callsign) or restore an
+  encrypted backup.
+- **Chat list:** direct, group, Signal, WhatsApp and MeshCore chats mixed,
+  with filter chips. Top bar: SOS on the left (confirm step), "Pharos heard"
+  indicator and new chat on the right, overflow for my QR and settings.
+- **Chat:** bubbles; received messages show a shield (signed) or padlock
+  (encrypted); sent ones show a clock, then a tick when the contact or Pharos
+  ACKed. Composer with quick messages (stock phrases, *Estoy bien* + position)
+  and an airtime estimate. Per-chat emergency encryption with confirmation.
+- **New chat:** direct (contact, scan or paste), group (create, scan or
+  paste), Signal/WhatsApp (phone contact picker or typed number), MeshCore
+  (scan or paste its QR). Bridged chats need a trusted Pharos.
+- **Pharos screen** (from the indicator): trusted Pharos list, discovery,
+  verification, registration state, ping.
+- **Settings:** profile, my QR, radio, ping interval, backup and restore.
+- **SOS:** signed plaintext, so any listener can read and relay it; goes to
+  the active Pharos (which alerts the user's SOS contacts) and to every group.
 - **Pre-flight check:** battery voltage, SWR if the radio reports it, GPS time.
-- **Advanced mode** behind a PIN: emergency-encryption toggle, overrides,
-  provisioning, log export.
 
 ## 10. Languages and repo layout
 
@@ -244,12 +268,14 @@ docs/           this file, specs, decisions, research notes, roadmap
 
 ## 12. Open questions
 
-- [ ] Tag length: 8 bytes (default) or 16? (`TAG_LENS`, provisioning code `t8`/`t16`).
+- [x] Tag length: 8 bytes ([0015](decisions/0015-identities.md)).
 - [ ] JS8 frame payload size: 72 bits? Confirm in the engine.
 - [ ] Segment marking: use JS8's frame-type bits for first/last (assumed), or spend a byte?
 - [ ] Dial frequencies inside IARU R1 segments, away from JS8Call calling frequencies.
 - [ ] Is compressed signed plaintext "coded to hide meaning"? See regulatory notes.
-- [ ] SOS in clear (any listener can relay) or follow the current mode?
+- [x] SOS in clear (signed plaintext), so any listener can relay it.
+- [ ] Forward secrecy for encrypted mode: on-air ephemeral rekey (32 B each way)?
+- [ ] Is relaying bridged chats third-party traffic beyond Art. 30.3? Ask URE.
 - [x] Which bridges to run: signal-cli, wacli, meshcore_py sidecars ([0014](decisions/0014-bridges-sidecars.md)).
 - [ ] Does `wacli --events` carry incoming message content? Else a Go sidecar on `whatsmeow`.
 - [ ] Base station licensing route (association / radio club).

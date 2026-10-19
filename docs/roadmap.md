@@ -21,6 +21,19 @@ To do:
 - [ ] Collect logs per band and hour; summarise them in `docs/propagation-log.md`
 - [ ] Ask URE the open regulatory points
 
+## Protocol v1 — identities, Pharos, bridged chats
+
+Design: decisions [0015](decisions/0015-identities.md), [0016](decisions/0016-pharos-registration-and-bridging.md),
+[0017](decisions/0017-chat-app-ui.md); specs `crypto.md`, `identity.md`, `frame-format.md`, `pharos.md`.
+
+- [x] Design and specs
+- [ ] `keryx`: identities, keyring (pair and group links, replay windows), v1 header, new types, compact Poll and ACK, `skypost:` URIs, backups; v1 golden vectors
+- [ ] `keryx` CLI and Phase 0 prototype on identities
+- [ ] `pharos`: registry (allow list, aliases, approval), store and forward with listen windows, handles
+- [ ] `pharos`: bridge bot router (alias prompts, `@alias`, sticky target, limits)
+- [ ] Android: chat UI on fakes (onboarding, chat list, chat, new chat, Pharos, settings, my QR, `skypost:` deep links)
+- [ ] Optional ephemeral rekey for forward secrecy in encrypted mode
+
 ## Phase 1 — real PHY and base daemon
 
 - [ ] Confirm JS8 frame payload size and frame-type bits in the JS8Call-improved engine; freeze `JS8_FRAME_PAYLOAD_BYTES`
@@ -33,7 +46,7 @@ To do:
 - [ ] MeshCore bridge: `sidecars/meshcore/` on `meshcore_py`, JSON lines over stdio
 - [ ] systemd units for pharos and the sidecars; update routine for signal-cli
 - [ ] Channel-simulator tests (codec2 `ch`, Watterson fading) in CI
-- [ ] Decide tag length (8 vs 16)
+- [x] Decide tag length (8 vs 16): 8, decision 0015
 - [ ] Text codec v1: word dictionary, weights trained on Phase 0 messages
 - [ ] Band plan from measured data
 

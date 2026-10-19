@@ -1,6 +1,6 @@
 # 0007. Pre-shared group key, per-sender hash ratchets, ChaCha20 + HMAC-SHA256
 
-Status: accepted (2026-10-18)
+Status: superseded by [0015](0015-identities.md) (2026-10-19)
 
 ## Context
 
