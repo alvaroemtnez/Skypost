@@ -99,6 +99,7 @@
     <string name="quick_position">Enviar la meua posició</string>
     <string name="quick_phrases">Frases (ocupen menys temps en l\'aire, traduïdes automàticament)</string>
     <string name="my_position">La meua posició</string>
+    <string name="position">Posició</string>
     <string name="locating">S\'està obtenint la teua posició…</string>
     <string name="sent_without_position">Enviat sense posició: no hi ha senyal GPS</string>
     <string name="no_position">Sense senyal GPS; no s\'ha enviat la posició. Prova a cel obert.</string>

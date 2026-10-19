@@ -7,7 +7,12 @@ import io.alvaroedo.skypost.ui.components.openPosition
 import io.alvaroedo.skypost.model.GeoFix
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.material3.AssistChip
+import androidx.compose.material3.AssistChipDefaults
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
+import io.alvaroedo.skypost.ui.theme.extraColors
 import io.alvaroedo.skypost.ui.components.shownText
 import androidx.compose.ui.res.stringArrayResource
 import androidx.compose.ui.graphics.SolidColor
@@ -313,7 +318,7 @@ private fun Banner(icon: Int, text: String) {
 private fun Bubble(m: ChatMessage, showSender: Boolean) {
     val colors = MaterialTheme.colorScheme
     val (bg, fg) = when {
-        m.sos -> colors.errorContainer to colors.onErrorContainer
+        m.sos -> MaterialTheme.extraColors.emergency to MaterialTheme.extraColors.onEmergency
         m.outgoing -> colors.primaryContainer to colors.onPrimaryContainer
         else -> colors.surfaceContainerHigh to colors.onSurface
     }
@@ -333,11 +338,16 @@ private fun Bubble(m: ChatMessage, showSender: Boolean) {
                 }
                 val text = when {
                     m.sos -> stringResource(R.string.sos)
-                    m.position != null && m.phrase == null -> stringResource(R.string.my_position)
+                    m.position != null && m.phrase == null ->
+                        stringResource(if (m.outgoing) R.string.my_position else R.string.position)
                     else -> shownText(m)
                 }
                 Text(text, style = MaterialTheme.typography.bodyLarge)
-                m.position?.let { fix -> PositionChip(fix) }
+                m.position?.let { fix ->
+                    // SOS: a lighter shade of its fixed red; otherwise the bubble's theme text colour.
+                    val outline = if (m.sos) lerp(bg, fg, 0.5f) else fg.copy(alpha = 0.5f)
+                    PositionChip(fix, fg, outline)
+                }
                 Row(
                     Modifier.align(Alignment.End).padding(top = 2.dp),
                     verticalAlignment = Alignment.CenterVertically,
@@ -488,13 +498,15 @@ private fun QuickMessages(phrases: List<String>, onStatusOk: () -> Unit, onPosit
 
 /** "📍 42.63110, 0.65880 · ±8 m": opens the position in the phone's maps app. */
 @Composable
-private fun PositionChip(fix: GeoFix) {
+private fun PositionChip(fix: GeoFix, content: Color, outline: Color) {
     val context = LocalContext.current
     val acc = fix.accuracyM?.let { " · ±%.0f m".format(Locale.ROOT, it) }.orEmpty()
     AssistChip(
         onClick = { openPosition(context, fix) },
         label = { Text("%.5f, %.5f".format(Locale.ROOT, fix.lat, fix.lon) + acc) },
         leadingIcon = { Icon(painterResource(R.drawable.ic_my_location), null, Modifier.size(16.dp)) },
+        border = BorderStroke(1.dp, outline),
+        colors = AssistChipDefaults.assistChipColors(labelColor = content, leadingIconContentColor = content),
         modifier = Modifier.padding(top = 4.dp),
     )
 }

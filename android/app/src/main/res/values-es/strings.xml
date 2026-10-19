@@ -99,6 +99,7 @@
     <string name="quick_position">Enviar mi posición</string>
     <string name="quick_phrases">Frases (ocupan menos tiempo en el aire, traducidas automáticamente)</string>
     <string name="my_position">Mi posición</string>
+    <string name="position">Posición</string>
     <string name="locating">Obteniendo tu posición…</string>
     <string name="sent_without_position">Enviado sin posición: no hay señal GPS</string>
     <string name="no_position">Sin señal GPS; no se ha enviado la posición. Prueba a cielo abierto.</string>

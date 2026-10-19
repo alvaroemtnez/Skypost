@@ -24,7 +24,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -52,6 +52,7 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -172,12 +173,13 @@ fun ChatListScreen(
         },
         floatingActionButton = {
             if (!archived) {
-                ExtendedFloatingActionButton(
+                FloatingActionButton(
                     onClick = { confirmSos = true },
                     containerColor = MaterialTheme.extraColors.emergency,
                     contentColor = MaterialTheme.extraColors.onEmergency,
+                    modifier = Modifier.size(72.dp),
                 ) {
-                    Text(stringResource(R.string.sos), style = MaterialTheme.typography.titleLarge)
+                    Icon(painterResource(R.drawable.ic_sos), stringResource(R.string.sos), Modifier.size(52.dp))
                 }
             }
         },
@@ -372,11 +374,18 @@ private fun ChatRow(
                             last != null -> {
                                 if (last.outgoing) DeliveryIcon(last.delivery) else AuthIcon(last.auth)
                                 Box(Modifier.width(4.dp))
-                                val text = shownText(last)
+                                // A bare position has no text: name it, in italics (like SOS shows "SOS").
+                                val bare = last.position != null && last.phrase == null && !last.sos
+                                val text = when {
+                                    !bare -> shownText(last)
+                                    last.outgoing -> stringResource(R.string.my_position)
+                                    else -> stringResource(R.string.position)
+                                }
                                 Text(
                                     if (last.sender != null) "${last.sender}: $text" else text,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis,
+                                    fontStyle = if (bare) FontStyle.Italic else null,
                                 )
                             }
                             else -> Text(stringResource(R.string.chat_empty_preview), maxLines = 1)

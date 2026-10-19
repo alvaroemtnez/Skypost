@@ -115,6 +115,7 @@ S = {
 "quick_position": ("Send my position","Enviar mi posición","Enviar la meua posició"),
 "quick_phrases": ("Stock phrases (shortest on air, translated automatically)","Frases (ocupan menos tiempo en el aire, traducidas automáticamente)","Frases (ocupen menys temps en l'aire, traduïdes automàticament)"),
 "my_position": ("My position","Mi posición","La meua posició"),
+"position": ("Position","Posición","Posició"),
 "locating": ("Getting your position…","Obteniendo tu posición…","S'està obtenint la teua posició…"),
 "sent_without_position": ("Sent without position: no GPS fix","Enviado sin posición: no hay señal GPS","Enviat sense posició: no hi ha senyal GPS"),
 "no_position": ("No GPS fix; position not sent. Try in the open.","Sin señal GPS; no se ha enviado la posición. Prueba a cielo abierto.","Sense senyal GPS; no s'ha enviat la posició. Prova a cel obert."),

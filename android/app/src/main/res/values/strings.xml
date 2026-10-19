@@ -100,6 +100,7 @@
     <string name="quick_position">Send my position</string>
     <string name="quick_phrases">Stock phrases (shortest on air, translated automatically)</string>
     <string name="my_position">My position</string>
+    <string name="position">Position</string>
     <string name="locating">Getting your position…</string>
     <string name="sent_without_position">Sent without position: no GPS fix</string>
     <string name="no_position">No GPS fix; position not sent. Try in the open.</string>
