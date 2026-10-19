@@ -1,7 +1,7 @@
 # Pharos — discovery, registration, store and forward, bridge bot
 
 Implemented in `core/crates/pharos` (`station.rs` on air, `registry.rs`
-clients, `router.rs` bridge bot). Decisions: [0014](../decisions/0014-bridges-sidecars.md),
+clients, `router.rs` bridge bot, `admin.rs` commands). Decisions: [0014](../decisions/0014-bridges-sidecars.md),
 [0016](../decisions/0016-pharos-registration-and-bridging.md). Frames:
 [frame-format.md](frame-format.md).
 
@@ -31,20 +31,56 @@ after the first contact, so impersonation is limited to the first discovery.
 3. The app lists answers with name, callsign, SNR, and whether it is already
    trusted (matched by public key).
 
+### Access
+
+Decision [0019](../decisions/0019-pharos-access.md). `[access] mode`:
+
+| Mode | Who registers | `Announce` flag |
+|---|---|---|
+| `open` | anyone | — |
+| `code` | whoever proves the access code | `CODE_REQUIRED` |
+| `closed` (default) | the allow list; others wait for an admin | `CLOSED` |
+
+`discoverable = false` makes the Pharos ignore `Discover`; clients then need
+its QR.
+
+The access code never goes on air. `Register` carries
+`proof = HMAC-SHA256(K, "keryx-v1/access" ‖ client key ‖ Pharos key)[0..8]`
+with `K = Argon2id(code, salt = SHA-256("keryx-v1/access-salt" ‖ Pharos
+key)[0..16])` (19 MiB, 2 passes), or 8 zero bytes without a code. A recorded
+proof lets an attacker guess the code offline: use four or more random words.
+
 ### Registration
 
-1. Client: `Register` (its public key and alias), tagged with the pair key.
-2. Pharos ACKs it, then decides:
-   - public key on the allow list (`pharos client add <skypost:id URI>`):
-     registered;
-   - `registration = "approve"`: sends the operator an approval request on the
-     admin bridge ("¿Aceptar a Mamá (4F2A 9C11 …)? Responde: aceptar mama");
-   - otherwise refused.
-3. Result as a `Notice` (1 registered, 2 pending, 3 refused, 4 alias taken),
-   sent at once if the client is listening, else queued.
+1. Client: `Register` (its public key, the proof, its alias), tagged with the
+   pair key.
+2. Pharos ACKs it, then decides: allow list → registered; otherwise by mode
+   (open → registered; code → registered if the proof verifies; closed →
+   pending, and every admin gets "¿Aceptar a @mama (4F2A 9C11 …)?").
+3. Result as a `Notice` (1 registered, 2 pending, 3 refused, 4 alias taken,
+   5 access code needed), sent at once if the client is listening, else
+   queued. After 4 or 5 the client may register again.
 
 Clients added at home on both sides (QR both ways) are registered without
-sending `Register`.
+sending `Register`. Blocked clients get nothing, not even ACKs.
+
+### Admin commands
+
+From admin bridge accounts (`[bot] admins`) or admin field users over the
+radio (`[[clients]] admin = true`, plain text to the Pharos):
+
+| Command | Effect |
+|---|---|
+| `ayuda` | list the commands |
+| `estado` | registered, pending, listening, queued, authorised contacts |
+| `clientes` | each field user, status and when it was last heard |
+| `aceptar @alias` / `rechazar @alias` | decide a pending registration |
+| `bloquear @alias\|número` / `desbloquear …` | ignore a field user or a bridged contact |
+| `permitir número` | authorise a bridged contact |
+
+A number is a phone with country code (on the admin's own network unless
+`signal`/`whatsapp` comes first), a Signal username or a MeshCore key. Admins
+on the radio always name the network. Anything else: SSH and the config.
 
 ### Ping and the "Pharos heard" indicator
 
@@ -95,13 +131,20 @@ any contact; the bot routes by alias. All bot texts are Spanish.
 
 ### Who can write
 
-- One-to-one chats only. Signal/WhatsApp group messages are ignored (and the
-  Pharos leaves the group where the network allows it).
-- `inbound = "contacts"` (default): a bridged contact may reach a field user
-  if it is on that user's list in the Pharos config, or if the field user
-  wrote to it first. `inbound = "anyone"` drops the check.
-- An unknown alias and a forbidden one get the same answer, so the bot does
-  not reveal who is registered.
+- One-to-one chats only, on every network: group and channel messages are
+  ignored (and the Pharos leaves groups where the network allows it).
+- Authorised contacts may write: listed in the config (`[[clients]]
+  contacts`), written to first by a field user, allowed by an admin, or
+  admitted with the access code. Blocked contacts are ignored silently.
+- `inbound = "code"` (default): an unauthorised contact is asked for the
+  access code; its first message is held meanwhile. The right code
+  authorises the account for good and the bot asks to delete the message with
+  the code (bots cannot delete other people's messages). Five wrong codes in
+  an hour: no answers for an hour.
+- `inbound = "contacts"`: no code; one "only authorised contacts" note per
+  hour. `inbound = "anyone"`: no check.
+- An unknown alias gets "No puedo hacer llegar mensajes a @x", whether or not
+  it exists.
 
 ### Choosing the field user
 
@@ -129,32 +172,36 @@ note.
 - Messages from the field: `alias: text` (SOS: `🆘 SOS de alias` + map link;
   positions as map links).
 - Feedback on its own messages, without spending airtime: a 📡 reaction when
-  queued, ✅ when the field user's station ACKed it (networks with reactions;
-  otherwise silence). One text note per hour at most if the user is not
-  listening: "@alias no está a la escucha; se entregará cuando conecte."
-- Limits: text only ("Solo puedo enviar texto."), 200 characters at most
-  (≈ 4 minutes of airtime at Normal), 10 queued messages per contact.
+  queued, ✅ when the field user's station ACKed it, ❌ plus a note quoting
+  the message when it will not arrive (72 h expiry, queue full). One text
+  note per hour at most if the user is not listening: "@alias no está a la
+  escucha; se entregará cuando conecte".
+- Limits: text only, 200 characters at most (≈ 4 minutes of airtime at
+  Normal), 10 queued messages per contact. Every refusal says "no se ha
+  enviado" and quotes the message where it helps, so it can be resent.
 
 ### MeshCore specifics
 
-- Direct messages to the companion node follow the rules above.
-- A channel bridged by a field user forwards only channel messages that
-  mention `@alias`, never the whole channel.
+- Direct messages to the companion node follow the rules above. Channels
+  are never bridged.
 
 ## 3. Configuration (sketch)
 
+See `core/crates/pharos/base.example.toml`:
+
 ```toml
-[registration]
-mode = "allowlist"            # or "approve" (operator approves on Signal)
-admin = { network = "signal", address = "+34600000000" }
+[access]
+mode = "code"                          # "open", "code" or "closed"
+code_file = "/etc/pharos/access-code"  # 0600
+discoverable = true
+
+[bot]
+inbound = "code"                       # "code", "contacts" or "anyone"
+admins = ["+34600000000"]
 
 [[clients]]
 key = "skypost:id/5P2V…Q4?n=Mam%C3%A1"
-contacts = ["+34611111111", "+34622222222"]  # may write first
+admin = true
+contacts = ["+34611111111"]            # authorised bridged contacts
 sos = ["+34611111111"]
-
-[bot]
-inbound = "contacts"          # or "anyone"
-target_timeout_min = 60
-max_chars = 200
 ```

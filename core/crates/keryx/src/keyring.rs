@@ -739,7 +739,12 @@ mod tests {
         );
         let mut c = station(4, "mama");
         c.add_peer(pharos.card().clone(), true).unwrap();
-        let body = [c.public().0.to_vec(), crate::textcodec::encode("mama")].concat();
+        let body = [
+            c.public().0.to_vec(),
+            vec![0; 8],
+            crate::textcodec::encode("mama"),
+        ]
+        .concat();
         let s = c
             .seal(
                 &LinkRef::Peer(pharos.public()),

@@ -39,7 +39,7 @@ The tag covers header + body as sent. Unauthenticated types have no tag.
 | 7 | Ack | compact | compact layout below |
 | 8 | Discover | none | empty; `dst` = 15, counter = random query id |
 | 9 | Announce | none | public key (32) ‖ flags (1) ‖ alias, then a space and the callsign if any (text codec); counter = the query id it answers |
-| 10 | Register | tag | public key (32) ‖ alias (text codec) |
+| 10 | Register | tag | public key (32) ‖ access proof (8, zeros if none) ‖ alias (text codec) |
 | 11 | GroupJoin | tag (group) | public key (32) ‖ alias (text codec) |
 | 12 | BridgeOpen | tag | handle (1) ‖ network (1) ‖ address ‖ [display name, text codec] |
 | 13 | Bridged | tag | handle (1) ‖ inner type (1) ‖ inner body (types 1–5) |
@@ -55,10 +55,11 @@ link.
 | Bit | Meaning |
 |---|---|
 | 0 | Sender is a Pharos |
-| 1 | Accepts registrations |
+| 1 | Access code required ([pharos.md](pharos.md#access)) |
 | 2 | Signal bridge |
 | 3 | WhatsApp bridge |
 | 4 | MeshCore bridge |
+| 5 | Closed: allow list and admin approval only |
 
 ### Bridge networks and addresses
 
@@ -68,7 +69,9 @@ link.
 | Signal, username | 2 | length (1) ‖ ASCII |
 | WhatsApp, phone | 3 | as Signal phone |
 | MeshCore contact | 4 | public key (32) |
-| MeshCore channel | 5 | channel secret (16) |
+| (reserved, was MeshCore channel) | 5 | never reuse |
+
+Groups and channels are never bridged.
 
 Handles are scoped to one (client, Pharos) pair: 0..=127 are chosen by the
 client, 128..=255 by the Pharos. Sending `BridgeOpen` for a handle in use
@@ -82,6 +85,7 @@ rebinds it.
 | 2 | Registration pending operator approval | no |
 | 3 | Registration refused | no |
 | 4 | Alias already taken on this Pharos | no |
+| 5 | Access code needed (proof missing or wrong) | no |
 | 16 | Unknown handle: send `BridgeOpen` again | yes |
 | 17 | Recipient not reachable on that network | yes |
 | 18 | Sending failed, will not retry | yes |
@@ -141,7 +145,7 @@ Duplicates of a delivered frame are re-ACKed.
 | Bridged stock phrase | 15 | 2 | 30 s | 60 s |
 | 60-character text | 49 | 6 | 90 s | 180 s |
 | Announce ("casa EA5YYY") | ~46 | 6 | 90 s | 180 s |
-| Register (alias "Mamá") | ~48 | 6 | 90 s | 180 s |
+| Register (alias "ana") | 54 | 6 | 90 s | 180 s |
 | BridgeOpen, Spanish mobile | 20 | 3 | 45 s | 90 s |
 
 ## Phase 0 on-air form

@@ -10,6 +10,7 @@
 // lands (phase 1). Tests exercise them already.
 #![allow(dead_code)]
 
+mod admin;
 mod config;
 mod outbox;
 mod registry;
@@ -18,12 +19,15 @@ mod station;
 
 use anyhow::{Context, Result, bail};
 use clap::{Parser, Subcommand};
+use config::AccessMode;
 use config::{Config, RadioKind};
+use keryx::access::AccessKey;
 use keryx::uri::{SkypostUri, valid_alias, valid_callsign};
 use keryx::{Identity, Keyring, PeerKind};
-use station::{Effect, State, Station, StationCfg};
+use station::{Access, Effect, State, Station, StationCfg};
 use std::io::Write;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use tracing::{info, warn};
 
 #[derive(Parser)]
@@ -89,7 +93,12 @@ fn deliver(e: &Effect) {
         Effect::Sos { alias, message, .. } => {
             warn!(%alias, "SOS — alert every bridge: {}", message.render())
         }
-        Effect::Inbox { alias, message, .. } => info!(%alias, "{}", message.render()),
+        Effect::Inbox {
+            alias,
+            message,
+            admin,
+            ..
+        } => info!(%alias, admin, "{}", message.render()),
         Effect::ApprovalNeeded { alias, key } => {
             warn!(%alias, safety = %key.safety_number(), "registration needs approval");
         }
@@ -152,8 +161,23 @@ async fn run(path: &Path) -> Result<()> {
         std::fs::read_to_string(path).with_context(|| format!("reading {}", path.display()))?;
     let cfg: Config = toml::from_str(&raw)?;
     let state = load_state(&cfg.station.state_path)?;
+    let access = match cfg.access.mode {
+        AccessMode::Open => Access::Open,
+        AccessMode::Closed => Access::Closed,
+        AccessMode::Code => {
+            let path = cfg
+                .access
+                .code_file
+                .as_ref()
+                .context("[access] mode = \"code\" needs code_file")?;
+            let code = std::fs::read_to_string(path)
+                .with_context(|| format!("reading {}", path.display()))?;
+            Access::Code(Arc::new(AccessKey::derive(&code, &state.keyring.public())?))
+        }
+    };
     let scfg = StationCfg {
-        registration: cfg.registration.mode,
+        access,
+        discoverable: cfg.access.discoverable,
         lanes: keryx::lane::LanePolicy {
             ofdm_capable: cfg.radio.ofdm_capable,
             ..Default::default()
@@ -163,7 +187,7 @@ async fn run(path: &Path) -> Result<()> {
     let mut station = Station::new(state, scfg);
     for c in &cfg.clients {
         match SkypostUri::parse(&c.key)? {
-            SkypostUri::Id(card) => station.allow(card)?,
+            SkypostUri::Id(card) => station.allow(card, c.admin)?,
             SkypostUri::Group { .. } => bail!("[[clients]] key must be a skypost:id/ URI"),
         }
     }

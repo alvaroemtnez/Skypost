@@ -1,17 +1,24 @@
-# pharos configuration (base station, member id 0).
-# Copy to base.toml and edit. Run: pharos --config base.toml
+# pharos configuration. Copy to base.toml and edit.
+# Run: pharos run --config base.toml
 
 [station]
 callsign = "EA5XXX"                      # your callsign, sent in clear
 state_path = "/var/lib/pharos/base.json" # from: pharos init --alias casa ...
 
-[registration]
-mode = "allowlist"     # or "approve": others wait for the operator (docs/spec/pharos.md)
+[access]                 # who may use this Pharos (docs/spec/pharos.md, "Access")
+mode = "closed"          # "open", "code" (needs code_file) or "closed" (allow list + admin approval)
+# code_file = "/etc/pharos/access-code"   # 0600; four or more random words
+discoverable = true      # answer "Buscar Pharos cercanos"
 
-# Field users allowed to register. Their URI comes from the app's "Mi código QR".
+[bot]
+inbound = "code"         # bridged contacts: "code", "contacts" (authorised only) or "anyone"
+# admins = ["+34600000000"]               # may send admin commands ("ayuda")
+
+# Field users on the allow list. Their URI comes from the app's "Mi código QR".
 # [[clients]]
 # key = "skypost:id/5P2V...?n=mama"
-# contacts = ["+34611111111"]   # may write to this user first
+# admin = true                  # may send admin commands over the radio
+# contacts = ["+34611111111"]   # authorised bridged contacts
 # sos = ["+34611111111"]        # get this user's SOS
 
 [radio]
@@ -29,13 +36,10 @@ log = true
 # [bridges.signal]
 # account = "+34600000000"                 # the base's own Signal number
 # socket = "/run/signal-cli/socket"        # signal-cli daemon --socket
-# group_id = "BASE64GROUPID=="
 
 # [bridges.whatsapp]
 # bin = "wacli"
-# to = "Familia"                           # JID, phone number or chat name
 
 # [bridges.meshcore]
 # command = ["python3", "/opt/skypost/sidecars/meshcore/bridge.py"]
 # device = "/dev/ttyUSB0"                  # or "host:port" for a TCP companion
-# channel = "Familia"

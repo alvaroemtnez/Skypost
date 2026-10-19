@@ -6,6 +6,7 @@
 use anyhow::{Context, Result, bail};
 use clap::{Parser, Subcommand, ValueEnum};
 use data_encoding::{BASE32_NOPAD, HEXUPPER};
+use keryx::access::{AccessKey, NO_PROOF};
 use keryx::bandplan;
 use keryx::bridge::Address;
 use keryx::canned::PHRASES;
@@ -157,7 +158,11 @@ enum MsgArg {
         listen: u8,
     },
     /// Register this station with a Pharos.
-    Register,
+    Register {
+        /// The Pharos access code, if it has one.
+        #[arg(long)]
+        code: Option<String>,
+    },
     /// Introduce this station to a group (`--to group:<name>`).
     Join,
     /// Bind a handle to a bridged contact.
@@ -425,10 +430,21 @@ fn run() -> Result<()> {
                 MsgArg::Sos(p) => Message::Sos(p.get()?),
                 MsgArg::Pos(p) => Message::Position(p.get()?.context("pos needs --lat and --lon")?),
                 MsgArg::Poll { listen } => Message::Poll { listen_min: listen },
-                MsgArg::Register => Message::Register {
-                    key: k.public(),
-                    alias,
-                },
+                MsgArg::Register { code } => {
+                    let pharos = match link {
+                        LinkRef::Peer(p) => p,
+                        LinkRef::Group(_) => bail!("register goes to a Pharos"),
+                    };
+                    let proof = match code {
+                        Some(c) => AccessKey::derive(&c, &pharos)?.proof(&k.public(), &pharos),
+                        None => NO_PROOF,
+                    };
+                    Message::Register {
+                        key: k.public(),
+                        proof,
+                        alias,
+                    }
+                }
                 MsgArg::Join => Message::GroupJoin {
                     key: k.public(),
                     alias,
@@ -517,7 +533,7 @@ fn run() -> Result<()> {
                 Received::Message(d) => {
                     if accept_register
                         && d.new_peer
-                        && let Message::Register { key, alias } = &d.message
+                        && let Message::Register { key, alias, .. } = &d.message
                     {
                         let card = keryx::Card {
                             key: *key,

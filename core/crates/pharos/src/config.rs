@@ -1,6 +1,6 @@
 //! `base.toml` configuration. See `core/crates/pharos/base.example.toml`.
 
-use crate::station::RegistrationMode;
+use crate::router::Inbound;
 use serde::Deserialize;
 use std::path::PathBuf;
 
@@ -11,7 +11,9 @@ pub struct Config {
     #[serde(default)]
     pub radio: RadioCfg,
     #[serde(default)]
-    pub registration: RegistrationCfg,
+    pub access: AccessCfg,
+    #[serde(default)]
+    pub bot: BotCfg,
     /// Field users on the allow list.
     #[serde(default)]
     pub clients: Vec<ClientCfg>,
@@ -19,11 +21,52 @@ pub struct Config {
     pub bridges: BridgesCfg,
 }
 
+#[derive(Debug, Default, Deserialize, Clone, Copy, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum AccessMode {
+    /// Anyone may register.
+    Open,
+    /// Field users and bridged contacts need the access code.
+    Code,
+    /// Allow list only; others wait for an admin.
+    #[default]
+    Closed,
+}
+
+/// Who may use this Pharos (docs/spec/pharos.md, "Access").
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AccessCfg {
+    #[serde(default)]
+    pub mode: AccessMode,
+    /// File holding the access code (mode "code"); keep it 0600. A
+    /// passphrase of four or more random words: it can be guessed offline.
+    pub code_file: Option<PathBuf>,
+    /// Answer discovery requests. Off: only clients with the QR find it.
+    #[serde(default = "yes")]
+    pub discoverable: bool,
+}
+
+impl Default for AccessCfg {
+    fn default() -> Self {
+        Self {
+            mode: AccessMode::default(),
+            code_file: None,
+            discoverable: true,
+        }
+    }
+}
+
+/// The bridge bot (docs/spec/pharos.md §2).
 #[derive(Debug, Default, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct RegistrationCfg {
+pub struct BotCfg {
+    /// Who on Signal/WhatsApp/MeshCore may use the bot.
     #[serde(default)]
-    pub mode: RegistrationMode,
+    pub inbound: Inbound,
+    /// Admin accounts on the bridges ("+34600000000", "signal:user.01").
+    #[serde(default)]
+    pub admins: Vec<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -31,7 +74,10 @@ pub struct RegistrationCfg {
 pub struct ClientCfg {
     /// The field user's `skypost:id/...` URI.
     pub key: String,
-    /// Bridged contacts that may write first (phone numbers, usernames).
+    /// May send admin commands over the radio.
+    #[serde(default)]
+    pub admin: bool,
+    /// Bridged contacts authorised to write first (phone numbers, usernames).
     #[serde(default)]
     pub contacts: Vec<String>,
     /// Who gets this user's SOS on every bridge.
@@ -107,8 +153,6 @@ pub struct SignalCfg {
     pub account: String,
     /// Unix socket of the signal-cli daemon.
     pub socket: PathBuf,
-    /// Base64 group id of the family group.
-    pub group_id: String,
 }
 
 /// `wacli`, linked as a WhatsApp Web device of a dedicated number.
@@ -117,8 +161,6 @@ pub struct SignalCfg {
 pub struct WhatsappCfg {
     #[serde(default = "wacli")]
     pub bin: PathBuf,
-    /// Group or chat: a JID, phone number or synced chat name.
-    pub to: String,
 }
 
 fn wacli() -> PathBuf {
@@ -133,8 +175,6 @@ pub struct MeshcoreCfg {
     pub command: Vec<String>,
     /// Companion node: a serial device ("/dev/ttyUSB0") or "host:port".
     pub device: String,
-    /// Channel or room server the messages go to.
-    pub channel: String,
 }
 
 #[cfg(test)]

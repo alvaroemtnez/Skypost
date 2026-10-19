@@ -12,6 +12,7 @@
 
 use crate::Error;
 use crate::header::HEADER_LEN;
+use argon2::{Algorithm, Argon2, Params, Version};
 use chacha20::ChaCha20;
 use chacha20::cipher::{KeyIvInit, StreamCipher};
 use data_encoding::BASE32_NOPAD;
@@ -56,6 +57,22 @@ fn sha256(parts: &[&[u8]]) -> [u8; 32] {
         h.update(p);
     }
     h.finalize().into()
+}
+
+/// Argon2id with the OWASP minimum (19 MiB, 2 passes, 1 lane): about a
+/// second on a low-end phone. Used for backup passphrases and access codes.
+pub(crate) fn argon2id(secret: &str, salt: &[u8]) -> Result<Zeroizing<[u8; 32]>, Error> {
+    let params =
+        Params::new(19 * 1024, 2, 1, Some(32)).map_err(|_| Error::Range("argon2 params"))?;
+    let mut out = Zeroizing::new([0u8; 32]);
+    Argon2::new(Algorithm::Argon2id, Version::V0x13, params)
+        .hash_password_into(secret.as_bytes(), salt, out.as_mut())
+        .map_err(|_| Error::Range("argon2 input"))?;
+    Ok(out)
+}
+
+pub(crate) fn sha256_parts(parts: &[&[u8]]) -> [u8; 32] {
+    sha256(parts)
 }
 
 /// Fill `N` bytes from the operating system's RNG.

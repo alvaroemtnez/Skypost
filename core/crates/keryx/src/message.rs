@@ -1,6 +1,7 @@
 //! Application messages, their bodies, and sealing/opening whole frames
 //! (see `docs/spec/frame-format.md`).
 
+use crate::access::PROOF_LEN;
 use crate::bridge::{Address, notice};
 use crate::crypto::PublicKey;
 use crate::header::{BROADCAST, HEADER_LEN, Header, MsgType, peek_type};
@@ -13,10 +14,13 @@ use serde::{Deserialize, Serialize};
 /// `Announce` flag bits.
 pub mod flags {
     pub const PHAROS: u8 = 1 << 0;
-    pub const OPEN_REGISTRATION: u8 = 1 << 1;
+    /// Registration needs the access code ([`crate::access`]).
+    pub const CODE_REQUIRED: u8 = 1 << 1;
     pub const SIGNAL: u8 = 1 << 2;
     pub const WHATSAPP: u8 = 1 << 3;
     pub const MESHCORE: u8 = 1 << 4;
+    /// Invitation only: the operator admits each field user.
+    pub const CLOSED: u8 = 1 << 5;
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -34,9 +38,11 @@ pub enum Message {
     Poll {
         listen_min: u8,
     },
-    /// Ask a Pharos to register this station's key under `alias`.
+    /// Ask a Pharos to register this station's key under `alias`. `proof`
+    /// is [`crate::access::AccessKey::proof`], or all zeros without a code.
     Register {
         key: PublicKey,
+        proof: [u8; PROOF_LEN],
         alias: String,
     },
     /// Introduce this station's key to a group.
@@ -146,9 +152,10 @@ impl Message {
             },
             Self::Position(p) => p.encode()?.to_vec(),
             Self::Poll { listen_min } => vec![*listen_min],
-            Self::Register { key, alias } | Self::GroupJoin { key, alias } => {
-                text_with_alias(key, alias)
+            Self::Register { key, proof, alias } => {
+                [key.0.as_slice(), proof, &textcodec::encode(alias)].concat()
             }
+            Self::GroupJoin { key, alias } => text_with_alias(key, alias),
             Self::BridgeOpen {
                 handle,
                 address,
@@ -211,13 +218,20 @@ impl Message {
                     listen_min: *listen_min,
                 }
             }
-            MsgType::Register | MsgType::GroupJoin => {
+            MsgType::Register => {
                 let (key, rest) = split_key(b)?;
-                let alias = textcodec::decode(rest)?;
-                if t == MsgType::Register {
-                    Self::Register { key, alias }
-                } else {
-                    Self::GroupJoin { key, alias }
+                let proof = rest.get(..PROOF_LEN).ok_or(Error::TooShort)?;
+                Self::Register {
+                    key,
+                    proof: proof.try_into().unwrap(),
+                    alias: textcodec::decode(&rest[PROOF_LEN..])?,
+                }
+            }
+            MsgType::GroupJoin => {
+                let (key, rest) = split_key(b)?;
+                Self::GroupJoin {
+                    key,
+                    alias: textcodec::decode(rest)?,
                 }
             }
             MsgType::BridgeOpen => {
@@ -504,6 +518,7 @@ mod tests {
             Message::Poll { listen_min: 20 },
             Message::Register {
                 key: field.public(),
+                proof: crate::access::NO_PROOF,
                 alias: "ana".into(),
             },
             Message::BridgeOpen {
@@ -632,6 +647,7 @@ mod tests {
         );
         let reg = Message::Register {
             key: field.public(),
+            proof: crate::access::NO_PROOF,
             alias: "ana".into(),
         };
         assert_eq!(frames(&reg, &mut field), 6);

@@ -32,7 +32,8 @@ Design: decisions [0015](decisions/0015-identities.md), [0016](decisions/0016-ph
 - [x] `pharos`: registry (allow list, aliases, approval), store and forward with listen windows, handles
 - [x] `pharos`: bridge bot router (alias prompts, `@alias`, sticky target, limits); wiring to sidecars is Phase 1
 - [x] Android: chat UI on fakes (onboarding, chat list, chat, new chat, Pharos, settings, my QR, `skypost:` deep links)
-- [ ] Optional ephemeral rekey for forward secrecy in encrypted mode
+- [x] Pharos access: modes, access-code proof, admin commands, bot feedback ([0019](decisions/0019-pharos-access.md))
+- [ ] Revisit forward secrecy for encrypted mode (ephemeral rekey, ~32 B each way) and the whole key model
 
 ## Phase 1 — real PHY and base daemon
 

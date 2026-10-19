@@ -1,6 +1,6 @@
 # 0016. Pharos as an identity: trust list, discovery, registration, bridged chats
 
-Status: accepted (2026-10-19). Builds on [0014](0014-bridges-sidecars.md) and
+Status: accepted (2026-10-19); access rules refined by [0019](0019-pharos-access.md). Builds on [0014](0014-bridges-sidecars.md) and
 [0015](0015-identities.md).
 
 ## Context

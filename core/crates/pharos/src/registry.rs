@@ -10,15 +10,23 @@ use std::collections::BTreeMap;
 #[serde(rename_all = "lowercase")]
 pub enum Status {
     Registered,
-    /// Waiting for the operator.
+    /// Waiting for the operator (closed Pharos).
     Pending,
+    /// Registration refused by the operator.
     Refused,
+    /// Tried to register but failed (alias taken, wrong code); may retry.
+    Unregistered,
+    /// Ignored entirely, not even ACKed.
+    Blocked,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Client {
     pub alias: String,
     pub status: Status,
+    /// May send admin commands to the Pharos (from config).
+    #[serde(default)]
+    pub admin: bool,
     /// Unix time until which the client said it keeps listening.
     #[serde(default)]
     pub listen_until: u64,
@@ -40,6 +48,7 @@ impl Client {
         Self {
             alias: alias.to_owned(),
             status,
+            admin: false,
             listen_until: 0,
             last_heard: 0,
             encrypts: false,
@@ -106,11 +115,23 @@ impl Registry {
             .map(|(k, _)| *k)
     }
 
-    /// Another registered or pending client already uses this alias.
+    /// Any client with this alias, whatever its status (admin commands).
+    pub fn find(&self, alias: &str) -> Option<PublicKey> {
+        let alias = alias.trim_start_matches('@').to_lowercase();
+        self.clients
+            .iter()
+            .find(|(_, c)| c.alias.to_lowercase() == alias)
+            .map(|(k, _)| *k)
+    }
+
+    /// Another registered, pending or blocked client already uses this alias.
     pub fn alias_taken(&self, alias: &str, except: &PublicKey) -> bool {
         self.clients.iter().any(|(k, c)| {
             k != except
-                && c.status != Status::Refused
+                && matches!(
+                    c.status,
+                    Status::Registered | Status::Pending | Status::Blocked
+                )
                 && c.alias.to_lowercase() == alias.to_lowercase()
         })
     }

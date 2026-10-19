@@ -13,10 +13,9 @@ pub enum Address {
     SignalUsername(String),
     /// E.164 digits without `+`.
     WhatsappPhone(String),
-    /// MeshCore public key (Ed25519, 32 bytes).
+    /// MeshCore public key (Ed25519, 32 bytes). One-to-one only: groups and
+    /// channels are never bridged.
     MeshcoreContact(#[serde(with = "hex32")] [u8; 32]),
-    /// MeshCore channel secret (16 bytes).
-    MeshcoreChannel(#[serde(with = "hex16")] [u8; 16]),
 }
 
 /// Network codes on air. Append only.
@@ -25,7 +24,7 @@ pub mod network {
     pub const SIGNAL_USERNAME: u8 = 2;
     pub const WHATSAPP_PHONE: u8 = 3;
     pub const MESHCORE_CONTACT: u8 = 4;
-    pub const MESHCORE_CHANNEL: u8 = 5;
+    // 5 was MeshCore channels; reserved, never reuse.
 }
 
 /// `Notice` codes. Append only.
@@ -34,6 +33,8 @@ pub mod notice {
     pub const REGISTRATION_PENDING: u8 = 2;
     pub const REGISTRATION_REFUSED: u8 = 3;
     pub const ALIAS_TAKEN: u8 = 4;
+    /// The Pharos needs its access code; the proof was missing or wrong.
+    pub const ACCESS_CODE_NEEDED: u8 = 5;
     pub const UNKNOWN_HANDLE: u8 = 16;
     pub const RECIPIENT_UNREACHABLE: u8 = 17;
     pub const SEND_FAILED: u8 = 18;
@@ -96,7 +97,6 @@ impl Address {
             Self::SignalUsername(_) => network::SIGNAL_USERNAME,
             Self::WhatsappPhone(_) => network::WHATSAPP_PHONE,
             Self::MeshcoreContact(_) => network::MESHCORE_CONTACT,
-            Self::MeshcoreChannel(_) => network::MESHCORE_CHANNEL,
         }
     }
 
@@ -116,7 +116,6 @@ impl Address {
                 out.extend_from_slice(u.as_bytes());
             }
             Self::MeshcoreContact(k) => out.extend_from_slice(k),
-            Self::MeshcoreChannel(s) => out.extend_from_slice(s),
         }
         Ok(())
     }
@@ -144,9 +143,6 @@ impl Address {
             network::MESHCORE_CONTACT => {
                 (Self::MeshcoreContact(fixed(32)?.try_into().unwrap()), 33)
             }
-            network::MESHCORE_CHANNEL => {
-                (Self::MeshcoreChannel(fixed(16)?.try_into().unwrap()), 17)
-            }
             _ => return Err(Error::Malformed("unknown bridge network")),
         })
     }
@@ -157,7 +153,6 @@ impl Address {
             Self::SignalPhone(d) | Self::WhatsappPhone(d) => format!("+{d}"),
             Self::SignalUsername(u) => u.clone(),
             Self::MeshcoreContact(k) => format!("meshcore:{}", hex(&k[..6])),
-            Self::MeshcoreChannel(s) => format!("meshcore-canal:{}", hex(&s[..4])),
         }
     }
 }
@@ -191,7 +186,6 @@ macro_rules! hex_serde {
     };
 }
 hex_serde!(hex32, 32);
-hex_serde!(hex16, 16);
 
 #[cfg(test)]
 mod tests {
@@ -204,7 +198,6 @@ mod tests {
             Address::WhatsappPhone("346001234567".into()),
             Address::SignalUsername("mama.01".into()),
             Address::MeshcoreContact([7; 32]),
-            Address::MeshcoreChannel([8; 16]),
         ];
         for a in cases {
             let mut b = Vec::new();

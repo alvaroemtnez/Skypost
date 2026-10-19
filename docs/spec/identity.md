@@ -49,9 +49,10 @@ skypost:group/Q6M3…7Z?n=Familia
   frames and from contacts it already has. A frame from an unknown member
   cannot be verified and is dropped: the app suggests re-sending the join.
 
-## MeshCore contacts and channels
+## MeshCore contacts
 
-The app also understands MeshCore's own QR payloads
-(`meshcore://contact/add?name=…&public_key=…&type=…` and channel codes) and
-turns them into `BridgeOpen` requests for a Pharos. Parsing them is app-side
+The app also understands MeshCore's contact QR payload
+(`meshcore://contact/add?name=…&public_key=…&type=…`) and turns it into a
+`BridgeOpen` for a Pharos. MeshCore channels are not bridged
+([0019](../decisions/0019-pharos-access.md)). Parsing them is app-side
 convenience; the Pharos MeshCore sidecar does the MeshCore work.

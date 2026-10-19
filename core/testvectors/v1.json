@@ -91,11 +91,21 @@
       "message": {
         "Register": {
           "alias": "ana",
-          "key": "PNHJBG56P77EJRDFUIQAG7LAR3RVRF6TD34XF4D7OSESZMHXH4JQ"
+          "key": "PNHJBG56P77EJRDFUIQAG7LAR3RVRF6TD34XF4D7OSESZMHXH4JQ",
+          "proof": [
+            228,
+            169,
+            176,
+            122,
+            79,
+            198,
+            152,
+            237
+          ]
         }
       },
       "name": "register",
-      "wire_hex": "4AE000067B4E909BBE7FFE44C465A220037D608EE35897D31EF972F07F74892CB0F73F1350B7AE688B4FEA28F3BD"
+      "wire_hex": "4AE000067B4E909BBE7FFE44C465A220037D608EE35897D31EF972F07F74892CB0F73F13E4A9B07A4FC698ED50B7818AFBA60E6A7542"
     },
     {
       "encrypted": false,

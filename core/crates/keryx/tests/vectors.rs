@@ -73,6 +73,12 @@ fn generate() -> Value {
             "register",
             Message::Register {
                 key: field.public(),
+                proof: keryx::access::AccessKey::derive(
+                    "caballo pila grapa correcto",
+                    &pharos.public(),
+                )
+                .unwrap()
+                .proof(&field.public(), &pharos.public()),
                 alias: "ana".into(),
             },
             to_pharos,

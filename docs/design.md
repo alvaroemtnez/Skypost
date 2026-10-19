@@ -48,6 +48,7 @@ by QR code, with a friendly alias and, for licensed operators, a callsign.
 | Pharos | Trusted Pharos list, discovery, registration, handles for bridged chats, alias-routing bot | [0016](decisions/0016-pharos-registration-and-bridging.md) |
 | App | One Material 3 chat client (chat list, bubbles, new-chat picker, Pharos screen) | [0017](decisions/0017-chat-app-ui.md) |
 | Licence | AGPL-3.0-or-later | [0018](decisions/0018-agpl.md) |
+| Pharos access | Open, access code (proof on air, never the code) or closed; admin commands; one-to-one bridging only | [0019](decisions/0019-pharos-access.md) |
 
 ## 3. Propagation
 

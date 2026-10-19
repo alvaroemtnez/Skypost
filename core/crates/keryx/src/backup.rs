@@ -5,8 +5,7 @@
 //! [`crate::keyring::Keyring::after_restore`].
 
 use crate::Error;
-use crate::crypto::{hkdf_expand, hmac, random_bytes, subtle_eq};
-use argon2::{Algorithm, Argon2, Params, Version};
+use crate::crypto::{argon2id, hkdf_expand, hmac, random_bytes, subtle_eq};
 use chacha20::ChaCha20;
 use chacha20::cipher::{KeyIvInit, StreamCipher};
 use zeroize::Zeroizing;
@@ -14,18 +13,8 @@ use zeroize::Zeroizing;
 const MAGIC: &[u8] = b"SKYPOSTB1";
 const SALT_LEN: usize = 16;
 const TAG_LEN: usize = 32;
-/// Argon2id memory in KiB (19 MiB), passes and lanes: the OWASP minimum,
-/// which a low-end phone handles in about a second.
-const M_COST: u32 = 19 * 1024;
-const T_COST: u32 = 2;
-const P_COST: u32 = 1;
-
 fn keys(passphrase: &str, salt: &[u8]) -> Result<Zeroizing<[u8; 64]>, Error> {
-    let params = Params::new(M_COST, T_COST, P_COST, Some(32)).map_err(|_| Error::Backup)?;
-    let mut prk = Zeroizing::new([0u8; 32]);
-    Argon2::new(Algorithm::Argon2id, Version::V0x13, params)
-        .hash_password_into(passphrase.as_bytes(), salt, prk.as_mut())
-        .map_err(|_| Error::Backup)?;
+    let prk = argon2id(passphrase, salt).map_err(|_| Error::Backup)?;
     let mut okm = Zeroizing::new([0u8; 64]);
     hkdf_expand(prk.as_ref(), &[b"backup"], okm.as_mut());
     Ok(okm)

@@ -12,6 +12,7 @@
 //! Specs live in `docs/spec/`. If you change the wire format, update the spec
 //! and the golden test vectors in `core/testvectors/` in the same commit.
 
+pub mod access;
 pub mod ack;
 pub mod arq;
 pub mod backup;

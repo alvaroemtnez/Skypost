@@ -9,7 +9,7 @@
   or JSON); errors on stderr. Exit codes: 0 ok, 1 I/O or other error,
   2 protocol error (or a usage error from clap), 3 duplicate frame (caller
   should re-ACK). The Phase 0 Python depends on 0 and 3.
-- `crates/pharos`: base station. `station.rs` is synchronous logic
+- `crates/pharos`: base station. `admin.rs` parses and runs admin commands. `station.rs` is synchronous logic
   (frames and ticks in, `Effect`s out: registration, store and forward,
   handles) and is where behaviour gets tested; `registry.rs` and `outbox.rs`
   are its persisted state; `main.rs` is the async shell (`pharos init`,
