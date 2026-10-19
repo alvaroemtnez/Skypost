@@ -56,7 +56,7 @@ Design: decisions [0015](decisions/0015-identities.md), [0016](decisions/0016-ph
 - [x] First build; script-based toolchain (`android/build.sh`, [0012](decisions/0012-android-script-build.md))
 - [x] Bump to current stable (AGP 9.4, Kotlin 2.4, Gradle 9.8, SDK 37); R8, Navigation 3, splash, icon, theme, backup rules
 - [ ] Material 3 Expressive once material3 1.5 is stable
-- [ ] Try the debug APK on a phone
+- [x] Try the debug APK on a phone
 - [ ] `keryx-ffi` crate (UniFFI) + cargo-ndk build into `jniLibs`
 - [ ] Radio foreground service: USB permission, CAT (usb-serial-for-android), USB audio routing; drive the top-bar radio indicator (grey / orange audio only / green audio + CAT)
 - [ ] Audio-only radios (no CAT): make setting the frequency by hand easy (show band and dial frequency, check it, remind on band changes)
