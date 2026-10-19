@@ -47,6 +47,7 @@ by QR code, with a friendly alias and, for licensed operators, a callsign.
 | Bridges | Signal (signal-cli), WhatsApp (wacli), MeshCore (meshcore_py) as sidecars; no Matrix, no ntfy | [0014](decisions/0014-bridges-sidecars.md) |
 | Pharos | Trusted Pharos list, discovery, registration, handles for bridged chats, alias-routing bot | [0016](decisions/0016-pharos-registration-and-bridging.md) |
 | App | One Material 3 chat client (chat list, bubbles, new-chat picker, Pharos screen) | [0017](decisions/0017-chat-app-ui.md) |
+| Licence | AGPL-3.0-or-later | [0018](decisions/0018-agpl.md) |
 
 ## 3. Propagation
 

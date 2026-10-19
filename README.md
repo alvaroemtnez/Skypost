@@ -39,4 +39,9 @@ docs/       design, specs, decisions, regulatory and research notes
 
 ## Licence
 
-GPL-3.0-or-later (it will link GPL code: JS8Call's engine and Mercury).
+AGPL-3.0-or-later ([LICENSE](LICENSE), [decision 0018](docs/decisions/0018-agpl.md)).
+Anyone who runs a modified Pharos as a service for others must offer them
+its source. GPLv3 code (JS8Call's engine, Mercury) combines with it under
+section 13 of both licences.
+
+Source: <https://code.alvaroedo.io/alvaroemtnez/Skypost>
