@@ -31,7 +31,7 @@ Design: decisions [0015](decisions/0015-identities.md), [0016](decisions/0016-ph
 - [x] `keryx` CLI and Phase 0 prototype on identities
 - [x] `pharos`: registry (allow list, aliases, approval), store and forward with listen windows, handles
 - [x] `pharos`: bridge bot router (alias prompts, `@alias`, sticky target, limits); wiring to sidecars is Phase 1
-- [ ] Android: chat UI on fakes (onboarding, chat list, chat, new chat, Pharos, settings, my QR, `skypost:` deep links)
+- [x] Android: chat UI on fakes (onboarding, chat list, chat, new chat, Pharos, settings, my QR, `skypost:` deep links)
 - [ ] Optional ephemeral rekey for forward secrecy in encrypted mode
 
 ## Phase 1 — real PHY and base daemon
@@ -60,7 +60,8 @@ Design: decisions [0015](decisions/0015-identities.md), [0016](decisions/0016-ph
 - [ ] Radio foreground service: USB permission, CAT (usb-serial-for-android), USB audio routing
 - [ ] GNSS time and position
 - [ ] QR provisioning, Keystore-encrypted state, PIN for advanced mode
-- [ ] Delivery ticks wired to ARQ events; inbox
+- [ ] Real `Repository` over the keyring (Keystore-encrypted state); delivery ticks wired to ARQ events
+- [ ] Try the chat UI on a phone; screenshot tests
 
 ## Phase 3 — fast lane
 

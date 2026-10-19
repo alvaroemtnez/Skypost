@@ -26,3 +26,8 @@ conversations, and everyone already knows the Signal/WhatsApp pattern.
   `ui/newchat`, `ui/pharos`, `ui/settings`, `ui/onboarding`.
 - The family-friendliness requirement moves into details: big SOS target,
   plain Spanish, quick-message chips, airtime estimate before sending.
+- QR codes: rendered with ZXing core, scanned with Google's code scanner
+  (runs in Play services, needs no camera permission). Phones without Play
+  services paste codes instead; `skypost:` links open the app directly.
+- Signal/WhatsApp numbers come from the system contact picker (one-off read
+  grant), so the app needs no contacts permission.
