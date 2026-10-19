@@ -203,20 +203,24 @@ One Material 3 chat app ([0017](decisions/0017-chat-app-ui.md)).
 - **First run:** create an identity (alias, optional callsign) or restore an
   encrypted backup.
 - **Chat list:** direct, group, Signal, WhatsApp and MeshCore chats mixed,
-  with filter chips. Top bar: SOS on the left (confirm step), "Pharos heard"
-  indicator and new chat on the right, overflow for my QR and settings.
+  with filter chips; a red SOS button floating bottom right (confirm step).
+  Top bar: "Pharos heard" indicator (grey, or coloured by the SNR it last
+  reported), new chat, overflow for my QR and settings.
 - **Chat:** bubbles; received messages show a shield (signed) or padlock
   (encrypted); sent ones show a clock, then a tick when the contact or Pharos
   ACKed. Composer with quick messages (stock phrases, *Estoy bien* + position)
-  and an airtime estimate. Per-chat emergency encryption with confirmation.
+  and an airtime estimate. Per-chat emergency encryption with confirmation,
+  and a global override in Settings.
 - **New chat:** direct (contact, scan or paste), group (create, scan or
   paste), Signal/WhatsApp (phone contact picker or typed number), MeshCore
   (scan or paste its QR). Bridged chats need a trusted Pharos.
 - **Pharos screen** (from the indicator): trusted Pharos list, discovery,
   verification, registration state, ping.
-- **Settings:** profile, my QR, radio, ping interval, backup and restore.
+- **Settings:** profile, my QR, emergency contacts, emergency encryption for
+  every chat, radio, ping interval, backup and restore, about.
 - **SOS:** signed plaintext, so any listener can read and relay it; goes to
-  the active Pharos (which alerts the user's SOS contacts) and to every group.
+  the chats chosen as emergency contacts (any kind; bridged ones through the
+  Pharos), or to every group by default.
 - **Pre-flight check:** battery voltage, SWR if the radio reports it, GPS time.
 
 ## 10. Languages and repo layout

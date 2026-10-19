@@ -96,6 +96,7 @@ fun OnboardingScreen(repo: Repository) {
         PassphraseDialog(
             title = stringResource(R.string.onboarding_restore),
             confirm = stringResource(R.string.restore),
+            body = stringResource(R.string.backup_restore_warning),
             onDismiss = { restoreFrom = null },
             onConfirm = { pass ->
                 restoreFrom = null

@@ -49,7 +49,6 @@ import io.alvaroedo.skypost.ui.components.clipboardText
 import io.alvaroedo.skypost.ui.components.icon
 import io.alvaroedo.skypost.ui.components.label
 import io.alvaroedo.skypost.ui.components.readPickedPhone
-import io.alvaroedo.skypost.ui.components.scanQr
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -105,6 +104,7 @@ fun NewChatOfScreen(
     kind: ChatKind,
     vm: NewChatViewModel,
     onCode: (String?) -> Boolean,
+    onScan: () -> Unit,
     onOpenChat: (String) -> Unit,
     onBack: () -> Unit,
 ) {
@@ -112,9 +112,8 @@ fun NewChatOfScreen(
     val snackbar = LocalSnackbar.current
     val scope = rememberCoroutineScope()
     val notACode = stringResource(R.string.code_not_recognised)
-    val noScanner = stringResource(R.string.scanner_unavailable)
     val offer: (String?) -> Unit = { text -> if (!onCode(text)) scope.launch { snackbar.showSnackbar(notACode) } }
-    val scan = { scanQr(context, onText = offer, onFailure = { scope.launch { snackbar.showSnackbar(noScanner) } }) }
+    val scan = onScan
     val paste = { offer(clipboardText(context)) }
 
     when (kind) {

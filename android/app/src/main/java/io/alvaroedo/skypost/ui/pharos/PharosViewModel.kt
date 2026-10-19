@@ -49,7 +49,9 @@ class PharosViewModel(private val repo: Repository) : ViewModel() {
         }
     }
 
-    fun trust(d: Discovered) = repo.trust(d)
+    fun trust(d: Discovered, code: String?) = repo.trust(d, code?.trim()?.takeIf(String::isNotEmpty))
+
+    fun register(key: String, code: String) = repo.register(key, code.trim())
 
     fun setActive(key: String) = repo.setActivePharos(key)
 

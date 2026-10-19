@@ -62,7 +62,8 @@ Design: decisions [0015](decisions/0015-identities.md), [0016](decisions/0016-ph
 - [ ] GNSS time and position
 - [ ] QR provisioning, Keystore-encrypted state, PIN for advanced mode
 - [ ] Real `Repository` over the keyring (Keystore-encrypted state); delivery ticks wired to ARQ events
-- [ ] Try the chat UI on a phone; screenshot tests
+- [x] Try the chat UI on a phone (first round of feedback applied: in-app QR scanner, slide-back, SOS button and contacts, global encryption, signal colours, English/Spanish/Valencian)
+- [ ] Screenshot tests
 
 ## Phase 3 — fast lane
 

@@ -14,6 +14,8 @@ Kotlin + Jetpack Compose Material 3. Package `io.alvaroedo.skypost`, min SDK 26.
   in `MainActivity.kt`.
 - Colours: never hard-code; use `MaterialTheme.colorScheme`. The pre-12
   palette is generated (`scripts/gen_colors.py`), do not edit `Color.kt`.
+  The only hand-picked colours are `ui/theme/ExtraColors.kt`
+  (`MaterialTheme.extraColors`): emergency red and the SNR traffic light.
 - Icons: Material Symbols vector drawables in `res/drawable`, not material-icons.
   Add them to `scripts/gen_icons.py` and run it; lint fails on unused ones.
 - Edge-to-edge is on: pad with window insets.
@@ -28,7 +30,13 @@ Kotlin + Jetpack Compose Material 3. Package `io.alvaroedo.skypost`, min SDK 26.
   UniFFI bindings exist. Do not implement protocol logic in Kotlin (the fakes'
   rough URI parsing and estimates are test doubles, not the real thing).
 - `radio/RadioLink.kt` documents the USB audio/CAT plan; `FakeRadioLink` until then.
-- Strings are Spanish in `res/values/strings.xml`. SOS, quick messages and
+- QR scanning is in-app (`ui/scan`, CameraX + ZXing): no Google services.
+- Back navigation: predictive back is off in the manifest; screens slide out
+  to the right on release (`popTransform` in `MainActivity.kt`).
+- Strings: English default (`values/`), Spanish (`values-es/`), Valencian
+  (`values-ca/`), all written by `scripts/gen_strings.py` from one table: edit
+  the table, never the XML. Stock phrases stay Spanish (they are wire
+  protocol, `keryx::canned`). SOS, quick messages and
   the chat must stay usable by a non-technical person under stress: big
   targets, few choices, confirm before SOS, plain words. SOS is always signed
   plaintext; encryption is opt-in per chat with a warning.

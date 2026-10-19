@@ -62,7 +62,10 @@ data class Group(
     val members: List<String>,
 )
 
-enum class Registration { REGISTERED, PENDING, REFUSED, NOT_REGISTERED }
+enum class Registration { REGISTERED, PENDING, REFUSED, NEEDS_CODE, NOT_REGISTERED }
+
+/** Who may use a Pharos, as its announce says. */
+enum class PharosAccess { OPEN, CODE, CLOSED }
 
 data class Pharos(
     val card: Card,
@@ -80,6 +83,7 @@ data class Discovered(
     val snrDb: Int,
     val trusted: Boolean,
     val bridges: Set<ChatKind>,
+    val access: PharosAccess = PharosAccess.OPEN,
 )
 
 data class Identity(
@@ -91,6 +95,10 @@ data class Identity(
 data class Settings(
     /** Automatic Pharos ping, minutes; 0 = off (default: less RF footprint). */
     val pingIntervalMin: Int = 0,
+    /** Emergency encryption for every chat, overriding the per-chat switch. */
+    val encryptAll: Boolean = false,
+    /** Chats the SOS goes to; null = automatic (every group). */
+    val sosChats: Set<String>? = null,
 )
 
 /** Something scanned, pasted or opened from a `skypost:` / `meshcore://` link. */
@@ -101,5 +109,6 @@ sealed interface Scanned {
 
     data class GroupInvite(val name: String, val uri: String) : Scanned
 
-    data class MeshCore(val name: String, val key: String, val channel: Boolean) : Scanned
+    /** A MeshCore contact (channels are never bridged). */
+    data class MeshCore(val name: String, val key: String) : Scanned
 }

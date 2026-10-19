@@ -52,8 +52,17 @@ interface Repository {
 
     fun markRead(chatId: String)
 
-    /** SOS in signed plaintext to the active Pharos and every group. Returns how many destinations. */
+    /** Where an SOS goes now: the chosen chats, or every group if none were chosen. */
+    fun sosTargets(): List<Chat>
+
+    /** SOS in signed plaintext to [sosTargets]. Returns how many destinations. */
     fun sos(): Int
+
+    /** null = automatic (every group). */
+    fun setSosChats(ids: Set<String>?)
+
+    /** Emergency encryption for every chat. */
+    fun setEncryptAll(on: Boolean)
 
     /** A `skypost:` URI or a MeshCore QR payload, or null if it is neither. */
     fun parse(text: String): Scanned?
@@ -75,7 +84,11 @@ interface Repository {
     /** Sends a Discover on the robust lane and collects the answers. */
     suspend fun discover(): List<Discovered>
 
-    fun trust(found: Discovered)
+    /** Trust a discovered Pharos and register with it, with its access code if it needs one. */
+    fun trust(found: Discovered, code: String?)
+
+    /** Register again with a trusted Pharos, e.g. after it asked for its access code. */
+    fun register(key: String, code: String?)
 
     fun setActivePharos(key: String)
 

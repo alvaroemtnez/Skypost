@@ -20,6 +20,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
@@ -43,26 +44,28 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.alvaroedo.skypost.R
 import io.alvaroedo.skypost.model.ChatKind
+import io.alvaroedo.skypost.model.Discovered
 import io.alvaroedo.skypost.model.Pharos
+import io.alvaroedo.skypost.model.PharosAccess
 import io.alvaroedo.skypost.model.Registration
 import io.alvaroedo.skypost.ui.components.LocalSnackbar
 import io.alvaroedo.skypost.ui.components.SafetyNumber
 import io.alvaroedo.skypost.ui.components.clipboardText
 import io.alvaroedo.skypost.ui.components.heardAgo
 import io.alvaroedo.skypost.ui.components.label
-import io.alvaroedo.skypost.ui.components.scanQr
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun PharosScreen(vm: PharosViewModel, onCode: (String?) -> Boolean, onBack: () -> Unit) {
+fun PharosScreen(vm: PharosViewModel, onCode: (String?) -> Boolean, onScan: () -> Unit, onBack: () -> Unit) {
     val ui by vm.ui.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val snackbar = LocalSnackbar.current
     val scope = rememberCoroutineScope()
     var details by remember { mutableStateOf<String?>(null) }
+    /** Asking for an access code: to trust a discovered Pharos, or to register with a trusted one. */
+    var codeFor by remember { mutableStateOf<Pair<Discovered?, String>?>(null) }
     val notACode = stringResource(R.string.code_not_recognised)
-    val noScanner = stringResource(R.string.scanner_unavailable)
     val answered = stringResource(R.string.ping_ok)
     val silent = stringResource(R.string.ping_silent)
     val offer: (String?) -> Unit = { if (!onCode(it)) scope.launch { snackbar.showSnackbar(notACode) } }
@@ -108,9 +111,7 @@ fun PharosScreen(vm: PharosViewModel, onCode: (String?) -> Boolean, onBack: () -
             item {
                 HorizontalDivider()
                 ListItem(
-                    modifier = Modifier.clickable {
-                        scanQr(context, onText = offer, onFailure = { scope.launch { snackbar.showSnackbar(noScanner) } })
-                    },
+                    modifier = Modifier.clickable(onClick = onScan),
                     leadingContent = { Icon(painterResource(R.drawable.ic_qr_code_scanner), null) },
                     headlineContent = { Text(stringResource(R.string.pharos_add_qr)) },
                     supportingContent = { Text(stringResource(R.string.pharos_add_qr_body)) },
@@ -136,13 +137,18 @@ fun PharosScreen(vm: PharosViewModel, onCode: (String?) -> Boolean, onBack: () -
                         headlineContent = { Text(listOfNotNull(d.card.alias, d.card.callsign).joinToString(" · ")) },
                         supportingContent = {
                             val bridges = d.bridges.map { stringResource(it.label()) }.joinToString()
-                            Text(stringResource(R.string.pharos_found_detail, d.snrDb, bridges))
+                            Column {
+                                Text(stringResource(R.string.pharos_found_detail, d.snrDb, bridges))
+                                Text(stringResource(d.access.label()))
+                            }
                         },
                         trailingContent = {
                             if (d.trusted) {
                                 Text(stringResource(R.string.pharos_already_trusted), style = MaterialTheme.typography.labelLarge)
                             } else {
-                                TextButton(onClick = { vm.trust(d) }) { Text(stringResource(R.string.trust)) }
+                                TextButton(onClick = {
+                                    if (d.access == PharosAccess.CODE) codeFor = d to d.card.key else vm.trust(d, null)
+                                }) { Text(stringResource(R.string.trust)) }
                             }
                         },
                     )
@@ -165,9 +171,48 @@ fun PharosScreen(vm: PharosViewModel, onCode: (String?) -> Boolean, onBack: () -
             onDismiss = { details = null },
             onActivate = { vm.setActive(p.card.key); details = null },
             onVerify = { vm.markVerified(p.card.key) },
+            onEnterCode = { codeFor = null to p.card.key; details = null },
             onRemove = { vm.remove(p.card.key); details = null },
         )
     }
+
+    codeFor?.let { (found, key) ->
+        AccessCodeDialog(
+            onDismiss = { codeFor = null },
+            onConfirm = { code ->
+                codeFor = null
+                if (found != null) vm.trust(found, code) else vm.register(key, code)
+            },
+        )
+    }
+}
+
+@Composable
+private fun AccessCodeDialog(onDismiss: () -> Unit, onConfirm: (String) -> Unit) {
+    var code by remember { mutableStateOf("") }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.access_code)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(stringResource(R.string.access_code_body))
+                OutlinedTextField(
+                    value = code,
+                    onValueChange = { code = it },
+                    label = { Text(stringResource(R.string.access_code)) },
+                    singleLine = true,
+                )
+            }
+        },
+        confirmButton = { TextButton(onClick = { onConfirm(code) }, enabled = code.isNotBlank()) { Text(stringResource(R.string.go_ahead)) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } },
+    )
+}
+
+private fun PharosAccess.label(): Int = when (this) {
+    PharosAccess.OPEN -> R.string.pharos_access_open
+    PharosAccess.CODE -> R.string.pharos_access_code
+    PharosAccess.CLOSED -> R.string.pharos_access_closed
 }
 
 @Composable
@@ -220,11 +265,19 @@ private fun Registration.label(): Int = when (this) {
     Registration.REGISTERED -> R.string.registration_ok
     Registration.PENDING -> R.string.registration_pending
     Registration.REFUSED -> R.string.registration_refused
+    Registration.NEEDS_CODE -> R.string.registration_needs_code
     Registration.NOT_REGISTERED -> R.string.registration_none
 }
 
 @Composable
-private fun PharosDetails(p: Pharos, onDismiss: () -> Unit, onActivate: () -> Unit, onVerify: () -> Unit, onRemove: () -> Unit) {
+private fun PharosDetails(
+    p: Pharos,
+    onDismiss: () -> Unit,
+    onActivate: () -> Unit,
+    onVerify: () -> Unit,
+    onEnterCode: () -> Unit,
+    onRemove: () -> Unit,
+) {
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(listOfNotNull(p.card.alias, p.card.callsign).joinToString(" · ")) },
@@ -233,6 +286,10 @@ private fun PharosDetails(p: Pharos, onDismiss: () -> Unit, onActivate: () -> Un
                 Text(stringResource(if (p.verified) R.string.pharos_verified_body else R.string.pharos_unverified_body))
                 Text(stringResource(R.string.safety_number), style = MaterialTheme.typography.labelLarge)
                 SafetyNumber(p.safetyNumber, Modifier.fillMaxWidth())
+                Text(stringResource(p.registration.label()), style = MaterialTheme.typography.bodyMedium)
+                if (p.registration == Registration.NEEDS_CODE) {
+                    OutlinedButton(onClick = onEnterCode) { Text(stringResource(R.string.access_code_enter)) }
+                }
                 if (!p.verified) OutlinedButton(onClick = onVerify) { Text(stringResource(R.string.mark_verified)) }
                 if (!p.active) OutlinedButton(onClick = onActivate) { Text(stringResource(R.string.use_this_pharos)) }
             }

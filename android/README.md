@@ -130,8 +130,9 @@ running on fakes (sample chats appear after creating an identity):
 - `ui/onboarding`: create an identity (alias, optional callsign) or restore
   a passphrase backup.
 - `ui/chats`: unified chat list with filter chips (direct, groups, Signal,
-  WhatsApp, MeshCore). Top bar: SOS (confirm step) on the left; the "Pharos
-  heard" indicator, new chat and a menu (my QR, settings) on the right.
+  WhatsApp, MeshCore); a red SOS button floating bottom right (confirm step,
+  lists who it alerts). Top bar: the "Pharos heard" indicator (grey, or
+  green/yellow/orange/red by the SNR it last reported), new chat, menu.
 - `ui/chat`: bubbles with a shield (signed) or padlock (encrypted) on received
   messages and clock / tick / error on sent ones; quick messages (Estoy bien
   + position, stock phrases); airtime estimate; per-chat emergency
@@ -151,8 +152,10 @@ running on fakes (sample chats appear after creating an identity):
   Unit tests cover the ViewModels, the fake repository rules (signed by
   default, SOS unencrypted, bridged chats need a Pharos) and MeshCore QR
   parsing.
-- QR: rendered with ZXing core; scanned with Google's code scanner (Play
-  services, no camera permission). Without Play services, paste the code.
+- QR: rendered and scanned on the phone with ZXing; the camera through
+  CameraX (`ui/scan`). No Google services involved. Pasting also works.
+- Languages: English (default), Spanish, Valencian, following the system or
+  the per-app language setting (Android 13+).
 
 ## App foundations
 

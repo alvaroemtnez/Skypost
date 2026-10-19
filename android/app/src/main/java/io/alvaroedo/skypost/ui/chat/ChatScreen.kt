@@ -107,10 +107,22 @@ fun ChatScreen(vm: ChatViewModel, onInvite: (uri: String, name: String) -> Unit,
                             Icon(painterResource(R.drawable.ic_more_vert), stringResource(R.string.more_options))
                         }
                         DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                            // Greyed out while Settings turns encryption on for every chat.
                             DropdownMenuItem(
-                                text = { Text(stringResource(R.string.emergency_encryption)) },
+                                text = {
+                                    Column {
+                                        Text(stringResource(R.string.emergency_encryption))
+                                        if (ui.encryptAll) {
+                                            Text(
+                                                stringResource(R.string.encrypt_all_on),
+                                                style = MaterialTheme.typography.bodySmall,
+                                            )
+                                        }
+                                    }
+                                },
+                                enabled = !ui.encryptAll,
                                 leadingIcon = { Icon(painterResource(R.drawable.ic_lock), null) },
-                                trailingIcon = { Checkbox(checked = chat?.encrypted == true, onCheckedChange = null) },
+                                trailingIcon = { Checkbox(checked = ui.encrypted, onCheckedChange = null, enabled = !ui.encryptAll) },
                                 onClick = {
                                     menu = false
                                     if (chat?.encrypted == true) vm.setEncrypted(false) else confirmEncrypt = true
@@ -139,7 +151,7 @@ fun ChatScreen(vm: ChatViewModel, onInvite: (uri: String, name: String) -> Unit,
             Composer(
                 draft = ui.draft,
                 frames = ui.frames,
-                encrypted = chat?.encrypted == true,
+                encrypted = ui.encrypted,
                 onDraft = vm::setDraft,
                 onSend = vm::send,
                 onQuick = { quick = true },
@@ -148,7 +160,12 @@ fun ChatScreen(vm: ChatViewModel, onInvite: (uri: String, name: String) -> Unit,
         },
     ) { padding ->
         Column(Modifier.padding(padding).fillMaxSize()) {
-            if (chat?.encrypted == true) Banner(R.drawable.ic_lock, stringResource(R.string.encrypted_banner))
+            if (ui.encrypted) {
+                Banner(
+                    R.drawable.ic_lock,
+                    stringResource(if (ui.encryptAll) R.string.encrypted_banner_all else R.string.encrypted_banner),
+                )
+            }
             if (ui.noPharos) Banner(R.drawable.ic_cell_tower, stringResource(R.string.no_pharos_banner))
             LazyColumn(
                 modifier = Modifier.weight(1f),

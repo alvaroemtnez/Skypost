@@ -4,6 +4,8 @@ import io.alvaroedo.skypost.core.FakeKeryxCore
 import io.alvaroedo.skypost.model.Auth
 import io.alvaroedo.skypost.model.ChatKind
 import io.alvaroedo.skypost.model.Delivery
+import io.alvaroedo.skypost.model.PharosAccess
+import io.alvaroedo.skypost.model.Registration
 import io.alvaroedo.skypost.model.Scanned
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
@@ -47,13 +49,35 @@ class FakeRepositoryTest {
     }
 
     @Test
-    fun `sos goes to the pharos and every group, unencrypted`() = runTest {
+    fun `sos goes to every group by default, unencrypted even under encrypt-all`() = runTest {
         val r = repo(demo = true)
         val familia = r.chats.value.first { it.kind == ChatKind.GROUP }.id
-        r.setEncrypted(familia, true)
-        assertEquals(2, r.sos())
+        r.setEncryptAll(true)
+        assertEquals(1, r.sos())
         val sos = r.messages(familia).first().last()
         assertTrue(sos.sos)
         assertEquals(Auth.SIGNED, sos.auth)
+    }
+
+    @Test
+    fun `sos contacts can be chosen and encrypt-all overrides chats`() = runTest {
+        val r = repo(demo = true)
+        val mama = r.chats.value.first { it.kind == ChatKind.SIGNAL }
+        r.setSosChats(setOf(mama.id))
+        assertEquals(listOf(mama.id), r.sosTargets().map { it.id })
+        val direct = r.chats.value.first { it.kind == ChatKind.DIRECT }.id
+        r.setEncryptAll(true)
+        r.send(direct, "hola")
+        assertEquals(Auth.ENCRYPTED, r.messages(direct).first().last().auth)
+    }
+
+    @Test
+    fun `a pharos that needs a code waits for it`() = runTest {
+        val r = repo()
+        val found = r.discover().first { it.access == PharosAccess.CODE }
+        r.trust(found, null)
+        assertEquals(Registration.NEEDS_CODE, r.pharos.value.single().registration)
+        r.register(found.card.key, "caballo pila grapa")
+        assertEquals(Registration.REGISTERED, r.pharos.value.single().registration)
     }
 }

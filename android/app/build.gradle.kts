@@ -42,8 +42,9 @@ android {
     }
 
     androidResources {
-        // The UI is Spanish only; drop the other translations libraries bring.
-        localeFilters += "es"
+        // English (default), Spanish and Valencian; drop the other
+        // translations libraries bring.
+        localeFilters += listOf("en", "es", "ca")
     }
 
     lint {
@@ -76,7 +77,9 @@ dependencies {
     implementation(libs.androidx.navigation3.ui)
     implementation(libs.kotlinx.serialization.core)
     implementation(libs.zxing.core)
-    implementation(libs.play.services.code.scanner)
+    implementation(libs.androidx.camera.camera2)
+    implementation(libs.androidx.camera.lifecycle)
+    implementation(libs.androidx.camera.compose)
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.compose.ui)
     implementation(libs.androidx.compose.ui.tooling.preview)

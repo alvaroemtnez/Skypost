@@ -6,7 +6,13 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
+import androidx.compose.animation.ContentTransform
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
@@ -40,8 +46,11 @@ import io.alvaroedo.skypost.ui.newchat.NewChatViewModel
 import io.alvaroedo.skypost.ui.onboarding.OnboardingScreen
 import io.alvaroedo.skypost.ui.pharos.PharosScreen
 import io.alvaroedo.skypost.ui.pharos.PharosViewModel
+import io.alvaroedo.skypost.ui.scan.ScanScreen
 import io.alvaroedo.skypost.ui.settings.SettingsScreen
+import io.alvaroedo.skypost.ui.settings.SosContactsScreen
 import io.alvaroedo.skypost.ui.theme.SkypostTheme
+import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 
 class MainActivity : ComponentActivity() {
@@ -92,6 +101,30 @@ data class GroupInvite(val uri: String, val name: String) : NavKey
 @Serializable
 data object SettingsRoute : NavKey
 
+@Serializable
+data object SosContactsRoute : NavKey
+
+@Serializable
+data object ScanRoute : NavKey
+
+private const val SLIDE_MS = 250
+
+/** Push: the new screen slides in from the right over the old one. */
+private fun pushTransform(): ContentTransform =
+    slideInHorizontally(tween(SLIDE_MS)) { it } togetherWith slideOutHorizontally(tween(SLIDE_MS)) { -it / 4 }
+
+/**
+ * Back: the top screen slides out to the right, uncovering the one below
+ * (like Signal and WhatsApp). Predictive back is off in the manifest, so this
+ * runs when the gesture is released; if a system forces predictive back, the
+ * same slide follows the finger instead of the default shrinking card.
+ */
+private fun popTransform(): ContentTransform = ContentTransform(
+    slideInHorizontally(tween(SLIDE_MS)) { -it / 4 },
+    slideOutHorizontally(tween(SLIDE_MS)) { it },
+    targetContentZIndex = -1f,
+)
+
 /** Replace the new-chat steps with the chat they opened. */
 private fun NavBackStack<NavKey>.openChat(id: String) {
     removeAll { it is NewChat || it is NewChatOf }
@@ -114,6 +147,9 @@ private fun AppRoot(repo: Repository, appVm: AppViewModel) {
         NavDisplay(
             backStack = backStack,
             onBack = { backStack.removeLastOrNull() },
+            transitionSpec = { pushTransform() },
+            popTransitionSpec = { popTransform() },
+            predictivePopTransitionSpec = { popTransform() },
             entryDecorators = listOf(
                 rememberSaveableStateHolderNavEntryDecorator(),
                 rememberViewModelStoreNavEntryDecorator(),
@@ -128,6 +164,7 @@ private fun AppRoot(repo: Repository, appVm: AppViewModel) {
                         onPharos = { backStack.add(PharosRoute) },
                         onMyCode = { backStack.add(MyCode) },
                         onSettings = { backStack.add(SettingsRoute) },
+                        onSosSettings = { backStack.add(SosContactsRoute) },
                     )
                 }
                 entry<ChatRoute> { key ->
@@ -150,6 +187,7 @@ private fun AppRoot(repo: Repository, appVm: AppViewModel) {
                         kind = ChatKind.valueOf(key.kind),
                         vm = viewModel { NewChatViewModel(repo) },
                         onCode = appVm::offer,
+                        onScan = { backStack.add(ScanRoute) },
                         onOpenChat = { backStack.openChat(it) },
                         onBack = { backStack.removeLastOrNull() },
                     )
@@ -158,6 +196,7 @@ private fun AppRoot(repo: Repository, appVm: AppViewModel) {
                     PharosScreen(
                         vm = viewModel { PharosViewModel(repo) },
                         onCode = appVm::offer,
+                        onScan = { backStack.add(ScanRoute) },
                         onBack = { backStack.removeLastOrNull() },
                     )
                 }
@@ -185,6 +224,21 @@ private fun AppRoot(repo: Repository, appVm: AppViewModel) {
                         repo = repo,
                         onMyCode = { backStack.add(MyCode) },
                         onPharos = { backStack.add(PharosRoute) },
+                        onSosContacts = { backStack.add(SosContactsRoute) },
+                        onBack = { backStack.removeLastOrNull() },
+                    )
+                }
+                entry<SosContactsRoute> {
+                    SosContactsScreen(repo = repo, onBack = { backStack.removeLastOrNull() })
+                }
+                entry<ScanRoute> {
+                    val notACode = stringResource(R.string.code_not_recognised)
+                    val scope = rememberCoroutineScope()
+                    ScanScreen(
+                        onResult = { text ->
+                            backStack.removeLastOrNull()
+                            if (!appVm.offer(text)) scope.launch { snackbar.showSnackbar(notACode) }
+                        },
                         onBack = { backStack.removeLastOrNull() },
                     )
                 }

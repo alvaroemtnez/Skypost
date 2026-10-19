@@ -20,11 +20,10 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilledIconButton
+import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -58,6 +57,7 @@ import io.alvaroedo.skypost.ui.components.LocalSnackbar
 import io.alvaroedo.skypost.ui.components.PharosIndicator
 import io.alvaroedo.skypost.ui.components.label
 import io.alvaroedo.skypost.ui.components.shortTime
+import io.alvaroedo.skypost.ui.theme.extraColors
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -70,6 +70,7 @@ fun ChatListScreen(
     onPharos: () -> Unit,
     onMyCode: () -> Unit,
     onSettings: () -> Unit,
+    onSosSettings: () -> Unit,
 ) {
     val ui by vm.ui.collectAsStateWithLifecycle()
     var confirmSos by remember { mutableStateOf(false) }
@@ -87,18 +88,6 @@ fun ChatListScreen(
             TopAppBar(
                 title = { Text(stringResource(R.string.app_name)) },
                 scrollBehavior = scroll,
-                navigationIcon = {
-                    FilledIconButton(
-                        onClick = { confirmSos = true },
-                        colors = IconButtonDefaults.filledIconButtonColors(
-                            containerColor = MaterialTheme.colorScheme.error,
-                            contentColor = MaterialTheme.colorScheme.onError,
-                        ),
-                        modifier = Modifier.padding(start = 8.dp),
-                    ) {
-                        Icon(painterResource(R.drawable.ic_sos), stringResource(R.string.sos))
-                    }
-                },
                 actions = {
                     PharosIndicator(ui.activePharos, onPharos)
                     IconButton(onClick = onNewChat) {
@@ -124,13 +113,23 @@ fun ChatListScreen(
                 },
             )
         },
+        floatingActionButton = {
+            ExtendedFloatingActionButton(
+                onClick = { confirmSos = true },
+                containerColor = MaterialTheme.extraColors.emergency,
+                contentColor = MaterialTheme.extraColors.onEmergency,
+                icon = { Icon(painterResource(R.drawable.ic_sos), null) },
+                text = { Text(stringResource(R.string.sos), style = MaterialTheme.typography.titleMedium) },
+            )
+        },
     ) { padding ->
         Column(Modifier.padding(padding).fillMaxSize()) {
             FilterRow(ui.filter, ui.counts, vm::setFilter)
             if (ui.chats.isEmpty()) {
                 EmptyChats(ui.filter == null, onNewChat)
             } else {
-                LazyColumn(contentPadding = PaddingValues(bottom = 16.dp)) {
+                // Room at the bottom so the SOS button never hides the last chat.
+                LazyColumn(contentPadding = PaddingValues(bottom = 96.dp)) {
                     items(ui.chats, key = { it.id }) { chat -> ChatRow(chat) { onOpenChat(chat.id) } }
                 }
             }
@@ -140,21 +139,33 @@ fun ChatListScreen(
     if (confirmSos) {
         AlertDialog(
             onDismissRequest = { confirmSos = false },
-            icon = { Icon(painterResource(R.drawable.ic_sos), null, tint = MaterialTheme.colorScheme.error) },
+            icon = { Icon(painterResource(R.drawable.ic_sos), null, tint = MaterialTheme.extraColors.emergency) },
             title = { Text(stringResource(R.string.sos_confirm_title)) },
-            text = { Text(stringResource(R.string.sos_confirm_body)) },
+            text = {
+                if (ui.sosTargets.isEmpty()) {
+                    Text(stringResource(R.string.sos_no_targets))
+                } else {
+                    Text(stringResource(R.string.sos_confirm_body, ui.sosTargets.joinToString()))
+                }
+            },
             confirmButton = {
-                Button(
-                    onClick = {
-                        confirmSos = false
-                        val n = onSos()
-                        scope.launch { snackbar.showSnackbar(if (n > 0) sosSent else sosNowhere) }
-                    },
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.error,
-                        contentColor = MaterialTheme.colorScheme.onError,
-                    ),
-                ) { Text(stringResource(R.string.sos_send)) }
+                if (ui.sosTargets.isEmpty()) {
+                    TextButton(onClick = { confirmSos = false; onSosSettings() }) {
+                        Text(stringResource(R.string.sos_contacts))
+                    }
+                } else {
+                    Button(
+                        onClick = {
+                            confirmSos = false
+                            val n = onSos()
+                            scope.launch { snackbar.showSnackbar(if (n > 0) sosSent else sosNowhere) }
+                        },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.extraColors.emergency,
+                            contentColor = MaterialTheme.extraColors.onEmergency,
+                        ),
+                    ) { Text(stringResource(R.string.sos_send)) }
+                }
             },
             dismissButton = { TextButton(onClick = { confirmSos = false }) { Text(stringResource(R.string.cancel)) } },
         )

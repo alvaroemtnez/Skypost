@@ -13,6 +13,7 @@ import io.alvaroedo.skypost.model.Discovered
 import io.alvaroedo.skypost.model.Group
 import io.alvaroedo.skypost.model.Identity
 import io.alvaroedo.skypost.model.Pharos
+import io.alvaroedo.skypost.model.PharosAccess
 import io.alvaroedo.skypost.model.Registration
 import io.alvaroedo.skypost.model.Scanned
 import io.alvaroedo.skypost.model.Settings
@@ -114,7 +115,7 @@ class FakeRepository(
             outgoing = true,
             text = text,
             atMillis = now(),
-            auth = if (c.encrypted && !sos) Auth.ENCRYPTED else Auth.SIGNED,
+            auth = if ((c.encrypted || _settings.value.encryptAll) && !sos) Auth.ENCRYPTED else Auth.SIGNED,
             sos = sos,
         )
         post(chatId, msg)
@@ -143,11 +144,20 @@ class FakeRepository(
         _chats.update { list -> list.map { if (it.id == chatId) it.copy(unread = 0) else it } }
     }
 
-    override fun sos(): Int {
-        val targets = _chats.value.filter { it.kind == ChatKind.GROUP }.map { it.id }
-        targets.forEach { sendOut(it, "SOS · 42.63110, 0.65880", sos = true) }
-        return targets.size + if (activePharos() != null) 1 else 0
+    override fun sosTargets(): List<Chat> {
+        val chosen = _settings.value.sosChats
+        return _chats.value.filter { if (chosen == null) it.kind == ChatKind.GROUP else it.id in chosen }
     }
+
+    override fun sos(): Int {
+        val targets = sosTargets()
+        targets.forEach { sendOut(it.id, "SOS · 42.63110, 0.65880", sos = true) }
+        return targets.size
+    }
+
+    override fun setSosChats(ids: Set<String>?) = _settings.update { it.copy(sosChats = ids) }
+
+    override fun setEncryptAll(on: Boolean) = _settings.update { it.copy(encryptAll = on) }
 
     override fun parse(text: String): Scanned? {
         MeshCoreQr.parse(text)?.let { return it }
@@ -236,11 +246,23 @@ class FakeRepository(
         val club = Card("Q6M3T2ZL7VX4NK5RB2C6D7YE3HW4JA5PS2U6O7FK3G2MZQ4LN5TA", "radioclub", "EA5RCV", isPharos = true)
         return listOf(
             Discovered(casa, snrDb = -14, trusted = casa.key in known, bridges = setOf(ChatKind.SIGNAL, ChatKind.WHATSAPP)),
-            Discovered(club, snrDb = -21, trusted = club.key in known, bridges = setOf(ChatKind.MESHCORE)),
+            Discovered(
+                club,
+                snrDb = -21,
+                trusted = club.key in known,
+                bridges = setOf(ChatKind.MESHCORE),
+                access = PharosAccess.CODE,
+            ),
         )
     }
 
-    private fun addPharos(card: Card, verified: Boolean, snr: Int?, bridges: Set<ChatKind>) {
+    private fun addPharos(
+        card: Card,
+        verified: Boolean,
+        snr: Int?,
+        bridges: Set<ChatKind>,
+        registration: Registration = Registration.REGISTERED,
+    ) {
         if (_pharos.value.any { it.card.key == card.key }) return
         val first = _pharos.value.isEmpty()
         _pharos.update {
@@ -250,14 +272,33 @@ class FakeRepository(
                 active = first,
                 lastHeardMillis = snr?.let { now() },
                 snrDb = snr,
-                registration = Registration.REGISTERED,
+                registration = registration,
                 bridges = bridges,
                 safetyNumber = core.safetyNumber(card.key),
             )
         }
     }
 
-    override fun trust(found: Discovered) = addPharos(found.card, verified = false, snr = found.snrDb, bridges = found.bridges)
+    // The real one sends Register (with the access-code proof) and waits for the Notice.
+    private fun registrationFor(access: PharosAccess, code: String?) = when (access) {
+        PharosAccess.OPEN -> Registration.REGISTERED
+        PharosAccess.CODE -> if (code.isNullOrBlank()) Registration.NEEDS_CODE else Registration.REGISTERED
+        PharosAccess.CLOSED -> Registration.PENDING
+    }
+
+    override fun trust(found: Discovered, code: String?) = addPharos(
+        found.card,
+        verified = false,
+        snr = found.snrDb,
+        bridges = found.bridges,
+        registration = registrationFor(found.access, code),
+    )
+
+    override fun register(key: String, code: String?) {
+        _pharos.update { list ->
+            list.map { if (it.card.key == key) it.copy(registration = registrationFor(PharosAccess.CODE, code)) else it }
+        }
+    }
 
     override fun setActivePharos(key: String) {
         _pharos.update { list -> list.map { it.copy(active = it.card.key == key) } }
@@ -314,7 +355,7 @@ class FakeRepository(
         val direct = chatWith(bea.key)
         val mama = openBridged(ChatKind.SIGNAL, "34611111111", "Mamá")!!
         val papa = openBridged(ChatKind.WHATSAPP, "34622222222", "Papá")!!
-        val refugio = import(Scanned.MeshCore("Refugio Góriz", "a1b2c3d4e5f6".repeat(5) + "a1b2", channel = false))!!
+        val refugio = import(Scanned.MeshCore("Refugio Góriz", "a1b2c3d4e5f6".repeat(5) + "a1b2"))!!
         fun rx(chat: String, text: String, ago: Long, auth: Auth = Auth.SIGNED, sender: String? = null) =
             post(chat, ChatMessage(nextId++, chat, false, text, t - ago * min, auth, sender = sender))
         fun tx(chat: String, text: String, ago: Long, auth: Auth = Auth.SIGNED) =

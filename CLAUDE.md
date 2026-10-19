@@ -7,7 +7,7 @@ Encrypted off-grid family messaging over HF NVIS (40/60/80 m). A field kit
 (Android phone + QDX or G90 over USB OTG) talks to another kit, or to a 24/7
 base station (Raspberry Pi) that bridges to Signal, WhatsApp and MeshCore
 through upstream sidecars (`docs/decisions/0014-bridges-sidecars.md`).
-Owner: Álvaro, licensed ham, Spain. UI language: Spanish.
+Owner: Álvaro, licensed ham, Spain. App UI: English (default), Spanish, Valencian.
 
 Read `docs/design.md` first. Then `docs/roadmap.md` for what is next.
 
@@ -57,7 +57,8 @@ android/build.sh test      # Android unit tests + lint (help: android/build.sh h
 - **Crypto state only changes after a tag verifies.**
 - Decisions with lasting impact get a short record in `docs/decisions/`.
   Keep `docs/roadmap.md` ticked.
-- Code, comments and docs in English; user-facing app strings in Spanish.
+- Code, comments and docs in English. App strings in English, Spanish and
+  Valencian (`android/scripts/gen_strings.py`); Pharos bot texts in Spanish.
 
 ## Unverified assumptions (check before building on them)
 
@@ -66,5 +67,5 @@ android/build.sh test      # Android unit tests + lint (help: android/build.sh h
 - JS8Call 3.x API shape used by `prototype/skypost_p0/js8api.py`.
 - The band schedule in `keryx::bandplan` is a guess until Phase 0 data.
 - `wacli sync --follow --events` carries incoming message content (decision 0014).
-- MeshCore QR payload formats (`android/.../data/MeshCoreQr.kt`; channel form guessed).
+- MeshCore contact QR payload format (`android/.../data/MeshCoreQr.kt`).
 - JS8 decodes several simultaneous signals in the passband (group ACKs, discovery answers).

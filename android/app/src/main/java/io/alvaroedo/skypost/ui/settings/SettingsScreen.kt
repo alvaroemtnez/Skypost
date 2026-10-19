@@ -14,6 +14,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -22,6 +24,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -46,14 +49,23 @@ import io.alvaroedo.skypost.BuildConfig
 import io.alvaroedo.skypost.R
 import io.alvaroedo.skypost.data.Repository
 import io.alvaroedo.skypost.ui.components.LocalSnackbar
+import io.alvaroedo.skypost.ui.components.openUrl
 import io.alvaroedo.skypost.ui.onboarding.PassphraseDialog
 import kotlinx.coroutines.launch
 
 private val PING_CHOICES = listOf(0, 30, 60, 120)
 
+private const val SOURCE_URL = "https://code.alvaroedo.io/alvaroemtnez/Skypost"
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsScreen(repo: Repository, onMyCode: () -> Unit, onPharos: () -> Unit, onBack: () -> Unit) {
+fun SettingsScreen(
+    repo: Repository,
+    onMyCode: () -> Unit,
+    onPharos: () -> Unit,
+    onSosContacts: () -> Unit,
+    onBack: () -> Unit,
+) {
     val identity by repo.identity.collectAsStateWithLifecycle()
     val settings by repo.settings.collectAsStateWithLifecycle()
     val context = LocalContext.current
@@ -61,6 +73,7 @@ fun SettingsScreen(repo: Repository, onMyCode: () -> Unit, onPharos: () -> Unit,
     val scope = rememberCoroutineScope()
     var editProfile by remember { mutableStateOf(false) }
     var pickPing by remember { mutableStateOf(false) }
+    var confirmEncryptAll by remember { mutableStateOf(false) }
     var exportPass by remember { mutableStateOf<String?>(null) }
     var askExportPass by remember { mutableStateOf(false) }
     var restoreFrom by remember { mutableStateOf<Uri?>(null) }
@@ -112,6 +125,37 @@ fun SettingsScreen(repo: Repository, onMyCode: () -> Unit, onPharos: () -> Unit,
                     supportingContent = { Text(stringResource(R.string.my_code_settings_body)) },
                 )
 
+                Section(R.string.settings_safety)
+                ListItem(
+                    modifier = Modifier.clickable(onClick = onSosContacts),
+                    leadingContent = { Icon(painterResource(R.drawable.ic_sos), null) },
+                    headlineContent = { Text(stringResource(R.string.sos_contacts)) },
+                    supportingContent = {
+                        val n = settings.sosChats?.size
+                        Text(
+                            if (n == null) {
+                                stringResource(R.string.sos_contacts_auto)
+                            } else {
+                                pluralStringResource(R.plurals.sos_contacts_count, n, n)
+                            },
+                        )
+                    },
+                )
+                ListItem(
+                    modifier = Modifier.clickable {
+                        if (settings.encryptAll) repo.setEncryptAll(false) else confirmEncryptAll = true
+                    },
+                    leadingContent = { Icon(painterResource(R.drawable.ic_lock), null) },
+                    headlineContent = { Text(stringResource(R.string.encrypt_all)) },
+                    supportingContent = { Text(stringResource(R.string.encrypt_all_body)) },
+                    trailingContent = {
+                        Switch(
+                            checked = settings.encryptAll,
+                            onCheckedChange = { on -> if (on) confirmEncryptAll = true else repo.setEncryptAll(false) },
+                        )
+                    },
+                )
+
                 Section(R.string.pharos_title)
                 ListItem(
                     modifier = Modifier.clickable(onClick = onPharos),
@@ -156,6 +200,12 @@ fun SettingsScreen(repo: Repository, onMyCode: () -> Unit, onPharos: () -> Unit,
                     headlineContent = { Text(stringResource(R.string.app_name)) },
                     supportingContent = { Text(stringResource(R.string.about_body, BuildConfig.VERSION_NAME)) },
                 )
+                ListItem(
+                    modifier = Modifier.clickable { openUrl(context, SOURCE_URL) },
+                    leadingContent = { Icon(painterResource(R.drawable.ic_code), null) },
+                    headlineContent = { Text(stringResource(R.string.about_source)) },
+                    supportingContent = { Text(SOURCE_URL) },
+                )
             }
         }
     }
@@ -171,6 +221,25 @@ fun SettingsScreen(repo: Repository, onMyCode: () -> Unit, onPharos: () -> Unit,
                 onSave = { a, c -> repo.updateProfile(a, c.ifEmpty { null }); editProfile = false },
             )
         }
+    }
+
+    if (confirmEncryptAll) {
+        AlertDialog(
+            onDismissRequest = { confirmEncryptAll = false },
+            icon = { Icon(painterResource(R.drawable.ic_lock), null) },
+            title = { Text(stringResource(R.string.encrypt_all_confirm_title)) },
+            text = { Text(stringResource(R.string.encrypt_confirm_body)) },
+            confirmButton = {
+                Button(
+                    onClick = { confirmEncryptAll = false; repo.setEncryptAll(true) },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.error,
+                        contentColor = MaterialTheme.colorScheme.onError,
+                    ),
+                ) { Text(stringResource(R.string.activate)) }
+            },
+            dismissButton = { TextButton(onClick = { confirmEncryptAll = false }) { Text(stringResource(R.string.cancel)) } },
+        )
     }
 
     if (pickPing) {

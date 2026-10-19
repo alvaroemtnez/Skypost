@@ -4,13 +4,13 @@ import io.alvaroedo.skypost.model.Scanned
 import java.net.URLDecoder
 
 /**
- * MeshCore's own QR payloads, so a MeshCore contact or channel can be bridged
+ * MeshCore's own QR payloads, so a MeshCore contact can be bridged
  * through a Pharos. This is MeshCore's format, not Keryx: the app only reads
  * the name and key and hands them to the core as a `BridgeOpen` address.
  *
- * UNVERIFIED: checked against the contact format the MeshCore app shares
- * (`meshcore://contact/add?name=…&public_key=<hex>&type=<n>`); the channel
- * form (`meshcore://channel/add?name=…&secret=<hex>`) is assumed.
+ * Contacts only: channels and groups are never bridged (decision 0019).
+ * Format: `meshcore://contact/add?name=…&public_key=<hex>&type=<n>`.
+ * UNVERIFIED against the current MeshCore app.
  */
 object MeshCoreQr {
     private const val SCHEME = "meshcore://"
@@ -27,10 +27,6 @@ object MeshCoreQr {
         }.toMap()
         val name = params["name"]?.takeIf { it.isNotBlank() } ?: return null
         fun hex(key: String, len: Int) = params[key]?.takeIf { it.length == len && HEX.matches(it) }?.lowercase()
-        return when (path) {
-            "contact/add" -> hex("public_key", 64)?.let { Scanned.MeshCore(name, it, channel = false) }
-            "channel/add" -> hex("secret", 32)?.let { Scanned.MeshCore(name, it, channel = true) }
-            else -> null
-        }
+        return if (path == "contact/add") hex("public_key", 64)?.let { Scanned.MeshCore(name, it) } else null
     }
 }

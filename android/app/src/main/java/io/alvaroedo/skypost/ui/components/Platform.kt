@@ -8,22 +8,7 @@ import android.content.Intent
 import android.net.Uri
 import android.provider.ContactsContract.CommonDataKinds.Phone
 import androidx.activity.result.contract.ActivityResultContract
-import com.google.mlkit.vision.barcode.common.Barcode
-import com.google.mlkit.vision.codescanner.GmsBarcodeScannerOptions
-import com.google.mlkit.vision.codescanner.GmsBarcodeScanning
-
-/**
- * Scan a QR code with Google's code scanner: no camera permission, the
- * scanning UI runs in Play services. On phones without them it fails and the
- * user can paste the code instead.
- */
-fun scanQr(context: Context, onText: (String) -> Unit, onFailure: () -> Unit) {
-    val options = GmsBarcodeScannerOptions.Builder().setBarcodeFormats(Barcode.FORMAT_QR_CODE).build()
-    GmsBarcodeScanning.getClient(context, options)
-        .startScan()
-        .addOnSuccessListener { b -> b.rawValue?.let(onText) ?: onFailure() }
-        .addOnFailureListener { onFailure() }
-}
+import androidx.core.net.toUri
 
 fun clipboardText(context: Context): String? {
     val cm = context.getSystemService(ClipboardManager::class.java)
@@ -32,6 +17,10 @@ fun clipboardText(context: Context): String? {
 
 fun copyToClipboard(context: Context, label: String, text: String) {
     context.getSystemService(ClipboardManager::class.java).setPrimaryClip(ClipData.newPlainText(label, text))
+}
+
+fun openUrl(context: Context, url: String) {
+    context.startActivity(Intent(Intent.ACTION_VIEW, url.toUri()))
 }
 
 fun share(context: Context, text: String) {

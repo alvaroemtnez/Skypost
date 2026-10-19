@@ -24,7 +24,12 @@ data class ChatUi(
     val noPharos: Boolean = false,
     /** Direct chats: the contact's safety number. */
     val safetyNumber: String? = null,
-)
+    /** Emergency encryption is on for every chat (Settings); the per-chat switch is moot. */
+    val encryptAll: Boolean = false,
+) {
+    /** Messages go out encrypted. */
+    val encrypted: Boolean get() = encryptAll || chat?.encrypted == true
+}
 
 class ChatViewModel(private val repo: Repository, private val chatId: String) : ViewModel() {
     private val draft = MutableStateFlow("")
@@ -34,8 +39,8 @@ class ChatViewModel(private val repo: Repository, private val chatId: String) : 
         repo.messages(chatId),
         draft,
         repo.pharos,
-        repo.contacts,
-    ) { chats, msgs, d, pharos, contacts ->
+        repo.contacts.combine(repo.settings) { c, s -> c to s },
+    ) { chats, msgs, d, pharos, (contacts, settings) ->
         val chat = chats.firstOrNull { it.id == chatId }
         val via = pharos.firstOrNull { it.card.key == chat?.ref }
         ChatUi(
@@ -45,6 +50,7 @@ class ChatViewModel(private val repo: Repository, private val chatId: String) : 
             frames = repo.framesFor(chatId, d),
             via = via?.card?.alias,
             noPharos = chat?.kind?.bridged == true && via == null,
+            encryptAll = settings.encryptAll,
             safetyNumber = contacts.firstOrNull { it.card.key == chat?.ref && chat.kind == ChatKind.DIRECT }?.safetyNumber,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ChatUi())

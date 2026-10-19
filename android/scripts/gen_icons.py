@@ -19,6 +19,7 @@ ICONS = [
     ("ic_backup", "backup", False),
     ("ic_call", "call", False),
     ("ic_cell_tower", "cell_tower", False),
+    ("ic_code", "code", False),
     ("ic_check", "check", False),
     ("ic_check_circle", "check_circle", False),
     ("ic_contacts", "contacts", False),

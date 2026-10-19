@@ -48,6 +48,7 @@ import io.alvaroedo.skypost.model.ChatKind
 import io.alvaroedo.skypost.model.Delivery
 import io.alvaroedo.skypost.model.Pharos
 import io.alvaroedo.skypost.model.Scanned
+import io.alvaroedo.skypost.ui.theme.extraColors
 import androidx.compose.material3.SnackbarHostState
 import java.time.Instant
 import java.time.LocalDate
@@ -133,12 +134,11 @@ fun DeliveryIcon(d: Delivery, modifier: Modifier = Modifier, tint: Color = Mater
 }
 
 private val timeFmt = DateTimeFormatter.ofPattern("HH:mm")
-private val dayFmt = DateTimeFormatter.ofPattern("d MMM", Locale.forLanguageTag("es"))
-
-/** "14:05" today, "3 oct" before. */
+/** "14:05" today, "3 oct" before (in the app's language). */
 fun shortTime(millis: Long, zone: ZoneId = ZoneId.systemDefault()): String {
     val t = Instant.ofEpochMilli(millis).atZone(zone)
-    return if (t.toLocalDate() == LocalDate.now(zone)) timeFmt.format(t) else dayFmt.format(t)
+    val day = DateTimeFormatter.ofPattern("d MMM", Locale.getDefault())
+    return if (t.toLocalDate() == LocalDate.now(zone)) timeFmt.format(t) else day.format(t)
 }
 
 /** "Oído hace 4 min" / "hace 2 h" / "Sin noticias". */
@@ -153,17 +153,31 @@ fun heardAgo(millis: Long?, now: Long = System.currentTimeMillis()): String {
     }
 }
 
-/** Top-bar "signal" indicator: has the active Pharos been heard recently? */
+/** A Pharos heard longer ago than this counts as silent (grey indicator). */
+const val HEARD_RECENTLY_MS = 60 * 60_000L
+
+/**
+ * Colour for the SNR the Pharos last reported for us, by the lanes it allows:
+ * green ≥ −10 dB (fast lanes), yellow ≥ −18 (Turbo), orange ≥ −24 (Normal),
+ * red below (Slow only). Grey when there is no recent report.
+ */
+@Composable
+fun signalColor(snrDb: Int?): Color {
+    val x = MaterialTheme.extraColors
+    return when {
+        snrDb == null -> MaterialTheme.colorScheme.outline
+        snrDb >= -10 -> x.signalGood
+        snrDb >= -18 -> x.signalFair
+        snrDb >= -24 -> x.signalPoor
+        else -> x.signalBad
+    }
+}
+
+/** Top-bar "signal" indicator: grey unless the active Pharos was heard recently, then by SNR. */
 @Composable
 fun PharosIndicator(active: Pharos?, onClick: () -> Unit, now: Long = System.currentTimeMillis()) {
-    val colors = MaterialTheme.colorScheme
-    val age = active?.lastHeardMillis?.let { now - it }
-    val tint = when {
-        active == null || age == null -> colors.outline
-        age < 15 * 60_000 -> colors.primary
-        age < 2 * 3_600_000 -> colors.onSurfaceVariant
-        else -> colors.error
-    }
+    val snr = active?.snrDb?.takeIf { active.lastHeardMillis?.let { now - it < HEARD_RECENTLY_MS } == true }
+    val tint = signalColor(snr)
     val desc = if (active == null) {
         stringResource(R.string.pharos_none)
     } else {
@@ -247,7 +261,7 @@ fun ImportDialog(scanned: Scanned, onConfirm: () -> Unit, onDismiss: () -> Unit)
             null,
         )
         is Scanned.MeshCore -> Triple(
-            stringResource(if (scanned.channel) R.string.import_meshcore_channel else R.string.import_meshcore_contact, scanned.name),
+            stringResource(R.string.import_meshcore_contact, scanned.name),
             stringResource(R.string.import_meshcore_body),
             null,
         )

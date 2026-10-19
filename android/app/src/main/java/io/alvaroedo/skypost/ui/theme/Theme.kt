@@ -6,6 +6,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.platform.LocalContext
 
 /**
@@ -30,5 +31,7 @@ fun SkypostTheme(
         dark -> DarkColors
         else -> LightColors
     }
-    MaterialTheme(colorScheme = scheme, content = content)
+    CompositionLocalProvider(LocalExtraColors provides if (dark) DarkExtraColors else LightExtraColors) {
+        MaterialTheme(colorScheme = scheme, content = content)
+    }
 }

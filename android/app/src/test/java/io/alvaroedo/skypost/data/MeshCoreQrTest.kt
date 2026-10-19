@@ -8,11 +8,10 @@ class MeshCoreQrTest {
     private val key = "ab".repeat(32)
 
     @Test
-    fun `contact and channel codes`() {
+    fun `contact codes only`() {
         val c = MeshCoreQr.parse("meshcore://contact/add?name=Refugio%20G%C3%B3riz&public_key=$key&type=1")!!
-        assertEquals(Triple("Refugio Góriz", key, false), Triple(c.name, c.key, c.channel))
-        val ch = MeshCoreQr.parse("meshcore://channel/add?name=Pirineo&secret=${"cd".repeat(16)}")!!
-        assertEquals(true, ch.channel)
+        assertEquals("Refugio Góriz" to key, c.name to c.key)
+        assertNull("channels are never bridged", MeshCoreQr.parse("meshcore://channel/add?name=Pirineo&secret=${"cd".repeat(16)}"))
     }
 
     @Test
