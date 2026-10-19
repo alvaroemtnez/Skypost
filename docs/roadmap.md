@@ -8,6 +8,7 @@ Tick items as they land. Keep this file current; it is how a new session
 Done in the repo:
 - [x] `keryx` CLI: keygen, provision, encode/decode, ACKs, band, lane
 - [x] Python glue: JS8Call API ↔ `keryx` ↔ Matrix/ntfy, JSONL logs
+- [x] Drop Matrix/ntfy; prototype forwards through `signal-cli` ([0014](decisions/0014-bridges-sidecars.md))
 - [x] End-to-end test against a fake JS8Call
 
 To do:
@@ -26,7 +27,11 @@ To do:
 - [ ] `keryx-js8` crate: FFI to the JS8Call-improved C++ core (`cxx`), binary frames in/out, multi-speed decode
 - [ ] Callsign identification in binary mode (Art. 29)
 - [ ] `pharos`: PHY task, wideband SDR input, all lanes in parallel, persist session + outbox
-- [ ] Matrix bridge (and ntfy, MeshCore companion protocol)
+- [ ] `Bridge` trait in `pharos` (send, stream incoming); SOS goes to every bridge
+- [ ] Signal bridge: JSON-RPC client to `signal-cli daemon --socket`; aarch64 libsignal on the Pi
+- [ ] WhatsApp bridge: `wacli`; verify `sync --follow --events` carries message content (else a `whatsmeow` sidecar)
+- [ ] MeshCore bridge: `sidecars/meshcore/` on `meshcore_py`, JSON lines over stdio
+- [ ] systemd units for pharos and the sidecars; update routine for signal-cli
 - [ ] Channel-simulator tests (codec2 `ch`, Watterson fading) in CI
 - [ ] Decide tag length (8 vs 16)
 - [ ] Text codec v1: word dictionary, weights trained on Phase 0 messages

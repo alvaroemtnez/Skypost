@@ -46,21 +46,25 @@ pub struct RadioCfg {
     pub dial_khz_40m: Option<f64>,
 }
 
+/// Bridges run as sidecar processes; Pharos only speaks JSON to them
+/// (docs/decisions/0014-bridges-sidecars.md).
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct BridgesCfg {
     #[serde(default = "yes")]
     pub log: bool,
-    pub matrix: Option<MatrixCfg>,
-    pub ntfy: Option<NtfyCfg>,
+    pub signal: Option<SignalCfg>,
+    pub whatsapp: Option<WhatsappCfg>,
+    pub meshcore: Option<MeshcoreCfg>,
 }
 
 impl Default for BridgesCfg {
     fn default() -> Self {
         Self {
             log: true,
-            matrix: None,
-            ntfy: None,
+            signal: None,
+            whatsapp: None,
+            meshcore: None,
         }
     }
 }
@@ -69,19 +73,42 @@ fn yes() -> bool {
     true
 }
 
+/// `signal-cli -a <account> daemon --socket <socket>`, JSON-RPC.
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct MatrixCfg {
-    pub homeserver: String,
-    pub room_id: String,
-    /// Name of the environment variable holding the access token.
-    pub access_token_env: String,
+pub struct SignalCfg {
+    /// The base station's own Signal number, e.g. "+34600000000".
+    pub account: String,
+    /// Unix socket of the signal-cli daemon.
+    pub socket: PathBuf,
+    /// Base64 group id of the family group.
+    pub group_id: String,
 }
 
+/// `wacli`, linked as a WhatsApp Web device of a dedicated number.
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct NtfyCfg {
-    pub url: String,
+pub struct WhatsappCfg {
+    #[serde(default = "wacli")]
+    pub bin: PathBuf,
+    /// Group or chat: a JID, phone number or synced chat name.
+    pub to: String,
+}
+
+fn wacli() -> PathBuf {
+    "wacli".into()
+}
+
+/// The `sidecars/meshcore` process (meshcore_py), JSON lines on stdio.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct MeshcoreCfg {
+    /// Command line that starts the sidecar.
+    pub command: Vec<String>,
+    /// Companion node: a serial device ("/dev/ttyUSB0") or "host:port".
+    pub device: String,
+    /// Channel or room server the messages go to.
+    pub channel: String,
 }
 
 #[cfg(test)]
@@ -94,5 +121,22 @@ mod tests {
         let c: Config = toml::from_str(s).unwrap();
         assert_eq!(c.radio.kind, RadioKind::Loopback);
         assert!(c.bridges.log);
+    }
+
+    #[test]
+    fn example_bridges_parse_when_uncommented() {
+        let s = include_str!("../base.example.toml").replace("# [bridges.", "[bridges.");
+        let s: String = s
+            .lines()
+            .map(|l| match l.strip_prefix("# ") {
+                Some(kv) if kv.contains(" = ") && !kv.starts_with("dial_") => kv,
+                _ => l,
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
+        let c: Config = toml::from_str(&s).unwrap();
+        assert_eq!(c.bridges.signal.unwrap().account, "+34600000000");
+        assert_eq!(c.bridges.whatsapp.unwrap().bin, PathBuf::from("wacli"));
+        assert_eq!(c.bridges.meshcore.unwrap().command[0], "python3");
     }
 }

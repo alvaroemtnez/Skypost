@@ -3,7 +3,7 @@
 Goal: real NVIS data in weeks, with no modem work. Unmodified JS8Call does the
 radio; the Rust `keryx` CLI does every protocol step (codec, crypto, ACKs), so
 this prototype already speaks the real v0 wire format. Python only glues
-JS8Call's API to `keryx` and forwards to Matrix/ntfy.
+JS8Call's API to `keryx` and forwards to a Signal group through `signal-cli`.
 
 Throwaway by design: Phase 1 replaces it with `pharos` and binary JS8 frames.
 
@@ -23,6 +23,10 @@ keryx provision --code @group.code --me 1 --state ~/.local/share/skypost/field.j
 cp prototype/config.example.toml prototype/base.toml   # and field.toml; edit both
 ```
 
+On the base, register or link `signal-cli` once to the base's own number
+(`signal-cli link` and scan the QR from a phone, or `register`/`verify`) and
+find the family group id with `signal-cli -a +34... listGroups`.
+
 In JS8Call: enable the TCP API (Settings > Reporting), set your callsign, pick
 the band from `keryx band --month M --hour H` (UTC), and choose the speed by hand.
 
@@ -30,7 +34,7 @@ the band from `keryx band --month M --hour H` (UTC), and choose the speed by han
 
 ```sh
 cd prototype
-SKYPOST_MATRIX_TOKEN=... python3 -m skypost_p0.base --config base.toml       # on the Pi
+python3 -m skypost_p0.base --config base.toml                         # on the Pi
 python3 -m skypost_p0.field --config field.toml text "Hemos acampado"   # in the field
 python3 -m skypost_p0.field --config field.toml ok --lat 42.63 --lon 0.66
 ```

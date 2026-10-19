@@ -124,3 +124,20 @@ def test_duplicate_message_parsing_matches_cli_wording():
     # Must match keryx::Error::Duplicate's Display text.
     msg = "error: duplicate of an already delivered frame (sender 1, counter 300)"
     assert base._parse_dup(msg) == (1, 300)
+
+
+def test_forward_calls_signal_cli_and_logs_failures(tmp_path: Path):
+    fake = tmp_path / "signal-cli"
+    args_out = tmp_path / "args"
+    fake.write_text(f'#!/bin/sh\nprintf "%s\\n" "$@" > {args_out}\n[ "$FAIL" = 1 ] && echo boom >&2 && exit 1\nexit 0\n')
+    fake.chmod(0o755)
+    cfg = {"bridges": {"signal": {"bin": str(fake), "account": "+34600000000", "group_id": "G=="}}}
+    log = tmp_path / "log.jsonl"
+    base.forward(cfg, "hola", urgent=True, log_path=str(log))
+    assert args_out.read_text().splitlines() == ["-a", "+34600000000", "send", "-m", "🆘 SOS hola", "-g", "G=="]
+    assert not log.exists()
+
+    fake.write_text(fake.read_text().replace('[ "$FAIL" = 1 ] && ', ""))
+    base.forward(cfg, "hola", urgent=False, log_path=str(log))
+    ev = json.loads(log.read_text().splitlines()[-1])
+    assert ev["event"] == "bridge_error" and ev["bridge"] == "signal" and ev["error"] == "boom"

@@ -1,7 +1,7 @@
 """Base side: listen through JS8Call, ACK every authentic frame, forward to
-Matrix and ntfy, and log everything as JSON lines.
+Signal, and log everything as JSON lines.
 
-    SKYPOST_MATRIX_TOKEN=... python -m skypost_p0.base --config base.toml
+    python -m skypost_p0.base --config base.toml
 
 ACKs go out signed (they carry no content). Replies from the family side and
 store-and-forward are Phase 1 (pharos); Phase 0 is one-way plus ACKs.
@@ -10,10 +10,10 @@ store-and-forward are Phase 1 (pharos); Phase 0 is one-way plus ACKs.
 from __future__ import annotations
 
 import argparse
-import os
+import subprocess
 import sys
 
-from .bridges import format_message, matrix_send, ntfy_send
+from .bridges import format_message, signal_send
 from .common import dt_ds_of, load_config, log_event, snr_of
 from .framing import extract, wrap
 from .js8api import Js8Api
@@ -21,17 +21,15 @@ from .keryxcli import Duplicate, Keryx, KeryxError, find_binary, is_ack
 
 
 def forward(cfg: dict, text: str, urgent: bool, log_path: str | None) -> None:
-    bridges = cfg.get("bridges", {})
-    if m := bridges.get("matrix"):
+    if sg := cfg.get("bridges", {}).get("signal"):
+        if urgent:
+            text = f"🆘 SOS {text}"
         try:
-            matrix_send(m["homeserver"], m["room_id"], os.environ[m["access_token_env"]], text)
-        except Exception as e:  # keep listening whatever the bridge does
-            log_event(log_path, event="bridge_error", bridge="matrix", error=str(e))
-    if n := bridges.get("ntfy"):
-        try:
-            ntfy_send(n["url"], text, urgent=urgent)
+            signal_send(sg.get("bin", "signal-cli"), sg["account"], sg["group_id"], text)
+        except subprocess.CalledProcessError as e:  # keep listening whatever the bridge does
+            log_event(log_path, event="bridge_error", bridge="signal", error=e.stderr.strip())
         except Exception as e:
-            log_event(log_path, event="bridge_error", bridge="ntfy", error=str(e))
+            log_event(log_path, event="bridge_error", bridge="signal", error=str(e))
 
 
 def main(argv: list[str] | None = None) -> int:

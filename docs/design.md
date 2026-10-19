@@ -3,7 +3,7 @@
 Skypost is the project and app, Keryx the wire protocol, Pharos the base
 station (`decisions/0011-naming.md`).
 
-Status: phase 0/1 groundwork. Last updated 2026-10-18.
+Status: phase 0/1 groundwork. Last updated 2026-10-19.
 Source of truth for the project. Detailed specs live in `docs/spec/`, decisions
 in `docs/decisions/`, sources in `docs/research-notes.md`.
 
@@ -24,7 +24,7 @@ the MeshCore LoRa community network (deep valleys, remote areas).
 | | Scenario | Who |
 |---|---|---|
 | A | Point to point between two field kits, fully off-grid. Short keyboard messages. | Licensed operator(s) |
-| B | Field kit ↔ 24/7 base station that bridges to Signal/WhatsApp (via Matrix), the MeshCore room server and ntfy. | Normal use: licensed operator. Emergency: anyone. |
+| B | Field kit ↔ 24/7 base station that bridges to Signal, WhatsApp and the MeshCore network. | Normal use: licensed operator. Emergency: anyone. |
 
 ## 2. Decisions at a glance
 
@@ -39,7 +39,8 @@ the MeshCore LoRa community network (deep valleys, remote areas).
 | Crypto | Pre-shared group key, per-sender hash ratchets, ChaCha20 + HMAC-SHA256 | [0007](decisions/0007-crypto.md) |
 | On-air default | Signed plaintext; encryption only in emergencies or into a dummy load | [0008](decisions/0008-signed-plaintext-default.md) |
 | Lane choice | Base decodes every lane; sender picks from the SNR in ACKs | [0009](decisions/0009-no-lane-negotiation.md) |
-| Python | Phase 0 prototype only, protocol via the Rust CLI | [0010](decisions/0010-python-phase0-only.md) |
+| Python | Phase 0 prototype only, protocol via the Rust CLI (one exception: the MeshCore sidecar) | [0010](decisions/0010-python-phase0-only.md) |
+| Bridges | Signal (signal-cli), WhatsApp (wacli), MeshCore (meshcore_py) as sidecars; no Matrix, no ntfy | [0014](decisions/0014-bridges-sidecars.md) |
 
 ## 3. Propagation
 
@@ -111,9 +112,9 @@ Mercury lane later; it is not the core.
 ```
         Field kit                                        Base station (24/7, Pi)
  ┌──────────────────────┐                         ┌──────────────────────────────┐
- │ Android app (Kotlin, │                         │ Bridges: Matrix (→ Signal,   │
- │ Compose M3)          │                         │ WhatsApp via mautrix),       │
- │  family / advanced   │                         │ MeshCore, ntfy               │
+ │ Android app (Kotlin, │                         │ Bridge sidecars: Signal      │
+ │ Compose M3)          │                         │ (signal-cli), WhatsApp       │
+ │  family / advanced   │                         │ (wacli), MeshCore (py)       │
  ├──────────────────────┤                         ├──────────────────────────────┤
  │ Rust core (keryx)│                         │ pharos (Rust):           │
  │  codec, crypto, ARQ, │                         │  store and forward, ACKs,    │
@@ -201,6 +202,7 @@ One app, two profiles.
 | JS8 engine, Mercury, codec2 | C++ / C (upstream) | Reused as is behind one narrow FFI boundary |
 | Android UI and platform glue | Kotlin + Jetpack Compose M3 | MD3's reference implementation; native USB, audio, services |
 | Phase 0 prototype | Python (stdlib) | Throwaway glue to JS8Call's API; protocol work done by the `keryx` CLI |
+| Bridges | Upstream programs (Java, Go, Python) as sidecars | Maintained clients instead of our own; Pharos speaks JSON to them ([0014](decisions/0014-bridges-sidecars.md)) |
 
 Why not the alternatives:
 
@@ -221,7 +223,8 @@ Layout:
 ```
 core/           Rust workspace: keryx, keryx-cli (`keryx`), pharos; testvectors/
 android/        Kotlin/Compose app (Gradle)
-prototype/      Phase 0 Python glue (JS8Call API ↔ keryx CLI ↔ Matrix/ntfy)
+prototype/      Phase 0 Python glue (JS8Call API ↔ keryx CLI ↔ signal-cli)
+sidecars/       bridge sidecars we own (MeshCore, later)
 docs/           this file, specs, decisions, research notes, roadmap
 ```
 
@@ -234,7 +237,6 @@ docs/           this file, specs, decisions, research notes, roadmap
 - Voice notes over the fast lane: codec2 as data, the bridge converts to a
   Signal/WhatsApp voice note. Live encrypted voice is possible with codec2 +
   a stream cipher; FreeDV RADE cannot be bit-encrypted.
-- MeshCore integration through its companion protocol (room server).
 - Scheduled listen windows on the field side to save battery.
 - Test without RF: codec2's `ch` simulator (Watterson fading) in CI.
 - Soft combining of JS8 retransmissions (Mercury's HARQ idea).
@@ -248,7 +250,8 @@ docs/           this file, specs, decisions, research notes, roadmap
 - [ ] Dial frequencies inside IARU R1 segments, away from JS8Call calling frequencies.
 - [ ] Is compressed signed plaintext "coded to hide meaning"? See regulatory notes.
 - [ ] SOS in clear (any listener can relay) or follow the current mode?
-- [ ] Which Matrix bridges to run (mautrix-signal, mautrix-whatsapp; WhatsApp ban risk).
+- [x] Which bridges to run: signal-cli, wacli, meshcore_py sidecars ([0014](decisions/0014-bridges-sidecars.md)).
+- [ ] Does `wacli --events` carry incoming message content? Else a Go sidecar on `whatsmeow`.
 - [ ] Base station licensing route (association / radio club).
 
 ## 13. Corrections since the original chat

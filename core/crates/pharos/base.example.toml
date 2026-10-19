@@ -16,10 +16,17 @@ ofdm_capable = true    # base TX rig is a G90 (linear SSB)
 [bridges]
 log = true
 
-# [bridges.matrix]
-# homeserver = "https://matrix.example.org"
-# room_id = "!abcdef:example.org"
-# access_token_env = "SKYPOST_MATRIX_TOKEN"
+# Bridge sidecars, see docs/decisions/0014-bridges-sidecars.md
+# [bridges.signal]
+# account = "+34600000000"                 # the base's own Signal number
+# socket = "/run/signal-cli/socket"        # signal-cli daemon --socket
+# group_id = "BASE64GROUPID=="
 
-# [bridges.ntfy]
-# url = "https://ntfy.example.org/familia"
+# [bridges.whatsapp]
+# bin = "wacli"
+# to = "Familia"                           # JID, phone number or chat name
+
+# [bridges.meshcore]
+# command = ["python3", "/opt/skypost/sidecars/meshcore/bridge.py"]
+# device = "/dev/ttyUSB0"                  # or "host:port" for a TCP companion
+# channel = "Familia"

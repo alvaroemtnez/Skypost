@@ -22,10 +22,7 @@ allow_encrypted_tx = false
 path = "~/skypost-p0.jsonl"   # the propagation dataset; keep these files
 
 # Base side only:
-# [bridges.matrix]
-# homeserver = "https://matrix.example.org"
-# room_id = "!abcdef:example.org"
-# access_token_env = "SKYPOST_MATRIX_TOKEN"
-#
-# [bridges.ntfy]
-# url = "https://ntfy.example.org/familia"
+# [bridges.signal]                    # one-shot `signal-cli send`, see README
+# bin = "signal-cli"
+# account = "+34600000000"             # the base's own Signal number
+# group_id = "BASE64GROUPID=="         # signal-cli -a ACCOUNT listGroups

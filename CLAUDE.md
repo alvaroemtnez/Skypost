@@ -5,8 +5,9 @@ Names (`docs/decisions/0011-naming.md`): **Skypost** = project and app,
 
 Encrypted off-grid family messaging over HF NVIS (40/60/80 m). A field kit
 (Android phone + QDX or G90 over USB OTG) talks to another kit, or to a 24/7
-base station (Raspberry Pi) that bridges to Matrix (→ Signal/WhatsApp),
-MeshCore and ntfy. Owner: Álvaro, licensed ham, Spain. UI language: Spanish.
+base station (Raspberry Pi) that bridges to Signal, WhatsApp and MeshCore
+through upstream sidecars (`docs/decisions/0014-bridges-sidecars.md`).
+Owner: Álvaro, licensed ham, Spain. UI language: Spanish.
 
 Read `docs/design.md` first. Then `docs/roadmap.md` for what is next.
 
@@ -17,7 +18,7 @@ Read `docs/design.md` first. Then `docs/roadmap.md` for what is next.
   `core/testvectors/`.
 - `android/` — Kotlin + Compose Material 3 app. Skeleton on fakes; builds with
   `android/build.sh` (self-contained toolchain, no Android Studio).
-- `prototype/` — Phase 0 Python glue: JS8Call API ↔ `keryx` ↔ Matrix/ntfy.
+- `prototype/` — Phase 0 Python glue: JS8Call API ↔ `keryx` ↔ signal-cli.
 - `docs/` — design, specs (`docs/spec/`), decisions (`docs/decisions/`),
   regulatory notes, research notes with sources.
 

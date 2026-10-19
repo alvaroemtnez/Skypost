@@ -57,3 +57,22 @@ Figures used in the design, with where they come from. Checked October 2026.
 - WebUSB cannot claim CDC-ACM (QDX CAT) on Android. [FT8web](https://github.com/ok1cdj/FT8web)
 - Ribbit / Rattlegram: encoded audio from a phone speaker into any radio.
   [ORI newsletter](https://www.openresearch.institute/?p=2631)
+
+## Bridges (checked 2026-10-19, decision 0014)
+
+- MeshCore: official Python library and CLI, serial/BLE/TCP companion
+  protocol. [meshcore_py](https://github.com/meshcore-dev/meshcore_py),
+  [meshcore-cli](https://github.com/meshcore-dev/meshcore-cli). Rust port,
+  one maintainer, lists unsupported commands:
+  [meshcore-rs](https://github.com/andrewdavidmackenzie/meshcore-rs).
+- Signal: signal-cli, JSON-RPC daemon; needs JRE 25+; prebuilt libsignal
+  only for x86_64; "releases older than three months may not work".
+  [signal-cli](https://github.com/AsamK/signal-cli); aarch64 libsignal:
+  [signal-libs-build](https://github.com/exquo/signal-libs-build). Rust
+  alternative (AGPL, git dependency): [presage](https://github.com/whisperfish/presage).
+  [signal-cli-api](https://crates.io/crates/signal-cli-api) is only a REST
+  wrapper around signal-cli.
+- WhatsApp: everything serious sits on [whatsmeow](https://github.com/tulir/whatsmeow)
+  (Go, also behind mautrix-whatsapp). CLIs: [wacli](https://github.com/openclaw/wacli)
+  (`sync --follow --events` NDJSON, linux arm64 releases),
+  [whatsapp-cli](https://github.com/vicentereig/whatsapp-cli) (smaller, no arm64).

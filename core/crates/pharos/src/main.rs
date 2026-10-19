@@ -3,8 +3,8 @@
 //!
 //! Status: skeleton. The station logic (`station.rs`) and outbox are real and
 //! tested; the radio side is a loopback until the JS8 engine is wired in
-//! (phase 1), and the Matrix/ntfy bridges are TODO (the Phase 0 Python
-//! prototype covers Matrix meanwhile).
+//! (phase 1), and the Signal/WhatsApp/MeshCore bridges are TODO (the Phase 0
+//! Python prototype covers Signal meanwhile).
 
 // Skeleton: config fields, outbox and station effects are wired up once the
 // PHY task lands (phase 1). Tests exercise them already.
@@ -49,7 +49,7 @@ fn deliver(cfg: &Config, e: &Effect) {
         if matches!(message, Message::Sos(_)) {
             warn!(from = header.src, "SOS received — alert every bridge");
         }
-        // TODO(phase 1): Matrix (client-server API, m.room.message) and ntfy.
+        // TODO(phase 1): Signal, WhatsApp and MeshCore sidecars (decision 0014).
     }
 }
 

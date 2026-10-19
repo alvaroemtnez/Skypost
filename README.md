@@ -1,8 +1,8 @@
 # Skypost
 
 Encrypted off-grid messaging over HF NVIS for a family: phone + small HF radio
-in the field, a 24/7 base station at home that bridges to Matrix, Signal,
-WhatsApp, MeshCore and ntfy. No third-party infrastructure.
+in the field, a 24/7 base station at home that bridges to Signal,
+WhatsApp and MeshCore. No third-party infrastructure.
 
 - Robust lane: the JS8 waveform (decodes down to about −24 dB) carrying our
   own compact binary frames. Works on a QDX.

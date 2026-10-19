@@ -27,7 +27,7 @@ pub enum Effect {
         to: u8,
         wire: Vec<u8>,
     },
-    /// A message to hand to the bridges (Matrix, MeshCore, ntfy, log).
+    /// A message to hand to the bridges (Signal, WhatsApp, MeshCore, log).
     Deliver {
         header: Header,
         message: Message,
