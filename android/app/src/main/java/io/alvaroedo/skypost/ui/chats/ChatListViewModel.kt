@@ -32,7 +32,12 @@ data class ChatListUi(
 
 /** Pinned first (in the order they were pinned), then the most recent. */
 internal fun List<Chat>.ordered(): List<Chat> =
-    sortedWith(compareBy<Chat> { it.pinnedAt == null }.thenBy { it.pinnedAt ?: 0 }.thenByDescending { it.last?.atMillis ?: 0 })
+    sortedWith(
+        compareBy<Chat> { it.pinnedAt == null }
+            .thenBy { it.pinnedAt ?: 0L }
+            // 0L, not 0: a boxed Int against a Long crashes the comparator (empty chats).
+            .thenByDescending { it.last?.atMillis ?: 0L },
+    )
 
 /** The chat list, or with [archived] the archived chats. */
 class ChatListViewModel(private val repo: Repository, private val archived: Boolean = false) : ViewModel() {

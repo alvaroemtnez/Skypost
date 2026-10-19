@@ -54,7 +54,7 @@ class FakeRepositoryTest {
         val r = repo(demo = true)
         val familia = r.chats.value.first { it.kind == ChatKind.GROUP }.id
         r.setEncryptAll(true)
-        assertEquals(1, r.sos())
+        assertEquals(1, r.sos(null))
         val sos = r.messages(familia).first().last()
         assertTrue(sos.sos)
         assertEquals(Auth.SIGNED, sos.auth)

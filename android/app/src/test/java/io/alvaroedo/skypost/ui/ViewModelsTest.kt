@@ -3,6 +3,9 @@ package io.alvaroedo.skypost.ui
 import io.alvaroedo.skypost.MainDispatcherRule
 import io.alvaroedo.skypost.core.FakeKeryxCore
 import io.alvaroedo.skypost.data.FakeRepository
+import io.alvaroedo.skypost.location.Locator
+import io.alvaroedo.skypost.model.GeoFix
+import io.alvaroedo.skypost.ui.chat.ChatEvent
 import io.alvaroedo.skypost.model.Auth
 import io.alvaroedo.skypost.model.ChatKind
 import io.alvaroedo.skypost.ui.chat.ChatViewModel
@@ -72,7 +75,7 @@ class ViewModelsTest {
     @Test
     fun `scanned contact is confirmed before it is added`() = runTest {
         val r = repo()
-        val app = AppViewModel(r)
+        val app = AppViewModel(r, Locator { null })
         assertFalse(app.offer("hola"))
         assertTrue(app.offer("skypost:id/ZZZZ?n=carla&c=EA5CCC"))
         assertTrue(r.contacts.value.none { it.card.alias == "carla" })
@@ -107,5 +110,42 @@ class ViewModelsTest {
         assertEquals(4, main.ui.value.chats.size)
         assertEquals(1, main.ui.value.archivedCount)
         assertEquals(listOf(id), archive.ui.value.chats.map { it.id })
+    }
+
+    @Test
+    fun `chats without messages sort among the others`() = runTest {
+        val r = repo()
+        val vm = ChatListViewModel(r)
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { vm.ui.collect {} }
+        assertTrue(AppViewModel(r, Locator { null }).offer("skypost:id/ZZZZ?n=carla"))
+        AppViewModel(r, Locator { null }).apply { offer("skypost:id/ZZZZ?n=carla") }.confirmImport()
+        assertTrue(vm.ui.value.chats.any { it.id == "direct:ZZZZ" && it.last == null })
+    }
+
+    @Test
+    fun `status ok carries the fix, or goes without and says so`() = runTest {
+        val r = repo()
+        val id = r.chats.value.first { it.kind == ChatKind.DIRECT }.id
+        val fix = GeoFix(42.6311, 0.6588, 8f)
+        val withFix = ChatViewModel(r, id, Locator { fix })
+        withFix.sendStatusOk()
+        assertEquals(fix, r.messages(id).first().last().position)
+        val blind = ChatViewModel(r, id, Locator { null })
+        val events = mutableListOf<ChatEvent>()
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { blind.events.collect { events += it } }
+        blind.sendStatusOk()
+        blind.sendPosition()
+        assertEquals(listOf(ChatEvent.SENT_WITHOUT_POSITION, ChatEvent.NO_POSITION), events)
+        assertEquals(0, r.messages(id).first().last().phrase)
+    }
+
+    @Test
+    fun `sos waits for the fix and reports it`() = runTest {
+        val r = repo()
+        val res = AppViewModel(r, Locator { GeoFix(40.0, -3.0) }).sos()
+        assertEquals(1, res.sentTo)
+        assertTrue(res.withPosition)
+        val group = r.chats.value.first { it.kind == ChatKind.GROUP }.id
+        assertEquals(40.0, r.messages(group).first().last().position?.lat)
     }
 }

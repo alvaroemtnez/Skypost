@@ -19,7 +19,6 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
@@ -49,6 +48,7 @@ import io.alvaroedo.skypost.BuildConfig
 import io.alvaroedo.skypost.R
 import io.alvaroedo.skypost.data.Repository
 import io.alvaroedo.skypost.ui.components.LocalSnackbar
+import io.alvaroedo.skypost.ui.components.SettingRow
 import io.alvaroedo.skypost.ui.components.openUrl
 import io.alvaroedo.skypost.ui.onboarding.PassphraseDialog
 import kotlinx.coroutines.launch
@@ -112,7 +112,7 @@ fun SettingsScreen(
         LazyColumn(Modifier.padding(padding), contentPadding = PaddingValues(bottom = 24.dp)) {
             item {
                 Section(R.string.settings_profile)
-                ListItem(
+                SettingRow(
                     modifier = Modifier.clickable { editProfile = true },
                     leadingContent = { Icon(painterResource(R.drawable.ic_person), null) },
                     headlineContent = { Text(identity?.card?.alias.orEmpty()) },
@@ -120,7 +120,7 @@ fun SettingsScreen(
                         Text(identity?.card?.callsign ?: stringResource(R.string.no_callsign))
                     },
                 )
-                ListItem(
+                SettingRow(
                     modifier = Modifier.clickable(onClick = onMyCode),
                     leadingContent = { Icon(painterResource(R.drawable.ic_qr_code), null) },
                     headlineContent = { Text(stringResource(R.string.my_code)) },
@@ -128,7 +128,7 @@ fun SettingsScreen(
                 )
 
                 Section(R.string.settings_safety)
-                ListItem(
+                SettingRow(
                     modifier = Modifier.clickable(onClick = onSosContacts),
                     leadingContent = { Icon(painterResource(R.drawable.ic_sos), null) },
                     headlineContent = { Text(stringResource(R.string.sos_contacts)) },
@@ -143,7 +143,7 @@ fun SettingsScreen(
                         )
                     },
                 )
-                ListItem(
+                SettingRow(
                     modifier = Modifier.clickable {
                         if (settings.encryptAll) repo.setEncryptAll(false) else confirmEncryptAll = true
                     },
@@ -158,7 +158,7 @@ fun SettingsScreen(
                     },
                 )
 
-                ListItem(
+                SettingRow(
                     modifier = Modifier.clickable(onClick = onBlocked),
                     leadingContent = { Icon(painterResource(R.drawable.ic_block), null) },
                     headlineContent = { Text(stringResource(R.string.blocked_list)) },
@@ -166,12 +166,12 @@ fun SettingsScreen(
                 )
 
                 Section(R.string.pharos_title)
-                ListItem(
+                SettingRow(
                     modifier = Modifier.clickable(onClick = onPharos),
                     leadingContent = { Icon(painterResource(R.drawable.ic_cell_tower), null) },
                     headlineContent = { Text(stringResource(R.string.pharos_manage)) },
                 )
-                ListItem(
+                SettingRow(
                     modifier = Modifier.clickable { pickPing = true },
                     leadingContent = { Icon(painterResource(R.drawable.ic_schedule), null) },
                     headlineContent = { Text(stringResource(R.string.ping_interval)) },
@@ -179,7 +179,7 @@ fun SettingsScreen(
                 )
 
                 Section(R.string.settings_radio)
-                ListItem(
+                SettingRow(
                     modifier = Modifier.clickable(onClick = onRadio),
                     leadingContent = { Icon(painterResource(R.drawable.ic_radio), null) },
                     headlineContent = { Text(stringResource(R.string.settings_radio_rig)) },
@@ -187,13 +187,13 @@ fun SettingsScreen(
                 )
 
                 Section(R.string.settings_backup)
-                ListItem(
+                SettingRow(
                     modifier = Modifier.clickable { askExportPass = true },
                     leadingContent = { Icon(painterResource(R.drawable.ic_backup), null) },
                     headlineContent = { Text(stringResource(R.string.backup_export)) },
                     supportingContent = { Text(stringResource(R.string.backup_export_body)) },
                 )
-                ListItem(
+                SettingRow(
                     modifier = Modifier.clickable { openDoc.launch(arrayOf("*/*")) },
                     leadingContent = { Icon(painterResource(R.drawable.ic_restore), null) },
                     headlineContent = { Text(stringResource(R.string.backup_restore)) },
@@ -201,12 +201,12 @@ fun SettingsScreen(
                 )
 
                 Section(R.string.settings_about)
-                ListItem(
+                SettingRow(
                     leadingContent = { Icon(painterResource(R.drawable.ic_info), null) },
                     headlineContent = { Text(stringResource(R.string.app_name)) },
                     supportingContent = { Text(stringResource(R.string.about_body, BuildConfig.VERSION_NAME)) },
                 )
-                ListItem(
+                SettingRow(
                     modifier = Modifier.clickable { openUrl(context, SOURCE_URL) },
                     leadingContent = { Icon(painterResource(R.drawable.ic_code), null) },
                     headlineContent = { Text(stringResource(R.string.about_source)) },

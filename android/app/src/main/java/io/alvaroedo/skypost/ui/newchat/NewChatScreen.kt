@@ -128,7 +128,6 @@ fun NewChatOfScreen(
         ChatKind.DIRECT -> {
             val contacts by vm.contacts.collectAsStateWithLifecycle()
             NewChatScaffold(stringResource(R.string.kind_direct), onBack) {
-                codeActions(R.string.scan_contact, scan, paste)
                 header(R.string.contacts)
                 if (contacts.isEmpty()) hint(R.string.contacts_empty)
                 items(contacts, key = { it.card.key }) { c ->
@@ -142,20 +141,14 @@ fun NewChatOfScreen(
                         onDelete = { forget = Forget(c.card.alias, R.string.contact_delete_body) { vm.removeContact(c.card.key) } },
                     )
                 }
+                item { HorizontalDivider() }
+                codeActions(R.string.scan_contact, scan, paste)
             }
         }
         ChatKind.GROUP -> {
             val groups by vm.groups.collectAsStateWithLifecycle()
             var naming by rememberSaveable { mutableStateOf(false) }
             NewChatScaffold(stringResource(R.string.kind_group), onBack) {
-                item {
-                    ListItem(
-                        modifier = Modifier.clickable { naming = true },
-                        leadingContent = { Icon(painterResource(R.drawable.ic_add), null) },
-                        headlineContent = { Text(stringResource(R.string.group_create)) },
-                    )
-                }
-                codeActions(R.string.scan_group, scan, paste)
                 header(R.string.groups)
                 if (groups.isEmpty()) hint(R.string.groups_empty)
                 items(groups, key = { it.id }) { g ->
@@ -169,6 +162,15 @@ fun NewChatOfScreen(
                         onDelete = { forget = Forget(g.name, R.string.group_leave_body) { vm.leaveGroup(g.id) } },
                     )
                 }
+                item {
+                    HorizontalDivider()
+                    ListItem(
+                        modifier = Modifier.clickable { naming = true },
+                        leadingContent = { Icon(painterResource(R.drawable.ic_add), null) },
+                        headlineContent = { Text(stringResource(R.string.group_create)) },
+                    )
+                }
+                codeActions(R.string.scan_group, scan, paste)
             }
             if (naming) {
                 GroupNameDialog(onDismiss = { naming = false }) { name ->
@@ -182,9 +184,9 @@ fun NewChatOfScreen(
             val recents by vm.recents.collectAsStateWithLifecycle()
             val blockedKeys by vm.blockedKeys.collectAsStateWithLifecycle()
             NewChatScaffold(stringResource(R.string.kind_meshcore), onBack) {
+                recentItems(recents.filter { it.kind == ChatKind.MESHCORE }, blockedKeys, vm, onOpenChat)
                 codeActions(R.string.scan_meshcore, scan, paste)
                 hint(R.string.meshcore_hint)
-                recentItems(recents.filter { it.kind == ChatKind.MESHCORE }, blockedKeys, vm, onOpenChat)
             }
         }
     }
@@ -211,7 +213,6 @@ private fun LazyListScope.codeActions(scanLabel: Int, onScan: () -> Unit, onPast
             leadingContent = { Icon(painterResource(R.drawable.ic_content_paste), null) },
             headlineContent = { Text(stringResource(R.string.paste_code)) },
         )
-        HorizontalDivider()
     }
 }
 

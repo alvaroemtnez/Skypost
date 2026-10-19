@@ -33,7 +33,9 @@ Kotlin + Jetpack Compose Material 3. Package `io.alvaroedo.skypost`, min SDK 26.
   UniFFI bindings exist. Do not implement protocol logic in Kotlin (the fakes'
   rough URI parsing and estimates are test doubles, not the real thing).
 - `radio/RadioLink.kt` documents the USB audio/CAT plan; `FakeRadioLink` until then.
-- QR scanning is in-app (`ui/scan`, CameraX + ZXing): no Google services.
+- No Google services, ever: QR scanning is in-app (`ui/scan`, CameraX +
+  ZXing) and location uses the platform `LocationManager` (`location/`).
+- Emulator for debugging: AOSP image (no Google) in `.tools/`; see README.
 - Back navigation: predictive back is off in the manifest; screens slide out
   to the right on release (`popTransform` in `MainActivity.kt`).
 - Strings: English default (`values/`), Spanish (`values-es/`), Valencian

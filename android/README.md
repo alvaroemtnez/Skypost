@@ -221,6 +221,24 @@ running on fakes (sample chats appear after creating an identity):
    encrypted with an Android Keystore key, persisted before every transmit.
 6. Notifications for incoming messages; the automatic ping schedule.
 
+## Emulator (debugging without a phone)
+
+A plain AOSP image (no Google services) can run headless from `.tools/`:
+
+```console
+$ eval "$(./build.sh env)"
+$ $ANDROID_HOME/cmdline-tools/latest/bin/android --sdk=$ANDROID_HOME sdk install --no-metrics \
+    emulator system-images/android-35/default/x86_64
+$ # AVD: $ANDROID_USER_HOME/avd/skypost.avd/config.ini with
+$ #   image.sysdir.1=system-images/android-35/default/x86_64/, hw.camera.back=emulated,
+$ #   hw.gpu.mode=swangle_indirect (see git history of this README for a full example)
+$ ANDROID_AVD_HOME=$ANDROID_USER_HOME/avd $ANDROID_HOME/emulator/emulator -avd skypost -no-window -no-audio
+$ adb install -r dist/skypost-debug.apk && adb logcat -b crash
+$ adb emu geo fix 0.6588 42.6311   # simulated GPS fix
+```
+
+Needs `/dev/kvm`. Deep links: `adb shell am start -a android.intent.action.VIEW -d '<skypost:… URI>'`.
+
 ## Editor note
 
 There is no need for Android Studio. VSCodium with a Kotlin extension edits

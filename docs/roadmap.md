@@ -60,7 +60,8 @@ Design: decisions [0015](decisions/0015-identities.md), [0016](decisions/0016-ph
 - [ ] `keryx-ffi` crate (UniFFI) + cargo-ndk build into `jniLibs`
 - [ ] Radio foreground service: USB permission, CAT (usb-serial-for-android), USB audio routing; drive the top-bar radio indicator (grey / orange audio only / green audio + CAT)
 - [ ] Audio-only radios (no CAT): make setting the frequency by hand easy (show band and dial frequency, check it, remind on band changes)
-- [ ] GNSS time and position
+- [x] GNSS position for Estoy bien, positions and SOS (`location/Locator.kt`, platform LocationManager, no Google services)
+- [ ] GNSS time for JS8 slot sync
 - [ ] QR provisioning, Keystore-encrypted state, PIN for advanced mode
 - [ ] Real `Repository` over the keyring (Keystore-encrypted state); delivery ticks wired to ARQ events
 - [x] Try the chat UI on a phone (first round of feedback applied: in-app QR scanner, slide-back, SOS button and contacts, global encryption, signal colours, English/Spanish/Valencian)

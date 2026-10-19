@@ -39,7 +39,13 @@ data class ChatMessage(
     val sos: Boolean = false,
     /** A stock phrase id (`keryx::canned`): shown in the app's language; [text] is the Spanish original. */
     val phrase: Int? = null,
+    /** Position attached ("Estoy bien", position, SOS). */
+    val position: GeoFix? = null,
 )
+
+/** A GNSS fix: 6 bytes on air (~1.2 m resolution); accuracy is shown locally only. */
+@Serializable
+data class GeoFix(val lat: Double, val lon: Double, val accuracyM: Float? = null, val atMillis: Long = 0)
 
 @Serializable
 data class Chat(

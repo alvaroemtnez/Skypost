@@ -13,6 +13,7 @@ import io.alvaroedo.skypost.model.ChatMessage
 import io.alvaroedo.skypost.model.Contact
 import io.alvaroedo.skypost.model.Delivery
 import io.alvaroedo.skypost.model.Discovered
+import io.alvaroedo.skypost.model.GeoFix
 import io.alvaroedo.skypost.model.Group
 import io.alvaroedo.skypost.model.Identity
 import io.alvaroedo.skypost.model.Pharos
@@ -168,10 +169,11 @@ class FakeRepository(
         }
     }
 
-    private fun sendOut(chatId: String, text: String, sos: Boolean = false, phrase: Int? = null) {
+    private fun sendOut(chatId: String, text: String, sos: Boolean = false, phrase: Int? = null, position: GeoFix? = null) {
         val c = chat(chatId)?.takeUnless { it.blocked } ?: return
         val msg = ChatMessage(
             phrase = phrase,
+            position = position,
             id = nextId++,
             chatId = chatId,
             outgoing = true,
@@ -197,10 +199,10 @@ class FakeRepository(
         core.phrases().getOrNull(id)?.let { sendOut(chatId, it, phrase = id) }
     }
 
-    // TODO(phase 2): GNSS position.
-    override fun sendStatusOk(chatId: String) = sendOut(chatId, "Estoy bien · 42.63110, 0.65880")
+    // The real one sends Message::StatusOk / Position with a 6-byte position.
+    override fun sendStatusOk(chatId: String, fix: GeoFix?) = sendOut(chatId, core.phrases()[0], phrase = 0, position = fix)
 
-    override fun sendPosition(chatId: String) = sendOut(chatId, "Posición · 42.63110, 0.65880")
+    override fun sendPosition(chatId: String, fix: GeoFix) = sendOut(chatId, "", position = fix)
 
     override fun setEncrypted(chatId: String, on: Boolean) {
         _chats.update { list -> list.map { if (it.id == chatId) it.copy(encrypted = on) else it } }
@@ -325,9 +327,9 @@ class FakeRepository(
         return _chats.value.filter { if (chosen == null) it.kind == ChatKind.GROUP else it.id in chosen }
     }
 
-    override fun sos(): Int {
+    override fun sos(fix: GeoFix?): Int {
         val targets = sosTargets()
-        targets.forEach { sendOut(it.id, "SOS · 42.63110, 0.65880", sos = true) }
+        targets.forEach { sendOut(it.id, "SOS", sos = true, position = fix) }
         return targets.size
     }
 

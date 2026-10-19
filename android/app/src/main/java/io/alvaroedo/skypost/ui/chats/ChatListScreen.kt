@@ -1,6 +1,7 @@
 package io.alvaroedo.skypost.ui.chats
 
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
@@ -15,6 +16,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Badge
 import androidx.compose.material3.Button
@@ -69,6 +71,8 @@ import io.alvaroedo.skypost.ui.components.SwipeRow
 import io.alvaroedo.skypost.ui.components.label
 import io.alvaroedo.skypost.ui.components.shortTime
 import io.alvaroedo.skypost.ui.components.shownText
+import io.alvaroedo.skypost.ui.components.rememberWithLocation
+import io.alvaroedo.skypost.ui.SosResult
 import io.alvaroedo.skypost.ui.theme.extraColors
 import kotlinx.coroutines.launch
 
@@ -80,7 +84,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun ChatListScreen(
     vm: ChatListViewModel,
-    onSos: () -> Int,
+    onSos: suspend () -> SosResult,
     onOpenChat: (String) -> Unit,
     onNewChat: () -> Unit,
     onPharos: () -> Unit,
@@ -101,6 +105,9 @@ fun ChatListScreen(
     val scroll = TopAppBarDefaults.enterAlwaysScrollBehavior()
     val sosSent = stringResource(R.string.sos_sent)
     val sosNowhere = stringResource(R.string.sos_nowhere)
+    val sosNoPosition = stringResource(R.string.sos_sent_no_position)
+    val locating = stringResource(R.string.locating)
+    val withLocation = rememberWithLocation()
     val undo = stringResource(R.string.undo)
     val maxPinned = stringResource(R.string.pin_limit, Chat.MAX_PINNED)
     val selecting = ui.selected.isNotEmpty()
@@ -204,7 +211,7 @@ fun ChatListScreen(
                                 leadingContent = { Icon(painterResource(R.drawable.ic_archive), null) },
                                 headlineContent = { Text(stringResource(R.string.archived_count, ui.archivedCount)) },
                                 trailingContent = {
-                                    if (ui.archivedUnread) Badge(containerColor = MaterialTheme.colorScheme.primary)
+                                    if (ui.archivedUnread) UnreadDot()
                                 },
                             )
                         }
@@ -234,8 +241,20 @@ fun ChatListScreen(
                     Button(
                         onClick = {
                             confirmSos = false
-                            val n = onSos()
-                            scope.launch { snackbar.showSnackbar(if (n > 0) sosSent else sosNowhere) }
+                            withLocation {
+                                scope.launch {
+                                    val waiting = launch { snackbar.showSnackbar(locating, duration = SnackbarDuration.Indefinite) }
+                                    val r = onSos()
+                                    waiting.cancel()
+                                    snackbar.showSnackbar(
+                                        when {
+                                            r.sentTo == 0 -> sosNowhere
+                                            r.withPosition -> sosSent
+                                            else -> sosNoPosition
+                                        },
+                                    )
+                                }
+                            }
                         },
                         colors = ButtonDefaults.buttonColors(
                             containerColor = MaterialTheme.extraColors.emergency,
@@ -383,7 +402,7 @@ private fun ChatRow(
                                         contentColor = if (sos) MaterialTheme.extraColors.onEmergency else MaterialTheme.colorScheme.onPrimary,
                                     ) { Text(chat.unread.toString()) }
                                 }
-                                chat.markedUnread -> Badge(containerColor = MaterialTheme.colorScheme.primary)
+                                chat.markedUnread -> UnreadDot()
                                 chat.encrypted -> AuthIcon(Auth.ENCRYPTED, tint = MaterialTheme.colorScheme.error)
                             }
                         }
@@ -428,6 +447,12 @@ private fun ChatRow(
             }
         }
     }
+}
+
+/** Unread without a count: a filled circle as big as a numbered badge. */
+@Composable
+private fun UnreadDot() {
+    Box(Modifier.size(16.dp).background(MaterialTheme.colorScheme.primary, CircleShape))
 }
 
 @Composable

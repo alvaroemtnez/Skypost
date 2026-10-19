@@ -6,7 +6,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.ListItem
+import io.alvaroedo.skypost.ui.components.SettingRow
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -38,7 +38,7 @@ fun RadioSettingsScreen(state: RadioState, onBack: () -> Unit) {
     ) { padding ->
         LazyColumn(Modifier.padding(padding), contentPadding = PaddingValues(bottom = 24.dp)) {
             item {
-                ListItem(
+                SettingRow(
                     leadingContent = { RadioIndicator(state, onClick = {}) },
                     headlineContent = {
                         Text(
@@ -63,12 +63,12 @@ fun RadioSettingsScreen(state: RadioState, onBack: () -> Unit) {
                         )
                     },
                 )
-                ListItem(
+                SettingRow(
                     leadingContent = { Icon(painterResource(R.drawable.ic_radio), null) },
                     headlineContent = { Text(stringResource(R.string.settings_radio_rig)) },
                     supportingContent = { Text(stringResource(R.string.pending_phase2)) },
                 )
-                ListItem(
+                SettingRow(
                     leadingContent = { Icon(painterResource(R.drawable.ic_info), null) },
                     headlineContent = { Text(stringResource(R.string.settings_band)) },
                     supportingContent = { Text(stringResource(R.string.settings_band_body)) },

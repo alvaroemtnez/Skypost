@@ -47,6 +47,7 @@ import io.alvaroedo.skypost.ui.onboarding.OnboardingScreen
 import io.alvaroedo.skypost.ui.pharos.PharosScreen
 import io.alvaroedo.skypost.ui.pharos.PharosViewModel
 import io.alvaroedo.skypost.ui.scan.ScanScreen
+import io.alvaroedo.skypost.location.Locator
 import io.alvaroedo.skypost.radio.RadioLink
 import io.alvaroedo.skypost.ui.settings.BlockedScreen
 import io.alvaroedo.skypost.ui.settings.RadioSettingsScreen
@@ -58,7 +59,7 @@ import kotlinx.serialization.Serializable
 
 class MainActivity : ComponentActivity() {
     private val repo: Repository by lazy { (application as SkypostApp).repository }
-    private val appVm: AppViewModel by viewModels { viewModelFactory { initializer { AppViewModel(repo) } } }
+    private val appVm: AppViewModel by viewModels { viewModelFactory { initializer { AppViewModel(repo, (application as SkypostApp).locator) } } }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         installSplashScreen()
@@ -66,7 +67,8 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         if (savedInstanceState == null) handleLink(intent)
         val radio = (application as SkypostApp).radio
-        setContent { SkypostTheme { AppRoot(repo, radio, appVm) } }
+        val locator = (application as SkypostApp).locator
+        setContent { SkypostTheme { AppRoot(repo, radio, locator, appVm) } }
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -145,7 +147,7 @@ private fun NavBackStack<NavKey>.openChat(id: String) {
 }
 
 @Composable
-private fun AppRoot(repo: Repository, radioLink: RadioLink, appVm: AppViewModel) {
+private fun AppRoot(repo: Repository, radioLink: RadioLink, locator: Locator, appVm: AppViewModel) {
     val identity by appVm.identity.collectAsStateWithLifecycle()
     val radio by radioLink.state.collectAsStateWithLifecycle()
     val pending by appVm.pendingImport.collectAsStateWithLifecycle()
@@ -206,7 +208,7 @@ private fun AppRoot(repo: Repository, radioLink: RadioLink, appVm: AppViewModel)
                 }
                 entry<ChatRoute> { key ->
                     ChatScreen(
-                        vm = viewModel { ChatViewModel(repo, key.id) },
+                        vm = viewModel { ChatViewModel(repo, key.id, locator) },
                         onInvite = { uri, name -> backStack.add(GroupInvite(uri, name)) },
                         onBack = { backStack.removeLastOrNull() },
                     )

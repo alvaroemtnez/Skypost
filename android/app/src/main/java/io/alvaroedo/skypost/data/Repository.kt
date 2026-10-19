@@ -7,6 +7,7 @@ import io.alvaroedo.skypost.model.ChatMessage
 import io.alvaroedo.skypost.model.Contact
 import io.alvaroedo.skypost.model.DeletedChats
 import io.alvaroedo.skypost.model.Discovered
+import io.alvaroedo.skypost.model.GeoFix
 import io.alvaroedo.skypost.model.Group
 import io.alvaroedo.skypost.model.Identity
 import io.alvaroedo.skypost.model.Pharos
@@ -50,10 +51,10 @@ interface Repository {
     /** Send stock phrase [id] (1 byte on air; each phone shows it in its language). */
     fun sendPhrase(chatId: String, id: Int)
 
-    /** "Estoy bien" with the current position. */
-    fun sendStatusOk(chatId: String)
+    /** "Estoy bien", with the position if there is one. */
+    fun sendStatusOk(chatId: String, fix: GeoFix?)
 
-    fun sendPosition(chatId: String)
+    fun sendPosition(chatId: String, fix: GeoFix)
 
     fun setEncrypted(chatId: String, on: Boolean)
 
@@ -107,8 +108,8 @@ interface Repository {
     /** Where an SOS goes now: the chosen chats, or every group if none were chosen. */
     fun sosTargets(): List<Chat>
 
-    /** SOS in signed plaintext to [sosTargets]. Returns how many destinations. */
-    fun sos(): Int
+    /** SOS in signed plaintext to [sosTargets], with the position if there is one. Returns how many destinations. */
+    fun sos(fix: GeoFix?): Int
 
     /** null = automatic (every group). */
     fun setSosChats(ids: Set<String>?)

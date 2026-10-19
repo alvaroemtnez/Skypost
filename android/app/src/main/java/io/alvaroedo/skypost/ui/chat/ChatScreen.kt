@@ -1,6 +1,13 @@
 package io.alvaroedo.skypost.ui.chat
 
 import androidx.compose.foundation.clickable
+import java.util.Locale
+import io.alvaroedo.skypost.ui.components.rememberWithLocation
+import io.alvaroedo.skypost.ui.components.openPosition
+import io.alvaroedo.skypost.model.GeoFix
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.AssistChip
 import io.alvaroedo.skypost.ui.components.shownText
 import androidx.compose.ui.res.stringArrayResource
 import androidx.compose.ui.graphics.SolidColor
@@ -85,7 +92,16 @@ fun ChatScreen(vm: ChatViewModel, onInvite: (uri: String, name: String) -> Unit,
     var quick by remember { mutableStateOf(false) }
     val phrases = stringArrayResource(R.array.canned_phrases).toList()
     val ping by vm.ping.collectAsStateWithLifecycle()
+    val locating by vm.locating.collectAsStateWithLifecycle()
     val snackbar = LocalSnackbar.current
+    val withLocation = rememberWithLocation()
+    val noFixSent = stringResource(R.string.sent_without_position)
+    val noFix = stringResource(R.string.no_position)
+    LaunchedEffect(vm) {
+        vm.events.collect { e ->
+            snackbar.showSnackbar(if (e == ChatEvent.NO_POSITION) noFix else noFixSent)
+        }
+    }
 
     LaunchedEffect(ui.messages.size) { vm.markRead() }
     LaunchedEffect(phrases) { vm.setLocalPhrases(phrases) }
@@ -214,6 +230,14 @@ fun ChatScreen(vm: ChatViewModel, onInvite: (uri: String, name: String) -> Unit,
                 )
             }
             if (ui.noPharos) Banner(R.drawable.ic_cell_tower, stringResource(R.string.no_pharos_banner))
+            if (locating) {
+                LinearProgressIndicator(Modifier.fillMaxWidth())
+                Text(
+                    stringResource(R.string.locating),
+                    style = MaterialTheme.typography.labelMedium,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                )
+            }
             LazyColumn(
                 modifier = Modifier.weight(1f),
                 reverseLayout = true,
@@ -230,8 +254,8 @@ fun ChatScreen(vm: ChatViewModel, onInvite: (uri: String, name: String) -> Unit,
         ModalBottomSheet(onDismissRequest = { quick = false }) {
             QuickMessages(
                 phrases = phrases,
-                onStatusOk = { quick = false; vm.sendStatusOk() },
-                onPosition = { quick = false; vm.sendPosition() },
+                onStatusOk = { quick = false; withLocation(vm::sendStatusOk) },
+                onPosition = { quick = false; withLocation(vm::sendPosition) },
                 onPhrase = { quick = false; vm.sendPhrase(it) },
             )
         }
@@ -307,7 +331,13 @@ private fun Bubble(m: ChatMessage, showSender: Boolean) {
                 if (showSender && !m.outgoing && m.sender != null) {
                     Text(m.sender, style = MaterialTheme.typography.labelLarge, color = colors.primary)
                 }
-                Text(shownText(m), style = MaterialTheme.typography.bodyLarge)
+                val text = when {
+                    m.sos -> stringResource(R.string.sos)
+                    m.position != null && m.phrase == null -> stringResource(R.string.my_position)
+                    else -> shownText(m)
+                }
+                Text(text, style = MaterialTheme.typography.bodyLarge)
+                m.position?.let { fix -> PositionChip(fix) }
                 Row(
                     Modifier.align(Alignment.End).padding(top = 2.dp),
                     verticalAlignment = Alignment.CenterVertically,
@@ -454,4 +484,17 @@ private fun QuickMessages(phrases: List<String>, onStatusOk: () -> Unit, onPosit
             ListItem(modifier = Modifier.clickable { onPhrase(id) }, headlineContent = { Text(p) })
         }
     }
+}
+
+/** "📍 42.63110, 0.65880 · ±8 m": opens the position in the phone's maps app. */
+@Composable
+private fun PositionChip(fix: GeoFix) {
+    val context = LocalContext.current
+    val acc = fix.accuracyM?.let { " · ±%.0f m".format(Locale.ROOT, it) }.orEmpty()
+    AssistChip(
+        onClick = { openPosition(context, fix) },
+        label = { Text("%.5f, %.5f".format(Locale.ROOT, fix.lat, fix.lon) + acc) },
+        leadingIcon = { Icon(painterResource(R.drawable.ic_my_location), null, Modifier.size(16.dp)) },
+        modifier = Modifier.padding(top = 4.dp),
+    )
 }

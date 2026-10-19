@@ -14,7 +14,8 @@ import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
@@ -36,23 +37,26 @@ fun SwipeRow(
     enabled: Boolean = true,
     content: @Composable () -> Unit,
 ) {
-    val state = rememberSwipeToDismissBoxState()
-    // The row may stay (undo, unarchive in place): settle it back after acting.
-    LaunchedEffect(state.currentValue) {
-        if (state.currentValue != SwipeToDismissBoxValue.Settled) state.reset()
-    }
+    val start by rememberUpdatedState(onStartSwipe)
+    val end by rememberUpdatedState(onEndSwipe)
+    // Act when the swipe passes the threshold, but never stay dismissed: a
+    // dismissed state would be saved with the row's key and fire again if the
+    // row came back (undo), deleting it a second time.
+    val state = rememberSwipeToDismissBoxState(
+        confirmValueChange = { value ->
+            when (value) {
+                SwipeToDismissBoxValue.StartToEnd -> start?.invoke()
+                SwipeToDismissBoxValue.EndToStart -> end?.invoke()
+                SwipeToDismissBoxValue.Settled -> {}
+            }
+            false
+        },
+    )
     val colors = MaterialTheme.colorScheme
     SwipeToDismissBox(
         state = state,
         enableDismissFromStartToEnd = enabled && onStartSwipe != null,
         enableDismissFromEndToStart = enabled && onEndSwipe != null,
-        onDismiss = { value ->
-            when (value) {
-                SwipeToDismissBoxValue.StartToEnd -> onStartSwipe?.invoke()
-                SwipeToDismissBoxValue.EndToStart -> onEndSwipe?.invoke()
-                SwipeToDismissBoxValue.Settled -> {}
-            }
-        },
         backgroundContent = {
             val (bg, fg, icon, align) = when (state.dismissDirection) {
                 SwipeToDismissBoxValue.StartToEnd -> Quad(colors.primaryContainer, colors.onPrimaryContainer, startIcon, Alignment.CenterStart)

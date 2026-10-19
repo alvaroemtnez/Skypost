@@ -6,7 +6,12 @@ import io.alvaroedo.skypost.data.Repository
 import io.alvaroedo.skypost.model.Chat
 import io.alvaroedo.skypost.model.ChatKind
 import io.alvaroedo.skypost.model.ChatMessage
+import io.alvaroedo.skypost.model.GeoFix
+import io.alvaroedo.skypost.location.Locator
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -41,7 +46,34 @@ data class ChatUi(
     val encrypted: Boolean get() = encryptAll || chat?.encrypted == true
 }
 
-class ChatViewModel(private val repo: Repository, private val chatId: String) : ViewModel() {
+/** One-off results to show in a snackbar. */
+enum class ChatEvent { SENT_WITHOUT_POSITION, NO_POSITION }
+
+class ChatViewModel(
+    private val repo: Repository,
+    private val chatId: String,
+    private val locator: Locator = Locator { null },
+) : ViewModel() {
+    private val _locating = MutableStateFlow(false)
+
+    /** Waiting for a GNSS fix before sending. */
+    val locating: StateFlow<Boolean> = _locating.asStateFlow()
+
+    private val _events = MutableSharedFlow<ChatEvent>(extraBufferCapacity = 4)
+    val events: SharedFlow<ChatEvent> = _events.asSharedFlow()
+
+    private fun withFix(send: (GeoFix?) -> Unit) {
+        if (_locating.value) return
+        _locating.value = true
+        viewModelScope.launch {
+            try {
+                send(locator.fix(timeoutMs = 30_000))
+            } finally {
+                _locating.value = false
+            }
+        }
+    }
+
     private val draft = MutableStateFlow("")
 
     /** Stock phrases in the app's language (index = id), set by the screen. */
@@ -116,9 +148,15 @@ class ChatViewModel(private val repo: Repository, private val chatId: String) : 
         if (_ping.value != PingResult.Waiting) _ping.value = null
     }
 
-    fun sendStatusOk() = repo.sendStatusOk(chatId)
+    /** "Estoy bien" goes even without a fix (it says so). */
+    fun sendStatusOk() = withFix { fix ->
+        repo.sendStatusOk(chatId, fix)
+        if (fix == null) _events.tryEmit(ChatEvent.SENT_WITHOUT_POSITION)
+    }
 
-    fun sendPosition() = repo.sendPosition(chatId)
+    fun sendPosition() = withFix { fix ->
+        if (fix != null) repo.sendPosition(chatId, fix) else _events.tryEmit(ChatEvent.NO_POSITION)
+    }
 
     fun setEncrypted(on: Boolean) = repo.setEncrypted(chatId, on)
 
