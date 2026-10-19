@@ -110,4 +110,45 @@ class FakeRepositoryTest {
         assertTrue(parsed[3] is Scanned.MeshCore)
         assertNull(parsed[4])
     }
+
+    @Test
+    fun `pin at most three, archive, delete and undo`() = runTest {
+        val r = repo(demo = true)
+        val ids = r.chats.value.map { it.id }
+        assertTrue(ids.take(3).all { r.setPinned(it, true) })
+        assertEquals(false, r.setPinned(ids[3], true))
+        r.setArchived(setOf(ids[0]), true)
+        val archived = r.chats.value.first { it.id == ids[0] }
+        assertTrue(archived.archived && archived.pinnedAt == null)
+        val gone = r.deleteChats(setOf(ids[1]))
+        assertTrue(r.chats.value.none { it.id == ids[1] })
+        r.restoreChats(gone)
+        assertTrue(r.chats.value.any { it.id == ids[1] } && r.messages(ids[1]).first().isNotEmpty())
+    }
+
+    @Test
+    fun `blocked chats send nothing and do not answer pings`() = runTest {
+        val r = repo(demo = true)
+        val direct = r.chats.value.first { it.kind == ChatKind.DIRECT }
+        assertEquals(-17, r.pingChat(direct.id))
+        r.setChatBlocked(direct.id, true)
+        val before = r.messages(direct.id).first().size
+        r.send(direct.id, "hola")
+        assertEquals(before, r.messages(direct.id).first().size)
+        assertNull(r.pingChat(direct.id))
+        assertTrue(r.contacts.value.single().blocked)
+        r.unblock(r.blocked.value.single().key)
+        assertEquals(false, r.chats.value.first { it.id == direct.id }.blocked)
+    }
+
+    @Test
+    fun `phrases travel as ids and recents remember bridged contacts`() = runTest {
+        val r = repo(demo = true)
+        val familia = r.chats.value.first { it.kind == ChatKind.GROUP }.id
+        r.sendPhrase(familia, 15)
+        assertEquals(15, r.messages(familia).first().last().phrase)
+        assertTrue(r.recents.value.any { it.kind == ChatKind.SIGNAL && it.address == "34611111111" })
+        r.forgetRecent(r.recents.value.first())
+        assertTrue("forgetting a recent keeps its chat", r.chats.value.any { it.kind == ChatKind.SIGNAL })
+    }
 }

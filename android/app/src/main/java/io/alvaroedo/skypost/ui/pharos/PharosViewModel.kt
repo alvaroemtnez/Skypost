@@ -28,7 +28,12 @@ class PharosViewModel(private val repo: Repository) : ViewModel() {
 
     val ui: StateFlow<PharosUi> = combine(repo.pharos, local) { list, l ->
         val trusted = list.map { it.card.key }.toSet()
-        l.copy(list = list, found = l.found?.map { it.copy(trusted = it.card.key in trusted) })
+        // Blocked Pharos only show under Settings > Blocked.
+        val blocked = list.filter { it.blocked }.map { it.card.key }.toSet()
+        l.copy(
+            list = list.filterNot { it.blocked },
+            found = l.found?.filterNot { it.card.key in blocked }?.map { it.copy(trusted = it.card.key in trusted) },
+        )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), PharosUi())
 
     fun discover() {
@@ -58,4 +63,6 @@ class PharosViewModel(private val repo: Repository) : ViewModel() {
     fun markVerified(key: String) = repo.markVerified(key)
 
     fun remove(key: String) = repo.removePharos(key)
+
+    fun block(key: String) = repo.setPharosBlocked(key, true)
 }

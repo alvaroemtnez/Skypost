@@ -1,6 +1,8 @@
 package io.alvaroedo.skypost.ui.chats
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,17 +19,21 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Badge
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
+import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -42,6 +48,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -50,18 +57,25 @@ import io.alvaroedo.skypost.R
 import io.alvaroedo.skypost.model.Auth
 import io.alvaroedo.skypost.model.Chat
 import io.alvaroedo.skypost.model.ChatKind
-import io.alvaroedo.skypost.ui.components.Avatar
+import io.alvaroedo.skypost.radio.RadioState
 import io.alvaroedo.skypost.ui.components.AuthIcon
+import io.alvaroedo.skypost.ui.components.Avatar
 import io.alvaroedo.skypost.ui.components.DeliveryIcon
 import io.alvaroedo.skypost.ui.components.LocalSnackbar
-import io.alvaroedo.skypost.radio.RadioState
+import io.alvaroedo.skypost.ui.components.MenuItem
 import io.alvaroedo.skypost.ui.components.PharosIndicator
 import io.alvaroedo.skypost.ui.components.RadioIndicator
+import io.alvaroedo.skypost.ui.components.SwipeRow
 import io.alvaroedo.skypost.ui.components.label
 import io.alvaroedo.skypost.ui.components.shortTime
+import io.alvaroedo.skypost.ui.components.shownText
 import io.alvaroedo.skypost.ui.theme.extraColors
 import kotlinx.coroutines.launch
 
+/**
+ * The chat list. With `archived = true` (its ViewModel too) it is the
+ * archive: back arrow, no SOS button, swipe right unarchives.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ChatListScreen(
@@ -75,6 +89,9 @@ fun ChatListScreen(
     onSosSettings: () -> Unit,
     radio: RadioState,
     onRadio: () -> Unit,
+    onArchived: () -> Unit,
+    archived: Boolean = false,
+    onBack: () -> Unit = {},
 ) {
     val ui by vm.ui.collectAsStateWithLifecycle()
     var confirmSos by remember { mutableStateOf(false) }
@@ -84,58 +101,114 @@ fun ChatListScreen(
     val scroll = TopAppBarDefaults.enterAlwaysScrollBehavior()
     val sosSent = stringResource(R.string.sos_sent)
     val sosNowhere = stringResource(R.string.sos_nowhere)
+    val undo = stringResource(R.string.undo)
+    val maxPinned = stringResource(R.string.pin_limit, Chat.MAX_PINNED)
+    val selecting = ui.selected.isNotEmpty()
+    val deletedOne = pluralStringResource(R.plurals.chats_deleted, 1, 1)
+    val deletedMany = pluralStringResource(R.plurals.chats_deleted, ui.selected.size, ui.selected.size)
+
+    val delete: (Set<String>) -> Unit = { ids ->
+        val text = if (ids.size == 1) deletedOne else deletedMany
+        val gone = vm.delete(ids)
+        scope.launch {
+            val r = snackbar.showSnackbar(text, actionLabel = undo, duration = SnackbarDuration.Short)
+            if (r == SnackbarResult.ActionPerformed) vm.restore(gone)
+        }
+    }
+    val pin: (Chat) -> Unit = { c ->
+        if (!vm.setPinned(c.id, c.pinnedAt == null)) scope.launch { snackbar.showSnackbar(maxPinned) }
+    }
 
     Scaffold(
         modifier = Modifier.nestedScroll(scroll.nestedScrollConnection),
         snackbarHost = { SnackbarHost(snackbar) },
         topBar = {
-            TopAppBar(
-                title = { Text(stringResource(R.string.app_name)) },
-                scrollBehavior = scroll,
-                actions = {
-                    RadioIndicator(radio, onRadio)
-                    PharosIndicator(ui.activePharos, onPharos)
-                    IconButton(onClick = onNewChat) {
-                        Icon(painterResource(R.drawable.ic_edit_square), stringResource(R.string.new_chat))
-                    }
-                    Box {
-                        IconButton(onClick = { menu = true }) {
-                            Icon(painterResource(R.drawable.ic_more_vert), stringResource(R.string.more_options))
+            if (selecting) {
+                SelectionBar(ui, vm, onPin = pin, onDelete = delete)
+            } else {
+                TopAppBar(
+                    title = { Text(stringResource(if (archived) R.string.archived_chats else R.string.app_name)) },
+                    scrollBehavior = scroll,
+                    navigationIcon = {
+                        if (archived) {
+                            IconButton(onClick = onBack) {
+                                Icon(painterResource(R.drawable.ic_arrow_back), stringResource(R.string.back))
+                            }
                         }
-                        DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-                            DropdownMenuItem(
-                                text = { Text(stringResource(R.string.my_code)) },
-                                leadingIcon = { Icon(painterResource(R.drawable.ic_qr_code), null) },
-                                onClick = { menu = false; onMyCode() },
-                            )
-                            DropdownMenuItem(
-                                text = { Text(stringResource(R.string.settings)) },
-                                leadingIcon = { Icon(painterResource(R.drawable.ic_settings), null) },
-                                onClick = { menu = false; onSettings() },
-                            )
+                    },
+                    actions = {
+                        if (!archived) {
+                            RadioIndicator(radio, onRadio)
+                            PharosIndicator(ui.activePharos, onPharos)
+                            IconButton(onClick = onNewChat) {
+                                Icon(painterResource(R.drawable.ic_edit_square), stringResource(R.string.new_chat))
+                            }
+                            Box {
+                                IconButton(onClick = { menu = true }) {
+                                    Icon(painterResource(R.drawable.ic_more_vert), stringResource(R.string.more_options))
+                                }
+                                DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                                    MenuItem(R.string.my_code, R.drawable.ic_qr_code) {
+                                        menu = false
+                                        onMyCode()
+                                    }
+                                    MenuItem(R.string.settings, R.drawable.ic_settings) {
+                                        menu = false
+                                        onSettings()
+                                    }
+                                }
+                            }
                         }
-                    }
-                },
-            )
+                    },
+                )
+            }
         },
         floatingActionButton = {
-            ExtendedFloatingActionButton(
-                onClick = { confirmSos = true },
-                containerColor = MaterialTheme.extraColors.emergency,
-                contentColor = MaterialTheme.extraColors.onEmergency,
-            ) {
-                Text(stringResource(R.string.sos), style = MaterialTheme.typography.titleLarge)
+            if (!archived) {
+                ExtendedFloatingActionButton(
+                    onClick = { confirmSos = true },
+                    containerColor = MaterialTheme.extraColors.emergency,
+                    contentColor = MaterialTheme.extraColors.onEmergency,
+                ) {
+                    Text(stringResource(R.string.sos), style = MaterialTheme.typography.titleLarge)
+                }
             }
         },
     ) { padding ->
         Column(Modifier.padding(padding).fillMaxSize()) {
-            FilterRow(ui.filter, ui.counts, vm::setFilter)
-            if (ui.chats.isEmpty()) {
-                EmptyChats(ui.filter == null, onNewChat)
+            if (!archived) FilterRow(ui.filter, ui.counts, vm::setFilter)
+            if (ui.chats.isEmpty() && (archived || ui.archivedCount == 0)) {
+                EmptyChats(ui.filter == null && !archived, onNewChat)
             } else {
-                // Room at the bottom so the SOS button never hides the last chat.
+                // Room at the bottom so the SOS button never hides the last row.
                 LazyColumn(contentPadding = PaddingValues(bottom = 96.dp)) {
-                    items(ui.chats, key = { it.id }) { chat -> ChatRow(chat) { onOpenChat(chat.id) } }
+                    items(ui.chats, key = { it.id }) { chat ->
+                        ChatRow(
+                            chat = chat,
+                            selecting = selecting,
+                            selected = chat.id in ui.selected,
+                            onClick = { if (selecting) vm.toggleSelected(chat.id) else onOpenChat(chat.id) },
+                            onArchive = { vm.setArchived(setOf(chat.id), !chat.archived) },
+                            onDelete = { delete(setOf(chat.id)) },
+                            onUnread = { vm.setMarkedUnread(setOf(chat.id), !(chat.markedUnread || chat.unread > 0)) },
+                            onPin = { pin(chat) },
+                            onSelect = { vm.toggleSelected(chat.id) },
+                            onBlock = { vm.setBlocked(chat.id, !chat.blocked) },
+                        )
+                    }
+                    if (!archived && ui.archivedCount > 0) {
+                        item(key = "archived") {
+                            HorizontalDivider()
+                            ListItem(
+                                modifier = Modifier.clickable(onClick = onArchived),
+                                leadingContent = { Icon(painterResource(R.drawable.ic_archive), null) },
+                                headlineContent = { Text(stringResource(R.string.archived_count, ui.archivedCount)) },
+                                trailingContent = {
+                                    if (ui.archivedUnread) Badge(containerColor = MaterialTheme.colorScheme.primary)
+                                },
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -176,6 +249,48 @@ fun ChatListScreen(
     }
 }
 
+/** Contextual top bar while chats are selected. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SelectionBar(ui: ChatListUi, vm: ChatListViewModel, onPin: (Chat) -> Unit, onDelete: (Set<String>) -> Unit) {
+    val chosen = ui.chats.filter { it.id in ui.selected }
+    val allUnread = chosen.all { it.markedUnread || it.unread > 0 }
+    val allArchived = chosen.all { it.archived }
+    TopAppBar(
+        navigationIcon = {
+            IconButton(onClick = vm::clearSelection) {
+                Icon(painterResource(R.drawable.ic_close), stringResource(R.string.cancel))
+            }
+        },
+        title = { Text(ui.selected.size.toString()) },
+        actions = {
+            chosen.singleOrNull()?.takeIf { !it.archived }?.let { c ->
+                IconButton(onClick = { onPin(c) }) {
+                    Icon(
+                        painterResource(if (c.pinnedAt != null) R.drawable.ic_keep_off else R.drawable.ic_push_pin),
+                        stringResource(if (c.pinnedAt != null) R.string.unpin else R.string.pin),
+                    )
+                }
+            }
+            IconButton(onClick = { vm.setMarkedUnread(ui.selected, !allUnread) }) {
+                Icon(
+                    painterResource(if (allUnread) R.drawable.ic_mark_read else R.drawable.ic_mark_unread),
+                    stringResource(if (allUnread) R.string.mark_read else R.string.mark_unread),
+                )
+            }
+            IconButton(onClick = { vm.setArchived(ui.selected, !allArchived) }) {
+                Icon(
+                    painterResource(if (allArchived) R.drawable.ic_unarchive else R.drawable.ic_archive),
+                    stringResource(if (allArchived) R.string.unarchive else R.string.archive),
+                )
+            }
+            IconButton(onClick = { onDelete(ui.selected) }) {
+                Icon(painterResource(R.drawable.ic_delete), stringResource(R.string.delete))
+            }
+        },
+    )
+}
+
 @Composable
 private fun FilterRow(selected: ChatKind?, counts: Map<ChatKind, Int>, onSelect: (ChatKind?) -> Unit) {
     LazyRow(
@@ -195,45 +310,124 @@ private fun FilterRow(selected: ChatKind?, counts: Map<ChatKind, Int>, onSelect:
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun ChatRow(chat: Chat, onClick: () -> Unit) {
+private fun ChatRow(
+    chat: Chat,
+    selecting: Boolean,
+    selected: Boolean,
+    onClick: () -> Unit,
+    onArchive: () -> Unit,
+    onDelete: () -> Unit,
+    onUnread: () -> Unit,
+    onPin: () -> Unit,
+    onSelect: () -> Unit,
+    onBlock: () -> Unit,
+) {
+    var menu by remember { mutableStateOf(false) }
     val last = chat.last
-    ListItem(
-        modifier = Modifier.clickable(onClick = onClick),
-        leadingContent = { Avatar(chat.title, chat.kind) },
-        headlineContent = { Text(chat.title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-        supportingContent = {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                if (last != null) {
-                    if (last.outgoing) {
-                        DeliveryIcon(last.delivery)
-                    } else {
-                        AuthIcon(last.auth)
-                    }
-                    Box(Modifier.width(4.dp))
-                    val text = if (last.sender != null) "${last.sender}: ${last.text}" else last.text
-                    Text(text, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    val unread = chat.markedUnread || chat.unread > 0
+    val muted = MaterialTheme.colorScheme.onSurfaceVariant
+    SwipeRow(
+        onStartSwipe = onArchive,
+        onEndSwipe = onDelete,
+        startIcon = if (chat.archived) R.drawable.ic_unarchive else R.drawable.ic_archive,
+        enabled = !selecting,
+    ) {
+        Box {
+            ListItem(
+                modifier = Modifier.combinedClickable(onClick = onClick, onLongClick = { if (!selecting) menu = true }),
+                colors = if (selected) {
+                    ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
                 } else {
-                    Text(stringResource(R.string.chat_empty_preview), maxLines = 1)
+                    ListItemDefaults.colors()
+                },
+                leadingContent = {
+                    if (selecting) Checkbox(checked = selected, onCheckedChange = null) else Avatar(chat.title, chat.kind)
+                },
+                headlineContent = { Text(chat.title, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                supportingContent = {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        when {
+                            chat.blocked -> Text(stringResource(R.string.blocked), maxLines = 1)
+                            last != null -> {
+                                if (last.outgoing) DeliveryIcon(last.delivery) else AuthIcon(last.auth)
+                                Box(Modifier.width(4.dp))
+                                val text = shownText(last)
+                                Text(
+                                    if (last.sender != null) "${last.sender}: $text" else text,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }
+                            else -> Text(stringResource(R.string.chat_empty_preview), maxLines = 1)
+                        }
+                    }
+                },
+                trailingContent = {
+                    Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        last?.let { Text(shortTime(it.atMillis), style = MaterialTheme.typography.labelSmall) }
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            if (chat.pinnedAt != null) {
+                                Icon(painterResource(R.drawable.ic_push_pin), stringResource(R.string.pinned), Modifier.size(16.dp), tint = muted)
+                            }
+                            when {
+                                chat.blocked -> {
+                                    Icon(painterResource(R.drawable.ic_block), stringResource(R.string.blocked), Modifier.size(16.dp), tint = muted)
+                                }
+                                chat.unread > 0 -> {
+                                    // Theme colour; emergency red only for an unread SOS.
+                                    val sos = last?.sos == true && !last.outgoing
+                                    Badge(
+                                        containerColor = if (sos) MaterialTheme.extraColors.emergency else MaterialTheme.colorScheme.primary,
+                                        contentColor = if (sos) MaterialTheme.extraColors.onEmergency else MaterialTheme.colorScheme.onPrimary,
+                                    ) { Text(chat.unread.toString()) }
+                                }
+                                chat.markedUnread -> Badge(containerColor = MaterialTheme.colorScheme.primary)
+                                chat.encrypted -> AuthIcon(Auth.ENCRYPTED, tint = MaterialTheme.colorScheme.error)
+                            }
+                        }
+                    }
+                },
+            )
+            DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                MenuItem(if (unread) R.string.mark_read else R.string.mark_unread, if (unread) R.drawable.ic_mark_read else R.drawable.ic_mark_unread) {
+                    menu = false
+                    onUnread()
+                }
+                if (!chat.archived) {
+                    MenuItem(
+                        if (chat.pinnedAt != null) R.string.unpin else R.string.pin,
+                        if (chat.pinnedAt != null) R.drawable.ic_keep_off else R.drawable.ic_push_pin,
+                    ) {
+                        menu = false
+                        onPin()
+                    }
+                }
+                MenuItem(R.string.select, R.drawable.ic_check_box) {
+                    menu = false
+                    onSelect()
+                }
+                MenuItem(
+                    if (chat.archived) R.string.unarchive else R.string.archive,
+                    if (chat.archived) R.drawable.ic_unarchive else R.drawable.ic_archive,
+                ) {
+                    menu = false
+                    onArchive()
+                }
+                if (chat.kind == ChatKind.DIRECT || chat.kind == ChatKind.GROUP) {
+                    MenuItem(if (chat.blocked) R.string.unblock else R.string.block, R.drawable.ic_block) {
+                        menu = false
+                        onBlock()
+                    }
+                }
+                MenuItem(R.string.delete, R.drawable.ic_delete) {
+                    menu = false
+                    onDelete()
                 }
             }
-        },
-        trailingContent = {
-            Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                last?.let { Text(shortTime(it.atMillis), style = MaterialTheme.typography.labelSmall) }
-                if (chat.unread > 0) {
-                    // Theme colour; emergency red only for an unread SOS.
-                    val sos = last?.sos == true && !last.outgoing
-                    Badge(
-                        containerColor = if (sos) MaterialTheme.extraColors.emergency else MaterialTheme.colorScheme.primary,
-                        contentColor = if (sos) MaterialTheme.extraColors.onEmergency else MaterialTheme.colorScheme.onPrimary,
-                    ) { Text(chat.unread.toString()) }
-                } else if (chat.encrypted) {
-                    AuthIcon(Auth.ENCRYPTED, tint = MaterialTheme.colorScheme.error)
-                }
-            }
-        },
-    )
+        }
+    }
 }
 
 @Composable

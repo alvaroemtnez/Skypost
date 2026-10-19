@@ -47,6 +47,40 @@ S = {
 "callsign_optional": ("Callsign (optional)","Indicativo (opcional)","Indicatiu (opcional)"),
 "callsign_help": ("Only if you hold an amateur radio licence, e.g. EA5XXX.","Solo si tienes licencia de radioaficionado, p. ej. EA5XXX.","Només si tens llicència de radioaficionat, p. ex. EA5XXX."),
 "no_callsign": ("No callsign","Sin indicativo","Sense indicatiu"),
+# Chat list actions
+"archive": ("Archive","Archivar","Arxivar"),
+"unarchive": ("Unarchive","Desarchivar","Desarxivar"),
+"archived_chats": ("Archived chats","Chats archivados","Xats arxivats"),
+"archived_count": ("Archived chats (%1$d)","Chats archivados (%1$d)","Xats arxivats (%1$d)"),
+"mark_unread": ("Mark as unread","Marcar como no leído","Marcar com a no llegit"),
+"mark_read": ("Mark as read","Marcar como leído","Marcar com a llegit"),
+"pin": ("Pin","Fijar","Fixar"),
+"unpin": ("Unpin","Desfijar","Desfixar"),
+"pinned": ("Pinned","Fijado","Fixat"),
+"pin_limit": ("Pinned chats limit reached: %1$d","Límite de chats fijados alcanzado: %1$d","Límit de xats fixats assolit: %1$d"),
+"select": ("Select","Seleccionar","Seleccionar"),
+"delete": ("Delete","Eliminar","Eliminar"),
+"delete_named": ("Delete %1$s?","¿Eliminar %1$s?","Eliminar %1$s?"),
+"undo": ("Undo","Deshacer","Desfer"),
+"block": ("Block","Bloquear","Blocar"),
+"unblock": ("Unblock","Desbloquear","Desblocar"),
+"blocked": ("Blocked","Bloqueado","Blocat"),
+"chat_blocked": ("You blocked this chat","Has bloqueado este chat","Has blocat este xat"),
+"blocked_list": ("Blocked","Bloqueados","Blocats"),
+"blocked_list_body": ("Contacts, groups and Pharos you blocked","Contactos, grupos y Pharos que has bloqueado","Contactes, grups i Pharos que has blocat"),
+"blocked_empty": ("Nothing blocked.","No has bloqueado nada.","No has blocat res."),
+"pharos_block": ("Block this Pharos","Bloquear este Pharos","Blocar este Pharos"),
+"start_chat": ("Start chat","Iniciar chat","Iniciar xat"),
+"recents": ("Recent","Recientes","Recents"),
+"contact_delete_body": ("Its key is forgotten: to write again you will have to scan their code. The chat stays.","Se olvida su clave: para volver a escribirle tendrás que escanear su código. El chat se queda.","S'oblida la seua clau: per a tornar a escriure-li hauràs d'escanejar el seu codi. El xat es queda."),
+"group_leave_body": ("You leave the group and forget its key: to come back you need a new invitation. The chat stays.","Sales del grupo y se olvida su clave: para volver necesitarás otra invitación. El chat se queda.","Ixes del grup i s'oblida la seua clau: per a tornar necessitaràs una altra invitació. El xat es queda."),
+"ping_contact_menu": ("Is it listening?","¿Está a la escucha?","Està a l'escolta?"),
+"ping_pharos_menu": ("Is the Pharos listening?","¿Está el Pharos a la escucha?","Està el Pharos a l'escolta?"),
+"ping_contact_ok": ("%1$s answered: hears you at %2$d dB","%1$s ha respondido: te oye a %2$d dB","%1$s ha respost: et sent a %2$d dB"),
+"ping_contact_silent": ("%1$s does not answer","%1$s no responde","%1$s no respon"),
+"radio_desc_none": ("Plug the radio into the phone's USB port","Conecta la radio al USB del teléfono","Connecta la ràdio a l'USB del telèfon"),
+"radio_desc_audio": ("Audio only: set the frequency on the radio by hand","Solo audio: pon la frecuencia en la radio a mano","Només àudio: posa la freqüència en la ràdio a mà"),
+"radio_desc_ready": ("Audio and CAT: the app sets everything","Audio y CAT: la app lo ajusta todo","Àudio i CAT: l'aplicació ho ajusta tot"),
 # Kinds
 "kind_direct": ("Direct","Directo","Directe"),
 "kind_group": ("Group","Grupo","Grup"),
@@ -79,7 +113,7 @@ S = {
 "quick_ok": ("I'm OK","Estoy bien","Estic bé"),
 "quick_ok_body": ("With your position","Con tu posición","Amb la teua posició"),
 "quick_position": ("Send my position","Enviar mi posición","Enviar la meua posició"),
-"quick_phrases": ("Stock phrases (Spanish, shortest on air)","Frases (ocupan menos tiempo en el aire)","Frases (en castellà, ocupen menys temps en l'aire)"),
+"quick_phrases": ("Stock phrases (shortest on air)","Frases (ocupan menos tiempo en el aire)","Frases (ocupen menys temps en l'aire)"),
 "airtime": ("≈ %1$s · %2$s","≈ %1$s · %2$s","≈ %1$s · %2$s"),
 "duration_s": ("%1$d s","%1$d s","%1$d s"),
 "duration_min_s": ("%1$d min %2$d s","%1$d min %2$d s","%1$d min %2$d s"),
@@ -187,10 +221,9 @@ S = {
 "encrypt_all_body": ("Overrides each chat's setting. The SOS still goes unencrypted.","Anula el ajuste de cada chat. El SOS sigue yendo sin cifrar.","Anul·la la configuració de cada xat. El SOS continua anant sense xifrar."),
 "encrypt_all_confirm_title": ("Encrypt every chat?","¿Cifrar todos los chats?","Xifrar tots els xats?"),
 "settings_radio": ("Radio","Radio","Ràdio"),
-"radio_disconnected": ("Radio not connected","Radio no conectada","Ràdio no connectada"),
-"radio_audio_only": ("Radio connected, audio only: set the frequency on the radio","Radio conectada solo con audio: pon la frecuencia en la radio","Ràdio connectada només amb àudio: posa la freqüència en la ràdio"),
+"radio_disconnected": ("No radio","Sin radio","Sense ràdio"),
+"radio_audio_only": ("Radio connected, audio only","Radio conectada, solo audio","Ràdio connectada, només àudio"),
 "radio_ready": ("Radio connected: audio and control","Radio conectada: audio y control","Ràdio connectada: àudio i control"),
-"radio_states_help": ("Grey: no radio. Orange: audio only, you set the frequency by hand. Green: audio and CAT, the app sets everything.","Gris: sin radio. Naranja: solo audio, pones la frecuencia a mano. Verde: audio y CAT, la app lo ajusta todo.","Gris: sense ràdio. Taronja: només àudio, poses la freqüència a mà. Verd: àudio i CAT, l'aplicació ho ajusta tot."),
 "radio_usb_note": ("Plug the radio into the phone's USB port (USB OTG). Radio support arrives in phase 2.","Conecta la radio al USB del teléfono (USB OTG). El soporte de radio llega en la fase 2.","Connecta la ràdio a l'USB del telèfon (USB OTG). El suport de ràdio arriba en la fase 2."),
 "settings_radio_rig": ("Rig (QDX, G90)","Equipo (QDX, G90)","Equip (QDX, G90)"),
 "settings_band": ("Band and speed","Banda y velocidad","Banda i velocitat"),
@@ -216,8 +249,36 @@ P = {
 "pharos_heard_min": (("Heard %d minute ago","Heard %d minutes ago"),("Oído hace %d minuto","Oído hace %d minutos"),("Escoltat fa %d minut","Escoltat fa %d minuts")),
 "pharos_heard_h": (("Heard %d hour ago","Heard %d hours ago"),("Oído hace %d hora","Oído hace %d horas"),("Escoltat fa %d hora","Escoltat fa %d hores")),
 "ping_every": (("Every %d minute","Every %d minutes"),("Cada %d minuto","Cada %d minutos"),("Cada %d minut","Cada %d minuts")),
+"chats_deleted": (("%d chat deleted","%d chats deleted"),("%d chat eliminado","%d chats eliminados"),("%d xat eliminat","%d xats eliminats")),
 "sos_contacts_count": (("%d chat chosen","%d chats chosen"),("%d chat elegido","%d chats elegidos"),("%d xat triat","%d xats triats")),
 }
+# String arrays. canned_phrases: same order as keryx::canned::PHRASES (the id
+# is the index and is what travels on air). Append only, never reorder.
+A = {
+"canned_phrases": [
+    ("I'm OK", "Estoy bien", "Estic bé"),
+    ("All fine, nothing new", "Todo bien, sin novedad", "Tot bé, sense novetats"),
+    ("We arrived safely", "Hemos llegado bien", "Hem arribat bé"),
+    ("I need help", "Necesito ayuda", "Necessite ajuda"),
+    ("We're running late, don't worry", "Vamos con retraso, no os preocupéis", "Anem amb retard, no patiu"),
+    ("We come down tomorrow", "Mañana bajamos", "Demà baixem"),
+    ("We're back today", "Volvemos hoy", "Tornem hui"),
+    ("We've set up camp", "Hemos acampado", "Hem acampat"),
+    ("Bad weather, we're waiting", "Hace mal tiempo, esperamos", "Fa mal temps, esperem"),
+    ("We're under shelter", "Estamos a cubierto", "Estem a cobert"),
+    ("Change of plans", "Cambio de planes", "Canvi de plans"),
+    ("Low battery", "Batería baja", "Bateria baixa"),
+    ("Message received", "Mensaje recibido", "Missatge rebut"),
+    ("Yes", "Sí", "Sí"),
+    ("No", "No", "No"),
+    ("Love you", "Te quiero", "T'estime"),
+    ("Good night", "Buenas noches", "Bona nit"),
+    ("Good morning", "Buenos días", "Bon dia"),
+    ("Are you all OK?", "¿Estáis bien?", "Esteu bé?"),
+    ("Call emergency services (112)", "Llamad a emergencias (112)", "Telefoneu a emergències (112)"),
+],
+}
+
 # Android plural categories: en one/other; es one/many/other; ca one/many/other.
 CATS = {0: ["one","other"], 1: ["one","many","other"], 2: ["one","many","other"]}
 DIRS = {0: "values", 1: "values-es", 2: "values-ca"}
@@ -241,6 +302,11 @@ for i in range(3):
         for c in CATS[i]:
             out.append(f'        <item quantity="{c}">{escape(one if c == "one" else other)}</item>')
         out.append('    </plurals>')
+    for k, items in A.items():
+        out.append(f'    <string-array name="{k}">')
+        for it in items:
+            out.append('        <item>' + escape(it[i]).replace("'", "\\'") + '</item>')
+        out.append('    </string-array>')
     out.append('</resources>')
     d = root / DIRS[i]
     d.mkdir(exist_ok=True)

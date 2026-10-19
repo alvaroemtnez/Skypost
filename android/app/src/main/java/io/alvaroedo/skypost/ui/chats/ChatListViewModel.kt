@@ -5,12 +5,14 @@ import androidx.lifecycle.viewModelScope
 import io.alvaroedo.skypost.data.Repository
 import io.alvaroedo.skypost.model.Chat
 import io.alvaroedo.skypost.model.ChatKind
+import io.alvaroedo.skypost.model.DeletedChats
 import io.alvaroedo.skypost.model.Pharos
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 
 data class ChatListUi(
     val chats: List<Chat> = emptyList(),
@@ -21,22 +23,64 @@ data class ChatListUi(
     val activePharos: Pharos? = null,
     /** Names of the chats an SOS would go to now. */
     val sosTargets: List<String> = emptyList(),
+    val archivedCount: Int = 0,
+    /** Some archived chat has unread messages. */
+    val archivedUnread: Boolean = false,
+    /** Selected chats (multi-select mode when not empty). */
+    val selected: Set<String> = emptySet(),
 )
 
-class ChatListViewModel(private val repo: Repository) : ViewModel() {
-    private val filter = MutableStateFlow<ChatKind?>(null)
+/** Pinned first (in the order they were pinned), then the most recent. */
+internal fun List<Chat>.ordered(): List<Chat> =
+    sortedWith(compareBy<Chat> { it.pinnedAt == null }.thenBy { it.pinnedAt ?: 0 }.thenByDescending { it.last?.atMillis ?: 0 })
 
-    val ui: StateFlow<ChatListUi> = combine(repo.chats, repo.pharos, repo.settings, filter) { chats, pharos, _, f ->
+/** The chat list, or with [archived] the archived chats. */
+class ChatListViewModel(private val repo: Repository, private val archived: Boolean = false) : ViewModel() {
+    private val filter = MutableStateFlow<ChatKind?>(null)
+    private val selected = MutableStateFlow<Set<String>>(emptySet())
+
+    val ui: StateFlow<ChatListUi> = combine(repo.chats, repo.pharos, repo.settings, filter, selected) { all, pharos, _, f, sel ->
+        val here = all.filter { it.archived == archived }
+        val shown = if (f == null) here else here.filter { it.kind == f }
+        val arch = all.filter { it.archived }
         ChatListUi(
-            sosTargets = repo.sosTargets().map { it.title },
-            chats = if (f == null) chats else chats.filter { it.kind == f },
+            chats = shown.ordered(),
             filter = f,
-            counts = chats.groupingBy { it.kind }.eachCount(),
+            counts = here.groupingBy { it.kind }.eachCount(),
             activePharos = pharos.firstOrNull { it.active },
+            sosTargets = repo.sosTargets().map { it.title },
+            archivedCount = arch.size,
+            archivedUnread = arch.any { it.unread > 0 || it.markedUnread },
+            selected = sel.filterTo(mutableSetOf()) { id -> here.any { it.id == id } },
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ChatListUi())
 
     fun setFilter(kind: ChatKind?) {
         filter.value = kind
     }
+
+    fun toggleSelected(id: String) = selected.update { if (id in it) it - id else it + id }
+
+    fun clearSelection() {
+        selected.value = emptySet()
+    }
+
+    fun setArchived(ids: Set<String>, on: Boolean) {
+        repo.setArchived(ids, on)
+        clearSelection()
+    }
+
+    fun setMarkedUnread(ids: Set<String>, on: Boolean) {
+        repo.setMarkedUnread(ids, on)
+        clearSelection()
+    }
+
+    /** False if three chats are already pinned. */
+    fun setPinned(id: String, on: Boolean): Boolean = repo.setPinned(id, on).also { if (it) clearSelection() }
+
+    fun delete(ids: Set<String>): DeletedChats = repo.deleteChats(ids).also { clearSelection() }
+
+    fun restore(deleted: DeletedChats) = repo.restoreChats(deleted)
+
+    fun setBlocked(id: String, on: Boolean) = repo.setChatBlocked(id, on)
 }

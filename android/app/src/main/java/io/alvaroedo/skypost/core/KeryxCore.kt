@@ -50,7 +50,10 @@ interface KeryxCore {
     /** JS8 frames a text would take on air (stock phrases are cheaper). */
     fun framesFor(text: String, bridged: Boolean): Int
 
-    /** Stock phrases, id = index (`keryx::canned::PHRASES`). */
+    /** JS8 frames a stock phrase (1-byte body) takes. */
+    fun framesForPhrase(bridged: Boolean): Int
+
+    /** Stock phrases in Spanish, id = index (`keryx::canned::PHRASES`). The app shows its own translations. */
     fun phrases(): List<String>
 }
 
@@ -114,6 +117,8 @@ class FakeKeryxCore : KeryxCore {
         return (bytes + 8) / 9
     }
 
+    override fun framesForPhrase(bridged: Boolean): Int = (4 + 1 + 8 + (if (bridged) 2 else 0) + 8) / 9
+
     override fun phrases(): List<String> = PHRASES
 
     private fun fakeKey(s: String): String {
@@ -126,7 +131,7 @@ class FakeKeryxCore : KeryxCore {
     }
 
     private companion object {
-        /** The first entries of `keryx::canned::PHRASES`, same order. */
+        /** `keryx::canned::PHRASES`, same order. */
         val PHRASES = listOf(
             "Estoy bien",
             "Todo bien, sin novedad",
@@ -137,6 +142,17 @@ class FakeKeryxCore : KeryxCore {
             "Volvemos hoy",
             "Hemos acampado",
             "Hace mal tiempo, esperamos",
+            "Estamos a cubierto",
+            "Cambio de planes",
+            "Batería baja",
+            "Mensaje recibido",
+            "Sí",
+            "No",
+            "Te quiero",
+            "Buenas noches",
+            "Buenos días",
+            "¿Estáis bien?",
+            "Llamad a emergencias (112)",
         )
     }
 }

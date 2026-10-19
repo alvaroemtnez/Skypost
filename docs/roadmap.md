@@ -64,6 +64,7 @@ Design: decisions [0015](decisions/0015-identities.md), [0016](decisions/0016-ph
 - [ ] QR provisioning, Keystore-encrypted state, PIN for advanced mode
 - [ ] Real `Repository` over the keyring (Keystore-encrypted state); delivery ticks wired to ARQ events
 - [x] Try the chat UI on a phone (first round of feedback applied: in-app QR scanner, slide-back, SOS button and contacts, global encryption, signal colours, English/Spanish/Valencian)
+- [x] Second feedback round: message bar, archive/pin/unread/select/swipe, blocking (core + app), contact pings, translated stock phrases, MeshCore links
 - [ ] Screenshot tests
 
 ## Phase 3 — fast lane

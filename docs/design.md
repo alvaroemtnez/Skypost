@@ -212,8 +212,13 @@ One Material 3 chat app ([0017](decisions/0017-chat-app-ui.md)).
   and an airtime estimate. Per-chat emergency encryption with confirmation,
   and a global override in Settings.
 - **New chat:** direct (contact, scan or paste), group (create, scan or
-  paste), Signal/WhatsApp (phone contact picker or typed number), MeshCore
-  (scan or paste its QR). Bridged chats need a trusted Pharos.
+  paste), Signal/WhatsApp (phone contact picker, typed number or recent),
+  MeshCore (scan or paste its QR, or recent). Bridged chats need a trusted
+  Pharos. Lists: swipe left to forget, hold to chat, block or delete.
+- **Chat list gestures:** archive, pin (3), mark unread, multi-select,
+  swipe to archive or delete (with undo), block contacts and groups.
+- **Blocking:** contacts, groups, bridged contacts and Pharos; blocked
+  stations get no ACKs and no answers to pings (enforced in `keryx`).
 - **Pharos screen** (from the indicator): trusted Pharos list, discovery,
   verification, registration state, ping.
 - **Settings:** profile, my QR, emergency contacts, emergency encryption for

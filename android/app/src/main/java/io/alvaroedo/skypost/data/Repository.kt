@@ -1,13 +1,16 @@
 package io.alvaroedo.skypost.data
 
+import io.alvaroedo.skypost.model.Blocked
 import io.alvaroedo.skypost.model.Chat
 import io.alvaroedo.skypost.model.ChatKind
 import io.alvaroedo.skypost.model.ChatMessage
 import io.alvaroedo.skypost.model.Contact
+import io.alvaroedo.skypost.model.DeletedChats
 import io.alvaroedo.skypost.model.Discovered
 import io.alvaroedo.skypost.model.Group
 import io.alvaroedo.skypost.model.Identity
 import io.alvaroedo.skypost.model.Pharos
+import io.alvaroedo.skypost.model.Recent
 import io.alvaroedo.skypost.model.Scanned
 import io.alvaroedo.skypost.model.Settings
 import kotlinx.coroutines.flow.Flow
@@ -39,9 +42,13 @@ interface Repository {
     /** JS8 frames the text would take in this chat (0 for blank text). */
     fun framesFor(chatId: String, text: String): Int
 
-    fun phrases(): List<String>
+    /** JS8 frames a stock phrase takes in this chat. */
+    fun framesForPhrase(chatId: String): Int
 
     fun send(chatId: String, text: String)
+
+    /** Send stock phrase [id] (1 byte on air; each phone shows it in its language). */
+    fun sendPhrase(chatId: String, id: Int)
 
     /** "Estoy bien" with the current position. */
     fun sendStatusOk(chatId: String)
@@ -51,6 +58,51 @@ interface Repository {
     fun setEncrypted(chatId: String, on: Boolean)
 
     fun markRead(chatId: String)
+
+    fun setArchived(ids: Set<String>, on: Boolean)
+
+    fun setMarkedUnread(ids: Set<String>, on: Boolean)
+
+    /** False when pinning would exceed [io.alvaroedo.skypost.model.Chat.MAX_PINNED]. */
+    fun setPinned(id: String, on: Boolean): Boolean
+
+    /** Removes chats and their messages (contacts and groups stay). */
+    fun deleteChats(ids: Set<String>): DeletedChats
+
+    fun restoreChats(deleted: DeletedChats)
+
+    /** Contacts, groups, bridged contacts and Pharos that are blocked. */
+    val blocked: StateFlow<List<Blocked>>
+
+    /** Block or unblock the contact, group or bridged contact behind a chat. */
+    fun setChatBlocked(chatId: String, on: Boolean)
+
+    fun setPharosBlocked(key: String, on: Boolean)
+
+    fun unblock(key: String)
+
+    /** Signal/WhatsApp/MeshCore contacts used before. */
+    val recents: StateFlow<List<Recent>>
+
+    fun forgetRecent(recent: Recent)
+
+    /** Forget a contact (its chat, if any, stays). */
+    fun removeContact(key: String)
+
+    /** Leave a group and forget its key (its chat, if any, stays). */
+    fun leaveGroup(id: String)
+
+    fun setContactBlocked(key: String, on: Boolean)
+
+    fun setGroupBlocked(id: String, on: Boolean)
+
+    fun setRecentBlocked(recent: Recent, on: Boolean)
+
+    /**
+     * "Are you listening?": pings the contact (direct) or the Pharos (bridged)
+     * without bothering anyone. The SNR it heard us at, or null if silent.
+     */
+    suspend fun pingChat(chatId: String): Int?
 
     /** Where an SOS goes now: the chosen chats, or every group if none were chosen. */
     fun sosTargets(): List<Chat>

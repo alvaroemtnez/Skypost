@@ -37,6 +37,8 @@ data class ChatMessage(
     /** Group chats: who sent it. */
     val sender: String? = null,
     val sos: Boolean = false,
+    /** A stock phrase id (`keryx::canned`): shown in the app's language; [text] is the Spanish original. */
+    val phrase: Int? = null,
 )
 
 @Serializable
@@ -52,13 +54,26 @@ data class Chat(
     val last: ChatMessage? = null,
     /** Contact key (direct), group URI (group) or the Pharos used (bridged). */
     val ref: String? = null,
-)
+    /** Hidden under "Archived chats" and silenced. */
+    val archived: Boolean = false,
+    /** Pinned at the top (at most [MAX_PINNED]); the time it was pinned orders them. */
+    val pinnedAt: Long? = null,
+    /** Marked unread by hand: a dot without a number. */
+    val markedUnread: Boolean = false,
+    /** Blocked: nothing in or out. */
+    val blocked: Boolean = false,
+) {
+    companion object {
+        const val MAX_PINNED = 3
+    }
+}
 
 @Serializable
 data class Contact(
     val card: Card,
     val verified: Boolean,
     val safetyNumber: String,
+    val blocked: Boolean = false,
 )
 
 @Serializable
@@ -68,6 +83,7 @@ data class Group(
     /** The invitation URI (secret). */
     val uri: String,
     val members: List<String>,
+    val blocked: Boolean = false,
 )
 
 @Serializable
@@ -86,7 +102,22 @@ data class Pharos(
     val registration: Registration,
     val bridges: Set<ChatKind>,
     val safetyNumber: String,
+    val blocked: Boolean = false,
 )
+
+/** A Signal, WhatsApp or MeshCore contact used before, listed in the new-chat screens. */
+@Serializable
+data class Recent(val kind: ChatKind, val address: String, val name: String?) {
+    val chatId: String get() = "${kind.name.lowercase()}:$address"
+    val shown: String get() = name ?: if (address.all { it.isDigit() }) "+$address" else address
+}
+
+/** Something blocked: a contact, group, bridged contact, or a Pharos (`kind` null). */
+@Serializable
+data class Blocked(val key: String, val title: String, val kind: ChatKind?)
+
+/** Chats removed by [io.alvaroedo.skypost.data.Repository.deleteChats], to undo. */
+data class DeletedChats(val chats: List<Chat>, val messages: Map<String, List<ChatMessage>>)
 
 data class Discovered(
     val card: Card,

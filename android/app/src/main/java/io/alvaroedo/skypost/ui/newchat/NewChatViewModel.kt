@@ -6,6 +6,7 @@ import io.alvaroedo.skypost.data.Repository
 import io.alvaroedo.skypost.model.ChatKind
 import io.alvaroedo.skypost.model.Contact
 import io.alvaroedo.skypost.model.Group
+import io.alvaroedo.skypost.model.Recent
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
@@ -19,7 +20,27 @@ class NewChatViewModel(private val repo: Repository) : ViewModel() {
     val hasPharos: StateFlow<Boolean> = repo.pharos.map { list -> list.any { it.active } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), repo.pharos.value.any { it.active })
 
+    val recents: StateFlow<List<Recent>> = repo.recents
+
     fun chatWith(key: String): String = repo.chatWith(key)
+
+    fun openRecent(r: Recent): String? = repo.openBridged(r.kind, r.address, r.name)
+
+    fun forgetRecent(r: Recent) = repo.forgetRecent(r)
+
+    fun removeContact(key: String) = repo.removeContact(key)
+
+    fun leaveGroup(id: String) = repo.leaveGroup(id)
+
+    fun setContactBlocked(key: String, on: Boolean) = repo.setContactBlocked(key, on)
+
+    fun setGroupBlocked(id: String, on: Boolean) = repo.setGroupBlocked(id, on)
+
+    fun setRecentBlocked(r: Recent, on: Boolean) = repo.setRecentBlocked(r, on)
+
+    /** Keys of everything blocked (a recent's key is its chat id). */
+    val blockedKeys: StateFlow<Set<String>> = repo.blocked.map { l -> l.map { it.key }.toSet() }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptySet())
 
     fun chatInGroup(id: String): String = repo.chatInGroup(id)
 

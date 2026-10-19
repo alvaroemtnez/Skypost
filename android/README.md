@@ -133,7 +133,15 @@ running on fakes (sample chats appear after creating an identity):
   WhatsApp, MeshCore); a red SOS button floating bottom right (confirm step,
   lists who it alerts). Top bar: the "Pharos heard" indicator (grey, or
   green/yellow/orange/red by the SNR it last reported), new chat, menu.
-- `ui/chat`: bubbles with a shield (signed) or padlock (encrypted) on received
+- Chat list gestures: swipe right to archive (unarchive in the archive),
+  left to delete with undo; hold for mark unread, pin (3 at most), select,
+  archive, block and delete; multi-select bar for bulk actions. Archived
+  chats live under "Archived chats (N)" at the bottom.
+- `ui/chat`: Signal-style message bar (rounded field growing upwards, one
+  button: quick messages when empty, send with text; airtime line always
+  reserved); stock phrases shown in the app's language and sent as ids;
+  "is it listening?" ping (contact, or the Pharos for bridged chats);
+  block. Bubbles with a shield (signed) or padlock (encrypted) on received
   messages and clock / tick / error on sent ones; quick messages (Estoy bien
   + position, stock phrases); airtime estimate; per-chat emergency
   encryption with a warning; safety number; group invitation.

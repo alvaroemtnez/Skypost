@@ -55,6 +55,14 @@
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="skypost" />
             </intent-filter>
+            <!-- MeshCore contact codes (meshcore://contact/add?...) to bridge through a Pharos.
+                 If the MeshCore app is installed too, Android asks which one to use. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="meshcore" />
+            </intent-filter>
         </activity>
 
     </application>

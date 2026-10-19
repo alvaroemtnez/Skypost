@@ -4,6 +4,9 @@ import io.alvaroedo.skypost.core.Card
 import io.alvaroedo.skypost.core.KeryxCore
 import io.alvaroedo.skypost.core.ParsedUri
 import io.alvaroedo.skypost.model.Auth
+import io.alvaroedo.skypost.model.Recent
+import io.alvaroedo.skypost.model.DeletedChats
+import io.alvaroedo.skypost.model.Blocked
 import io.alvaroedo.skypost.model.Chat
 import io.alvaroedo.skypost.model.ChatKind
 import io.alvaroedo.skypost.model.ChatMessage
@@ -57,13 +60,15 @@ class FakeRepository(
     private val _pharos = MutableStateFlow<List<Pharos>>(emptyList())
     private val _settings = MutableStateFlow(Settings())
     private val messages = MutableStateFlow<Map<String, List<ChatMessage>>>(emptyMap())
+    private val _recents = MutableStateFlow<List<Recent>>(emptyList())
+    private val _blocked = MutableStateFlow<List<Blocked>>(emptyList())
     private var nextId = 1L
 
     init {
         store?.load()?.let(::restore)
         if (store != null) {
             scope.launch {
-                merge(_identity, _chats, _contacts, _groups, _pharos, _settings, messages)
+                merge(_identity, _chats, _contacts, _groups, _pharos, _settings, messages, _recents, _blocked)
                     .drop(1)
                     .debounce(300)
                     .collect {
@@ -82,6 +87,8 @@ class FakeRepository(
         pharos = _pharos.value,
         settings = _settings.value,
         messages = messages.value,
+        recents = _recents.value,
+        blocked = _blocked.value,
     )
 
     /** Messages still waiting for an ACK when the app stopped are lost. */
@@ -94,6 +101,8 @@ class FakeRepository(
         _pharos.value = s.pharos
         _settings.value = s.settings
         messages.value = s.messages.mapValues { (_, l) -> l.map(pending) }
+        _recents.value = s.recents
+        _blocked.value = s.blocked
         nextId = (s.messages.values.flatten().maxOfOrNull { it.id } ?: 0) + 1
     }
 
@@ -103,6 +112,8 @@ class FakeRepository(
     override val groups: StateFlow<List<Group>> = _groups.asStateFlow()
     override val pharos: StateFlow<List<Pharos>> = _pharos.asStateFlow()
     override val settings: StateFlow<Settings> = _settings.asStateFlow()
+    override val recents: StateFlow<List<Recent>> = _recents.asStateFlow()
+    override val blocked: StateFlow<List<Blocked>> = _blocked.asStateFlow()
 
     override fun messages(chatId: String): Flow<List<ChatMessage>> = messages.map { it[chatId].orEmpty() }
 
@@ -128,7 +139,8 @@ class FakeRepository(
     override fun framesFor(chatId: String, text: String): Int =
         core.framesFor(text, bridged = chat(chatId)?.kind?.bridged == true)
 
-    override fun phrases(): List<String> = core.phrases()
+    override fun framesForPhrase(chatId: String): Int =
+        core.framesForPhrase(bridged = chat(chatId)?.kind?.bridged == true)
 
     private fun chat(id: String): Chat? = _chats.value.firstOrNull { it.id == id }
 
@@ -143,7 +155,7 @@ class FakeRepository(
                 } else {
                     c.copy(last = msg, unread = if (msg.outgoing) c.unread else c.unread + 1)
                 }
-            }.sortedByDescending { it.last?.atMillis ?: 0 }
+            }
         }
     }
 
@@ -156,9 +168,10 @@ class FakeRepository(
         }
     }
 
-    private fun sendOut(chatId: String, text: String, sos: Boolean = false) {
-        val c = chat(chatId) ?: return
+    private fun sendOut(chatId: String, text: String, sos: Boolean = false, phrase: Int? = null) {
+        val c = chat(chatId)?.takeUnless { it.blocked } ?: return
         val msg = ChatMessage(
+            phrase = phrase,
             id = nextId++,
             chatId = chatId,
             outgoing = true,
@@ -168,7 +181,7 @@ class FakeRepository(
             sos = sos,
         )
         post(chatId, msg)
-        val reachable = !c.kind.bridged || activePharos() != null
+        val reachable = !c.kind.bridged || activePharos()?.takeUnless { it.blocked } != null
         scope.launch {
             delay(ackDelayMs)
             setDelivery(chatId, msg.id, if (reachable) Delivery.ACKED else Delivery.FAILED)
@@ -178,6 +191,10 @@ class FakeRepository(
     override fun send(chatId: String, text: String) {
         val t = text.trim()
         if (t.isNotEmpty()) sendOut(chatId, t)
+    }
+
+    override fun sendPhrase(chatId: String, id: Int) {
+        core.phrases().getOrNull(id)?.let { sendOut(chatId, it, phrase = id) }
     }
 
     // TODO(phase 2): GNSS position.
@@ -190,7 +207,117 @@ class FakeRepository(
     }
 
     override fun markRead(chatId: String) {
-        _chats.update { list -> list.map { if (it.id == chatId) it.copy(unread = 0) else it } }
+        _chats.update { list -> list.map { if (it.id == chatId) it.copy(unread = 0, markedUnread = false) else it } }
+    }
+
+    override fun setArchived(ids: Set<String>, on: Boolean) {
+        _chats.update { list -> list.map { if (it.id in ids) it.copy(archived = on, pinnedAt = it.pinnedAt.takeUnless { on }) else it } }
+    }
+
+    override fun setMarkedUnread(ids: Set<String>, on: Boolean) {
+        _chats.update { list ->
+            list.map { if (it.id in ids) it.copy(markedUnread = on, unread = if (on) it.unread else 0) else it }
+        }
+    }
+
+    override fun setPinned(id: String, on: Boolean): Boolean {
+        if (on && _chats.value.count { it.pinnedAt != null && it.id != id } >= Chat.MAX_PINNED) return false
+        _chats.update { list ->
+            list.map { if (it.id == id) it.copy(pinnedAt = if (on) now() else null, archived = it.archived && !on) else it }
+        }
+        return true
+    }
+
+    override fun deleteChats(ids: Set<String>): DeletedChats {
+        val gone = DeletedChats(_chats.value.filter { it.id in ids }, messages.value.filterKeys { it in ids })
+        _chats.update { list -> list.filterNot { it.id in ids } }
+        messages.update { it - ids }
+        return gone
+    }
+
+    override fun restoreChats(deleted: DeletedChats) {
+        _chats.update { list -> list + deleted.chats.filter { c -> list.none { it.id == c.id } } }
+        messages.update { it + deleted.messages }
+    }
+
+    /** Block key of a chat: its contact, group, or bridged address. */
+    private fun blockKey(c: Chat) = when (c.kind) {
+        ChatKind.DIRECT -> "contact:${c.ref}"
+        else -> c.id
+    }
+
+    private fun setBlocked(key: String, title: String, kind: ChatKind?, on: Boolean) {
+        _blocked.update { list -> list.filterNot { it.key == key } + if (on) listOf(Blocked(key, title, kind)) else emptyList() }
+        applyBlocks()
+    }
+
+    /** Copy the block list onto chats, contacts, groups and Pharos. */
+    private fun applyBlocks() {
+        val keys = _blocked.value.map { it.key }.toSet()
+        _chats.update { list -> list.map { it.copy(blocked = blockKey(it) in keys) } }
+        _contacts.update { list -> list.map { it.copy(blocked = "contact:${it.card.key}" in keys) } }
+        _groups.update { list -> list.map { it.copy(blocked = "group:${it.id}" in keys) } }
+        _pharos.update { list ->
+            list.map { p ->
+                val b = "pharos:${p.card.key}" in keys
+                p.copy(blocked = b, active = p.active && !b)
+            }
+        }
+    }
+
+    override fun setChatBlocked(chatId: String, on: Boolean) {
+        val c = chat(chatId) ?: return
+        setBlocked(blockKey(c), c.title, c.kind, on)
+    }
+
+    override fun setContactBlocked(key: String, on: Boolean) {
+        val c = _contacts.value.firstOrNull { it.card.key == key } ?: return
+        setBlocked("contact:$key", c.card.alias, ChatKind.DIRECT, on)
+    }
+
+    override fun setGroupBlocked(id: String, on: Boolean) {
+        val g = _groups.value.firstOrNull { it.id == id } ?: return
+        setBlocked("group:$id", g.name, ChatKind.GROUP, on)
+    }
+
+    override fun setRecentBlocked(recent: Recent, on: Boolean) =
+        setBlocked(recent.chatId, recent.shown, recent.kind, on)
+
+    override fun setPharosBlocked(key: String, on: Boolean) {
+        val p = _pharos.value.firstOrNull { it.card.key == key } ?: return
+        setBlocked("pharos:$key", p.card.alias, null, on)
+    }
+
+    override fun unblock(key: String) {
+        _blocked.update { list -> list.filterNot { it.key == key } }
+        applyBlocks()
+    }
+
+    override fun forgetRecent(recent: Recent) {
+        _recents.update { list -> list.filterNot { it == recent } }
+    }
+
+    override fun removeContact(key: String) {
+        _contacts.update { list -> list.filterNot { it.card.key == key } }
+    }
+
+    override fun leaveGroup(id: String) {
+        _groups.update { list -> list.filterNot { it.id == id } }
+    }
+
+    private fun remember(kind: ChatKind, address: String, name: String?) {
+        val r = Recent(kind, address, name)
+        _recents.update { list -> listOf(r) + list.filterNot { it.kind == kind && it.address == address } }
+    }
+
+    override suspend fun pingChat(chatId: String): Int? {
+        val c = chat(chatId) ?: return null
+        if (c.blocked || c.kind == ChatKind.GROUP) return null
+        delay(1_500)
+        return when (c.kind) {
+            ChatKind.DIRECT -> -17
+            else -> if (ping()) activePharos()?.snrDb else null
+        }
     }
 
     override fun sosTargets(): List<Chat> {
@@ -223,7 +350,10 @@ class FakeRepository(
     }
 
     private fun ensureChat(chat: Chat): String {
-        if (chat(chat.id) == null) _chats.update { it + chat }
+        if (chat(chat.id) == null) {
+            _chats.update { it + chat }
+            applyBlocks()
+        }
         return chat.id
     }
 
@@ -250,6 +380,7 @@ class FakeRepository(
             if (activePharos() == null) {
                 null
             } else {
+                remember(ChatKind.MESHCORE, scanned.key, scanned.name)
                 ensureChat(
                     Chat(
                         id = "meshcore:${scanned.key}",
@@ -280,6 +411,7 @@ class FakeRepository(
 
     override fun openBridged(kind: ChatKind, address: String, name: String?): String? {
         val p = activePharos() ?: return null
+        remember(kind, address, name)
         val shown = if (address.all { it.isDigit() }) "+$address" else address
         return ensureChat(
             Chat("${kind.name.lowercase()}:$address", kind, name ?: shown, detail = shown, ref = p.card.key),
@@ -350,7 +482,7 @@ class FakeRepository(
     }
 
     override fun setActivePharos(key: String) {
-        _pharos.update { list -> list.map { it.copy(active = it.card.key == key) } }
+        _pharos.update { list -> list.map { it.copy(active = it.card.key == key && !it.blocked) } }
     }
 
     override fun markVerified(key: String) {
@@ -365,7 +497,7 @@ class FakeRepository(
     }
 
     override suspend fun ping(): Boolean {
-        val p = activePharos() ?: return false
+        val p = activePharos()?.takeUnless { it.blocked } ?: return false
         delay(1_500)
         _pharos.update { list ->
             list.map { if (it.card.key == p.card.key) it.copy(lastHeardMillis = now(), snrDb = -16) else it }
@@ -409,14 +541,16 @@ class FakeRepository(
             post(chat, ChatMessage(nextId++, chat, false, text, t - ago * min, auth, sender = sender))
         fun tx(chat: String, text: String, ago: Long, auth: Auth = Auth.SIGNED) =
             post(chat, ChatMessage(nextId++, chat, true, text, t - ago * min, auth, Delivery.ACKED))
-        tx(familia, "Hemos acampado", 190)
+        fun txPhrase(chat: String, id: Int, ago: Long) =
+            post(chat, ChatMessage(nextId++, chat, true, core.phrases()[id], t - ago * min, Auth.SIGNED, Delivery.ACKED, phrase = id))
+        txPhrase(familia, 7, 190)
         rx(familia, "¡Genial! ¿Qué tal el tiempo?", 150, sender = "bea")
         tx(refugio, "¿Queda sitio esta noche para dos?", 140)
         rx(refugio, "Sí, os guardamos dos plazas", 120)
-        tx(papa, "Mañana bajamos", 95)
+        txPhrase(papa, 5, 95)
         tx(direct, "¿Me oyes bien en 40 m?", 70)
         rx(direct, "Te copio a −18 dB, perfecto", 65, Auth.ENCRYPTED)
-        tx(mama, "Todo bien, sin novedad", 30)
+        txPhrase(mama, 1, 30)
         rx(mama, "Me alegro. Avisad al llegar", 12)
     }
 }

@@ -51,7 +51,17 @@ fun RadioSettingsScreen(state: RadioState, onBack: () -> Unit) {
                             ),
                         )
                     },
-                    supportingContent = { Text(stringResource(R.string.radio_states_help)) },
+                    supportingContent = {
+                        Text(
+                            stringResource(
+                                when (state) {
+                                    RadioState.DISCONNECTED, RadioState.CONNECTING -> R.string.radio_desc_none
+                                    RadioState.AUDIO_ONLY -> R.string.radio_desc_audio
+                                    RadioState.READY, RadioState.TRANSMITTING -> R.string.radio_desc_ready
+                                },
+                            ),
+                        )
+                    },
                 )
                 ListItem(
                     leadingContent = { Icon(painterResource(R.drawable.ic_radio), null) },

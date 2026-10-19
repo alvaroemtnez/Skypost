@@ -173,6 +173,7 @@ fun PharosScreen(vm: PharosViewModel, onCode: (String?) -> Boolean, onScan: () -
             onVerify = { vm.markVerified(p.card.key) },
             onEnterCode = { codeFor = null to p.card.key; details = null },
             onRemove = { vm.remove(p.card.key); details = null },
+            onBlock = { vm.block(p.card.key); details = null },
         )
     }
 
@@ -277,6 +278,7 @@ private fun PharosDetails(
     onVerify: () -> Unit,
     onEnterCode: () -> Unit,
     onRemove: () -> Unit,
+    onBlock: () -> Unit,
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -292,6 +294,10 @@ private fun PharosDetails(
                 }
                 if (!p.verified) OutlinedButton(onClick = onVerify) { Text(stringResource(R.string.mark_verified)) }
                 if (!p.active) OutlinedButton(onClick = onActivate) { Text(stringResource(R.string.use_this_pharos)) }
+                OutlinedButton(onClick = onBlock) {
+                    Icon(painterResource(R.drawable.ic_block), null)
+                    Text(stringResource(R.string.pharos_block), Modifier.padding(start = 8.dp))
+                }
             }
         },
         confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.close)) } },

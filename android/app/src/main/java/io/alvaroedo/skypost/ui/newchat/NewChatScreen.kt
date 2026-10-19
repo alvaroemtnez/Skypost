@@ -1,6 +1,13 @@
 package io.alvaroedo.skypost.ui.newchat
 
 import androidx.activity.compose.rememberLauncherForActivityResult
+import io.alvaroedo.skypost.ui.components.SwipeRow
+import io.alvaroedo.skypost.ui.components.MenuItem
+import io.alvaroedo.skypost.model.Recent
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -115,6 +122,7 @@ fun NewChatOfScreen(
     val offer: (String?) -> Unit = { text -> if (!onCode(text)) scope.launch { snackbar.showSnackbar(notACode) } }
     val scan = onScan
     val paste = { offer(clipboardText(context)) }
+    var forget by remember { mutableStateOf<Forget?>(null) }
 
     when (kind) {
         ChatKind.DIRECT -> {
@@ -124,11 +132,14 @@ fun NewChatOfScreen(
                 header(R.string.contacts)
                 if (contacts.isEmpty()) hint(R.string.contacts_empty)
                 items(contacts, key = { it.card.key }) { c ->
-                    ListItem(
-                        modifier = Modifier.clickable { onOpenChat(vm.chatWith(c.card.key)) },
-                        leadingContent = { Avatar(c.card.alias, ChatKind.DIRECT, 40.dp) },
-                        headlineContent = { Text(c.card.alias) },
-                        supportingContent = c.card.callsign?.let { { Text(it) } },
+                    EntryRow(
+                        title = c.card.alias,
+                        subtitle = c.card.callsign,
+                        kind = ChatKind.DIRECT,
+                        blocked = c.blocked,
+                        onOpen = { onOpenChat(vm.chatWith(c.card.key)) },
+                        onBlock = { vm.setContactBlocked(c.card.key, !c.blocked) },
+                        onDelete = { forget = Forget(c.card.alias, R.string.contact_delete_body) { vm.removeContact(c.card.key) } },
                     )
                 }
             }
@@ -148,11 +159,14 @@ fun NewChatOfScreen(
                 header(R.string.groups)
                 if (groups.isEmpty()) hint(R.string.groups_empty)
                 items(groups, key = { it.id }) { g ->
-                    ListItem(
-                        modifier = Modifier.clickable { onOpenChat(vm.chatInGroup(g.id)) },
-                        leadingContent = { Avatar(g.name, ChatKind.GROUP, 40.dp) },
-                        headlineContent = { Text(g.name) },
-                        supportingContent = { Text(g.members.joinToString()) },
+                    EntryRow(
+                        title = g.name,
+                        subtitle = g.members.joinToString(),
+                        kind = ChatKind.GROUP,
+                        blocked = g.blocked,
+                        onOpen = { onOpenChat(vm.chatInGroup(g.id)) },
+                        onBlock = { vm.setGroupBlocked(g.id, !g.blocked) },
+                        onDelete = { forget = Forget(g.name, R.string.group_leave_body) { vm.leaveGroup(g.id) } },
                     )
                 }
             }
@@ -164,10 +178,24 @@ fun NewChatOfScreen(
             }
         }
         ChatKind.SIGNAL, ChatKind.WHATSAPP -> PhoneChat(kind, vm, onOpenChat, onBack)
-        ChatKind.MESHCORE -> NewChatScaffold(stringResource(R.string.kind_meshcore), onBack) {
-            codeActions(R.string.scan_meshcore, scan, paste)
-            hint(R.string.meshcore_hint)
+        ChatKind.MESHCORE -> {
+            val recents by vm.recents.collectAsStateWithLifecycle()
+            val blockedKeys by vm.blockedKeys.collectAsStateWithLifecycle()
+            NewChatScaffold(stringResource(R.string.kind_meshcore), onBack) {
+                codeActions(R.string.scan_meshcore, scan, paste)
+                hint(R.string.meshcore_hint)
+                recentItems(recents.filter { it.kind == ChatKind.MESHCORE }, blockedKeys, vm, onOpenChat)
+            }
         }
+    }
+    forget?.let { f ->
+        AlertDialog(
+            onDismissRequest = { forget = null },
+            title = { Text(stringResource(R.string.delete_named, f.name)) },
+            text = { Text(stringResource(f.body)) },
+            confirmButton = { TextButton(onClick = { f.action(); forget = null }) { Text(stringResource(R.string.delete)) } },
+            dismissButton = { TextButton(onClick = { forget = null }) { Text(stringResource(R.string.cancel)) } },
+        )
     }
 }
 
@@ -215,7 +243,10 @@ private fun PhoneChat(kind: ChatKind, vm: NewChatViewModel, onOpenChat: (String)
         }
     }
     val valid = vm.address(kind, number) != null
+    val recents by vm.recents.collectAsStateWithLifecycle()
+    val blockedKeys by vm.blockedKeys.collectAsStateWithLifecycle()
     NewChatScaffold(stringResource(kind.label()), onBack) {
+        recentItems(recents.filter { it.kind == kind }, blockedKeys, vm, onOpenChat)
         item {
             ListItem(
                 modifier = Modifier.clickable { pick.launch(Unit) },
@@ -280,4 +311,78 @@ private fun GroupNameDialog(onDismiss: () -> Unit, onCreate: (String) -> Unit) {
         confirmButton = { TextButton(onClick = { onCreate(name) }, enabled = name.isNotBlank()) { Text(stringResource(R.string.create)) } },
         dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } },
     )
+}
+
+/** Something to forget, after a confirmation (its key is lost). */
+private class Forget(val name: String, val body: Int, val action: () -> Unit)
+
+/** Recent bridged contacts: tap to chat, swipe left to forget, hold for more. */
+private fun LazyListScope.recentItems(
+    recents: List<Recent>,
+    blockedKeys: Set<String>,
+    vm: NewChatViewModel,
+    onOpenChat: (String) -> Unit,
+) {
+    if (recents.isEmpty()) return
+    header(R.string.recents)
+    items(recents, key = { "recent-" + it.chatId }) { r ->
+        val blocked = r.chatId in blockedKeys
+        EntryRow(
+            title = r.shown,
+            subtitle = r.name?.let { _ -> if (r.address.all(Char::isDigit)) "+" + r.address else r.address.take(12) },
+            kind = r.kind,
+            blocked = blocked,
+            onOpen = { vm.openRecent(r)?.let(onOpenChat) },
+            onBlock = { vm.setRecentBlocked(r, !blocked) },
+            onDelete = { vm.forgetRecent(r) },
+        )
+    }
+    item { HorizontalDivider() }
+}
+
+/** A contact, group or recent: swipe left to delete; hold for start chat, block and delete. */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun EntryRow(
+    title: String,
+    subtitle: String?,
+    kind: ChatKind,
+    blocked: Boolean,
+    onOpen: () -> Unit,
+    onBlock: () -> Unit,
+    onDelete: () -> Unit,
+) {
+    var menu by remember { mutableStateOf(false) }
+    SwipeRow(onStartSwipe = null, onEndSwipe = onDelete) {
+        Box {
+            ListItem(
+                modifier = Modifier.combinedClickable(onClick = { if (!blocked) onOpen() }, onLongClick = { menu = true }),
+                leadingContent = { Avatar(title, kind, 40.dp) },
+                headlineContent = { Text(title) },
+                supportingContent = {
+                    val sub = if (blocked) stringResource(R.string.blocked) else subtitle
+                    if (!sub.isNullOrEmpty()) Text(sub, maxLines = 1)
+                },
+                trailingContent = {
+                    if (blocked) Icon(painterResource(R.drawable.ic_block), stringResource(R.string.blocked))
+                },
+            )
+            DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                if (!blocked) {
+                    MenuItem(R.string.start_chat, R.drawable.ic_chat) {
+                        menu = false
+                        onOpen()
+                    }
+                }
+                MenuItem(if (blocked) R.string.unblock else R.string.block, R.drawable.ic_block) {
+                    menu = false
+                    onBlock()
+                }
+                MenuItem(R.string.delete, R.drawable.ic_delete) {
+                    menu = false
+                    onDelete()
+                }
+            }
+        }
+    }
 }

@@ -35,6 +35,39 @@
     <string name="callsign_optional">Indicativo (opcional)</string>
     <string name="callsign_help">Solo si tienes licencia de radioaficionado, p. ej. EA5XXX.</string>
     <string name="no_callsign">Sin indicativo</string>
+    <string name="archive">Archivar</string>
+    <string name="unarchive">Desarchivar</string>
+    <string name="archived_chats">Chats archivados</string>
+    <string name="archived_count">Chats archivados (%1$d)</string>
+    <string name="mark_unread">Marcar como no leído</string>
+    <string name="mark_read">Marcar como leído</string>
+    <string name="pin">Fijar</string>
+    <string name="unpin">Desfijar</string>
+    <string name="pinned">Fijado</string>
+    <string name="pin_limit">Límite de chats fijados alcanzado: %1$d</string>
+    <string name="select">Seleccionar</string>
+    <string name="delete">Eliminar</string>
+    <string name="delete_named">¿Eliminar %1$s?</string>
+    <string name="undo">Deshacer</string>
+    <string name="block">Bloquear</string>
+    <string name="unblock">Desbloquear</string>
+    <string name="blocked">Bloqueado</string>
+    <string name="chat_blocked">Has bloqueado este chat</string>
+    <string name="blocked_list">Bloqueados</string>
+    <string name="blocked_list_body">Contactos, grupos y Pharos que has bloqueado</string>
+    <string name="blocked_empty">No has bloqueado nada.</string>
+    <string name="pharos_block">Bloquear este Pharos</string>
+    <string name="start_chat">Iniciar chat</string>
+    <string name="recents">Recientes</string>
+    <string name="contact_delete_body">Se olvida su clave: para volver a escribirle tendrás que escanear su código. El chat se queda.</string>
+    <string name="group_leave_body">Sales del grupo y se olvida su clave: para volver necesitarás otra invitación. El chat se queda.</string>
+    <string name="ping_contact_menu">¿Está a la escucha?</string>
+    <string name="ping_pharos_menu">¿Está el Pharos a la escucha?</string>
+    <string name="ping_contact_ok">%1$s ha respondido: te oye a %2$d dB</string>
+    <string name="ping_contact_silent">%1$s no responde</string>
+    <string name="radio_desc_none">Conecta la radio al USB del teléfono</string>
+    <string name="radio_desc_audio">Solo audio: pon la frecuencia en la radio a mano</string>
+    <string name="radio_desc_ready">Audio y CAT: la app lo ajusta todo</string>
     <string name="kind_direct">Directo</string>
     <string name="kind_group">Grupo</string>
     <string name="kind_signal">Signal</string>
@@ -167,10 +200,9 @@
     <string name="encrypt_all_body">Anula el ajuste de cada chat. El SOS sigue yendo sin cifrar.</string>
     <string name="encrypt_all_confirm_title">¿Cifrar todos los chats?</string>
     <string name="settings_radio">Radio</string>
-    <string name="radio_disconnected">Radio no conectada</string>
-    <string name="radio_audio_only">Radio conectada solo con audio: pon la frecuencia en la radio</string>
+    <string name="radio_disconnected">Sin radio</string>
+    <string name="radio_audio_only">Radio conectada, solo audio</string>
     <string name="radio_ready">Radio conectada: audio y control</string>
-    <string name="radio_states_help">Gris: sin radio. Naranja: solo audio, pones la frecuencia a mano. Verde: audio y CAT, la app lo ajusta todo.</string>
     <string name="radio_usb_note">Conecta la radio al USB del teléfono (USB OTG). El soporte de radio llega en la fase 2.</string>
     <string name="settings_radio_rig">Equipo (QDX, G90)</string>
     <string name="settings_band">Banda y velocidad</string>
@@ -210,9 +242,36 @@
         <item quantity="many">Cada %d minutos</item>
         <item quantity="other">Cada %d minutos</item>
     </plurals>
+    <plurals name="chats_deleted">
+        <item quantity="one">%d chat eliminado</item>
+        <item quantity="many">%d chats eliminados</item>
+        <item quantity="other">%d chats eliminados</item>
+    </plurals>
     <plurals name="sos_contacts_count">
         <item quantity="one">%d chat elegido</item>
         <item quantity="many">%d chats elegidos</item>
         <item quantity="other">%d chats elegidos</item>
     </plurals>
+    <string-array name="canned_phrases">
+        <item>Estoy bien</item>
+        <item>Todo bien, sin novedad</item>
+        <item>Hemos llegado bien</item>
+        <item>Necesito ayuda</item>
+        <item>Vamos con retraso, no os preocupéis</item>
+        <item>Mañana bajamos</item>
+        <item>Volvemos hoy</item>
+        <item>Hemos acampado</item>
+        <item>Hace mal tiempo, esperamos</item>
+        <item>Estamos a cubierto</item>
+        <item>Cambio de planes</item>
+        <item>Batería baja</item>
+        <item>Mensaje recibido</item>
+        <item>Sí</item>
+        <item>No</item>
+        <item>Te quiero</item>
+        <item>Buenas noches</item>
+        <item>Buenos días</item>
+        <item>¿Estáis bien?</item>
+        <item>Llamad a emergencias (112)</item>
+    </string-array>
 </resources>

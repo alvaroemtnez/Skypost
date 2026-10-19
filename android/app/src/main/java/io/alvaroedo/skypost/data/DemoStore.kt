@@ -1,11 +1,13 @@
 package io.alvaroedo.skypost.data
 
+import io.alvaroedo.skypost.model.Blocked
 import io.alvaroedo.skypost.model.Chat
 import io.alvaroedo.skypost.model.ChatMessage
 import io.alvaroedo.skypost.model.Contact
 import io.alvaroedo.skypost.model.Group
 import io.alvaroedo.skypost.model.Identity
 import io.alvaroedo.skypost.model.Pharos
+import io.alvaroedo.skypost.model.Recent
 import io.alvaroedo.skypost.model.Settings
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -21,6 +23,8 @@ data class DemoSnapshot(
     val pharos: List<Pharos>,
     val settings: Settings,
     val messages: Map<String, List<ChatMessage>>,
+    val recents: List<Recent> = emptyList(),
+    val blocked: List<Blocked> = emptyList(),
 )
 
 interface DemoStore {

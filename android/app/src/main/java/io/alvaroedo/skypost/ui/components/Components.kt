@@ -32,6 +32,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringArrayResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -46,6 +47,7 @@ import com.google.zxing.qrcode.decoder.ErrorCorrectionLevel
 import io.alvaroedo.skypost.R
 import io.alvaroedo.skypost.model.Auth
 import io.alvaroedo.skypost.model.ChatKind
+import io.alvaroedo.skypost.model.ChatMessage
 import io.alvaroedo.skypost.model.Delivery
 import io.alvaroedo.skypost.model.Pharos
 import io.alvaroedo.skypost.model.Scanned
@@ -121,6 +123,11 @@ fun Avatar(name: String, kind: ChatKind, size: Dp = 48.dp) {
         }
     }
 }
+
+/** A message's text in the app's language (stock phrases are translated). */
+@Composable
+fun shownText(m: ChatMessage): String =
+    m.phrase?.let { stringArrayResource(R.array.canned_phrases).getOrNull(it) } ?: m.text
 
 /** Shield = signed plaintext, padlock = encrypted. Both mean "verified sender". */
 @Composable

@@ -65,6 +65,7 @@ fun SettingsScreen(
     onPharos: () -> Unit,
     onSosContacts: () -> Unit,
     onRadio: () -> Unit,
+    onBlocked: () -> Unit,
     onBack: () -> Unit,
 ) {
     val identity by repo.identity.collectAsStateWithLifecycle()
@@ -157,6 +158,13 @@ fun SettingsScreen(
                     },
                 )
 
+                ListItem(
+                    modifier = Modifier.clickable(onClick = onBlocked),
+                    leadingContent = { Icon(painterResource(R.drawable.ic_block), null) },
+                    headlineContent = { Text(stringResource(R.string.blocked_list)) },
+                    supportingContent = { Text(stringResource(R.string.blocked_list_body)) },
+                )
+
                 Section(R.string.pharos_title)
                 ListItem(
                     modifier = Modifier.clickable(onClick = onPharos),
@@ -194,6 +202,7 @@ fun SettingsScreen(
 
                 Section(R.string.settings_about)
                 ListItem(
+                    leadingContent = { Icon(painterResource(R.drawable.ic_info), null) },
                     headlineContent = { Text(stringResource(R.string.app_name)) },
                     supportingContent = { Text(stringResource(R.string.about_body, BuildConfig.VERSION_NAME)) },
                 )

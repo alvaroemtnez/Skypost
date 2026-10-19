@@ -48,6 +48,7 @@ import io.alvaroedo.skypost.ui.pharos.PharosScreen
 import io.alvaroedo.skypost.ui.pharos.PharosViewModel
 import io.alvaroedo.skypost.ui.scan.ScanScreen
 import io.alvaroedo.skypost.radio.RadioLink
+import io.alvaroedo.skypost.ui.settings.BlockedScreen
 import io.alvaroedo.skypost.ui.settings.RadioSettingsScreen
 import io.alvaroedo.skypost.ui.settings.SettingsScreen
 import io.alvaroedo.skypost.ui.settings.SosContactsScreen
@@ -113,6 +114,12 @@ data object ScanRoute : NavKey
 @Serializable
 data object RadioRoute : NavKey
 
+@Serializable
+data object ArchivedRoute : NavKey
+
+@Serializable
+data object BlockedRoute : NavKey
+
 private const val SLIDE_MS = 250
 
 /** Push: the new screen slides in from the right over the old one. */
@@ -174,7 +181,28 @@ private fun AppRoot(repo: Repository, radioLink: RadioLink, appVm: AppViewModel)
                         onSosSettings = { backStack.add(SosContactsRoute) },
                         radio = radio,
                         onRadio = { backStack.add(RadioRoute) },
+                        onArchived = { backStack.add(ArchivedRoute) },
                     )
+                }
+                entry<ArchivedRoute> {
+                    ChatListScreen(
+                        vm = viewModel { ChatListViewModel(repo, archived = true) },
+                        onSos = appVm::sos,
+                        onOpenChat = { backStack.add(ChatRoute(it)) },
+                        onNewChat = {},
+                        onPharos = {},
+                        onMyCode = {},
+                        onSettings = {},
+                        onSosSettings = {},
+                        radio = radio,
+                        onRadio = {},
+                        onArchived = {},
+                        archived = true,
+                        onBack = { backStack.removeLastOrNull() },
+                    )
+                }
+                entry<BlockedRoute> {
+                    BlockedScreen(repo = repo, onBack = { backStack.removeLastOrNull() })
                 }
                 entry<ChatRoute> { key ->
                     ChatScreen(
@@ -235,6 +263,7 @@ private fun AppRoot(repo: Repository, radioLink: RadioLink, appVm: AppViewModel)
                         onPharos = { backStack.add(PharosRoute) },
                         onSosContacts = { backStack.add(SosContactsRoute) },
                         onRadio = { backStack.add(RadioRoute) },
+                        onBlocked = { backStack.add(BlockedRoute) },
                         onBack = { backStack.removeLastOrNull() },
                     )
                 }

@@ -81,4 +81,31 @@ class ViewModelsTest {
         assertNull(app.pendingImport.value)
         assertTrue(r.contacts.value.any { it.card.alias == "carla" })
     }
+
+    @Test
+    fun `typed text that is a stock phrase in the app language goes as its id`() = runTest {
+        val r = repo()
+        val id = r.chats.value.first { it.kind == ChatKind.DIRECT }.id
+        val vm = ChatViewModel(r, id)
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { vm.ui.collect {} }
+        vm.setLocalPhrases(listOf("I'm OK", "All fine, nothing new"))
+        vm.setDraft("all fine, nothing new")
+        assertEquals(2, vm.ui.value.frames)
+        vm.send()
+        assertEquals(1, r.messages(id).first().last().phrase)
+    }
+
+    @Test
+    fun `archive moves chats out of the main list`() = runTest {
+        val r = repo()
+        val main = ChatListViewModel(r)
+        val archive = ChatListViewModel(r, archived = true)
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { main.ui.collect {} }
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { archive.ui.collect {} }
+        val id = main.ui.value.chats.first().id
+        main.setArchived(setOf(id), true)
+        assertEquals(4, main.ui.value.chats.size)
+        assertEquals(1, main.ui.value.archivedCount)
+        assertEquals(listOf(id), archive.ui.value.chats.map { it.id })
+    }
 }

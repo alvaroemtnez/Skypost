@@ -1,6 +1,15 @@
 package io.alvaroedo.skypost.ui.chat
 
 import androidx.compose.foundation.clickable
+import io.alvaroedo.skypost.ui.components.shownText
+import androidx.compose.ui.res.stringArrayResource
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.material3.FilledTonalIconButton
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -31,7 +40,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.Surface
@@ -75,11 +83,25 @@ fun ChatScreen(vm: ChatViewModel, onInvite: (uri: String, name: String) -> Unit,
     var confirmEncrypt by remember { mutableStateOf(false) }
     var showSafety by remember { mutableStateOf(false) }
     var quick by remember { mutableStateOf(false) }
+    val phrases = stringArrayResource(R.array.canned_phrases).toList()
+    val ping by vm.ping.collectAsStateWithLifecycle()
+    val snackbar = LocalSnackbar.current
 
     LaunchedEffect(ui.messages.size) { vm.markRead() }
+    LaunchedEffect(phrases) { vm.setLocalPhrases(phrases) }
+    val heard = (ping as? PingResult.Heard)?.let { stringResource(R.string.ping_contact_ok, chat?.title.orEmpty(), it.snrDb) }
+    val silent = stringResource(R.string.ping_contact_silent, chat?.title.orEmpty())
+    LaunchedEffect(ping) {
+        when (ping) {
+            is PingResult.Heard -> snackbar.showSnackbar(heard.orEmpty())
+            PingResult.Silent -> snackbar.showSnackbar(silent)
+            else -> return@LaunchedEffect
+        }
+        vm.pingShown()
+    }
 
     Scaffold(
-        snackbarHost = { SnackbarHost(LocalSnackbar.current) },
+        snackbarHost = { SnackbarHost(snackbar) },
         topBar = {
             TopAppBar(
                 navigationIcon = {
@@ -135,6 +157,27 @@ fun ChatScreen(vm: ChatViewModel, onInvite: (uri: String, name: String) -> Unit,
                                     onClick = { menu = false; onInvite(chat.ref, chat.title) },
                                 )
                             }
+                            if (chat != null && chat.kind != ChatKind.GROUP && !chat.blocked) {
+                                DropdownMenuItem(
+                                    text = {
+                                        Text(
+                                            stringResource(
+                                                if (chat.kind.bridged) R.string.ping_pharos_menu else R.string.ping_contact_menu,
+                                            ),
+                                        )
+                                    },
+                                    leadingIcon = { Icon(painterResource(R.drawable.ic_sensors), null) },
+                                    enabled = ping != PingResult.Waiting,
+                                    onClick = { menu = false; vm.ping() },
+                                )
+                            }
+                            if (chat != null) {
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(if (chat.blocked) R.string.unblock else R.string.block)) },
+                                    leadingIcon = { Icon(painterResource(R.drawable.ic_block), null) },
+                                    onClick = { menu = false; vm.setBlocked(!chat.blocked) },
+                                )
+                            }
                             if (ui.safetyNumber != null) {
                                 DropdownMenuItem(
                                     text = { Text(stringResource(R.string.safety_number)) },
@@ -148,15 +191,19 @@ fun ChatScreen(vm: ChatViewModel, onInvite: (uri: String, name: String) -> Unit,
             )
         },
         bottomBar = {
-            Composer(
-                draft = ui.draft,
-                frames = ui.frames,
-                encrypted = ui.encrypted,
-                onDraft = vm::setDraft,
-                onSend = vm::send,
-                onQuick = { quick = true },
-                modifier = Modifier.navigationBarsPadding().imePadding(),
-            )
+            if (chat?.blocked == true) {
+                BlockedBar(onUnblock = { vm.setBlocked(false) }, modifier = Modifier.navigationBarsPadding())
+            } else {
+                Composer(
+                    draft = ui.draft,
+                    frames = ui.frames,
+                    encrypted = ui.encrypted,
+                    onDraft = vm::setDraft,
+                    onSend = vm::send,
+                    onQuick = { quick = true },
+                    modifier = Modifier.navigationBarsPadding().imePadding(),
+                )
+            }
         },
     ) { padding ->
         Column(Modifier.padding(padding).fillMaxSize()) {
@@ -182,7 +229,7 @@ fun ChatScreen(vm: ChatViewModel, onInvite: (uri: String, name: String) -> Unit,
     if (quick) {
         ModalBottomSheet(onDismissRequest = { quick = false }) {
             QuickMessages(
-                phrases = vm.phrases(),
+                phrases = phrases,
                 onStatusOk = { quick = false; vm.sendStatusOk() },
                 onPosition = { quick = false; vm.sendPosition() },
                 onPhrase = { quick = false; vm.sendPhrase(it) },
@@ -260,7 +307,7 @@ private fun Bubble(m: ChatMessage, showSender: Boolean) {
                 if (showSender && !m.outgoing && m.sender != null) {
                     Text(m.sender, style = MaterialTheme.typography.labelLarge, color = colors.primary)
                 }
-                Text(m.text, style = MaterialTheme.typography.bodyLarge)
+                Text(shownText(m), style = MaterialTheme.typography.bodyLarge)
                 Row(
                     Modifier.align(Alignment.End).padding(top = 2.dp),
                     verticalAlignment = Alignment.CenterVertically,
@@ -279,6 +326,12 @@ private fun Bubble(m: ChatMessage, showSender: Boolean) {
     }
 }
 
+/**
+ * Signal-style message bar: a rounded field that grows upwards line by line,
+ * with one round button at its bottom right: quick messages while empty,
+ * send once there is text. The airtime line below always keeps its room, so
+ * nothing jumps when it appears.
+ */
 @Composable
 private fun Composer(
     draft: String,
@@ -289,35 +342,76 @@ private fun Composer(
     onQuick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Surface(tonalElevation = 3.dp, modifier = modifier) {
+    val colors = MaterialTheme.colorScheme
+    Surface(color = colors.surface, modifier = modifier) {
+        Column(Modifier.fillMaxWidth().padding(start = 8.dp, end = 8.dp, top = 6.dp)) {
+            Row(verticalAlignment = Alignment.Bottom) {
+                BasicTextField(
+                    value = draft,
+                    onValueChange = onDraft,
+                    modifier = Modifier.weight(1f),
+                    textStyle = MaterialTheme.typography.bodyLarge.copy(color = colors.onSurface),
+                    cursorBrush = SolidColor(colors.primary),
+                    maxLines = 6,
+                    decorationBox = { inner ->
+                        Surface(shape = RoundedCornerShape(24.dp), color = colors.surfaceContainerHigh) {
+                            Row(
+                                Modifier.heightIn(min = 48.dp).padding(horizontal = 16.dp, vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                if (encrypted) {
+                                    Icon(
+                                        painterResource(R.drawable.ic_lock),
+                                        stringResource(R.string.auth_encrypted),
+                                        Modifier.padding(end = 8.dp).size(18.dp),
+                                        tint = colors.error,
+                                    )
+                                }
+                                Box(Modifier.weight(1f)) {
+                                    if (draft.isEmpty()) {
+                                        Text(
+                                            stringResource(R.string.message_hint),
+                                            style = MaterialTheme.typography.bodyLarge,
+                                            color = colors.onSurfaceVariant,
+                                        )
+                                    }
+                                    inner()
+                                }
+                            }
+                        }
+                    },
+                )
+                Spacer(Modifier.width(8.dp))
+                if (draft.isBlank()) {
+                    FilledTonalIconButton(onClick = onQuick, modifier = Modifier.size(48.dp)) {
+                        Icon(painterResource(R.drawable.ic_add), stringResource(R.string.quick_messages))
+                    }
+                } else {
+                    FilledIconButton(onClick = onSend, modifier = Modifier.size(48.dp)) {
+                        Icon(painterResource(R.drawable.ic_send), stringResource(R.string.send))
+                    }
+                }
+            }
+            Text(
+                if (frames > 0) airtime(frames) else "",
+                style = MaterialTheme.typography.labelSmall,
+                color = colors.onSurfaceVariant,
+                maxLines = 1,
+                modifier = Modifier.padding(start = 16.dp).height(20.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun BlockedBar(onUnblock: () -> Unit, modifier: Modifier = Modifier) {
+    Surface(color = MaterialTheme.colorScheme.surfaceContainer, modifier = modifier) {
         Row(
-            Modifier.fillMaxWidth().padding(8.dp),
+            Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            IconButton(onClick = onQuick) {
-                Icon(painterResource(R.drawable.ic_add), stringResource(R.string.quick_messages))
-            }
-            OutlinedTextField(
-                value = draft,
-                onValueChange = onDraft,
-                modifier = Modifier.weight(1f),
-                placeholder = { Text(stringResource(R.string.message_hint)) },
-                leadingIcon = if (encrypted) {
-                    { Icon(painterResource(R.drawable.ic_lock), stringResource(R.string.auth_encrypted)) }
-                } else {
-                    null
-                },
-                supportingText = if (frames > 0) {
-                    { Text(airtime(frames)) }
-                } else {
-                    null
-                },
-                maxLines = 5,
-            )
-            Spacer(Modifier.width(8.dp))
-            FilledIconButton(onClick = onSend, enabled = draft.isNotBlank()) {
-                Icon(painterResource(R.drawable.ic_send), stringResource(R.string.send))
-            }
+            Text(stringResource(R.string.chat_blocked), Modifier.weight(1f))
+            TextButton(onClick = onUnblock) { Text(stringResource(R.string.unblock)) }
         }
     }
 }
@@ -335,7 +429,7 @@ private fun airtime(frames: Int): String {
 }
 
 @Composable
-private fun QuickMessages(phrases: List<String>, onStatusOk: () -> Unit, onPosition: () -> Unit, onPhrase: (String) -> Unit) {
+private fun QuickMessages(phrases: List<String>, onStatusOk: () -> Unit, onPosition: () -> Unit, onPhrase: (Int) -> Unit) {
     LazyColumn(contentPadding = PaddingValues(bottom = 24.dp)) {
         item {
             ListItem(
@@ -356,8 +450,8 @@ private fun QuickMessages(phrases: List<String>, onStatusOk: () -> Unit, onPosit
                 modifier = Modifier.padding(16.dp),
             )
         }
-        items(phrases) { p ->
-            ListItem(modifier = Modifier.clickable { onPhrase(p) }, headlineContent = { Text(p) })
+        itemsIndexed(phrases) { id, p ->
+            ListItem(modifier = Modifier.clickable { onPhrase(id) }, headlineContent = { Text(p) })
         }
     }
 }

@@ -35,6 +35,39 @@
     <string name="callsign_optional">Indicatiu (opcional)</string>
     <string name="callsign_help">Només si tens llicència de radioaficionat, p. ex. EA5XXX.</string>
     <string name="no_callsign">Sense indicatiu</string>
+    <string name="archive">Arxivar</string>
+    <string name="unarchive">Desarxivar</string>
+    <string name="archived_chats">Xats arxivats</string>
+    <string name="archived_count">Xats arxivats (%1$d)</string>
+    <string name="mark_unread">Marcar com a no llegit</string>
+    <string name="mark_read">Marcar com a llegit</string>
+    <string name="pin">Fixar</string>
+    <string name="unpin">Desfixar</string>
+    <string name="pinned">Fixat</string>
+    <string name="pin_limit">Límit de xats fixats assolit: %1$d</string>
+    <string name="select">Seleccionar</string>
+    <string name="delete">Eliminar</string>
+    <string name="delete_named">Eliminar %1$s?</string>
+    <string name="undo">Desfer</string>
+    <string name="block">Blocar</string>
+    <string name="unblock">Desblocar</string>
+    <string name="blocked">Blocat</string>
+    <string name="chat_blocked">Has blocat este xat</string>
+    <string name="blocked_list">Blocats</string>
+    <string name="blocked_list_body">Contactes, grups i Pharos que has blocat</string>
+    <string name="blocked_empty">No has blocat res.</string>
+    <string name="pharos_block">Blocar este Pharos</string>
+    <string name="start_chat">Iniciar xat</string>
+    <string name="recents">Recents</string>
+    <string name="contact_delete_body">S\'oblida la seua clau: per a tornar a escriure-li hauràs d\'escanejar el seu codi. El xat es queda.</string>
+    <string name="group_leave_body">Ixes del grup i s\'oblida la seua clau: per a tornar necessitaràs una altra invitació. El xat es queda.</string>
+    <string name="ping_contact_menu">Està a l\'escolta?</string>
+    <string name="ping_pharos_menu">Està el Pharos a l\'escolta?</string>
+    <string name="ping_contact_ok">%1$s ha respost: et sent a %2$d dB</string>
+    <string name="ping_contact_silent">%1$s no respon</string>
+    <string name="radio_desc_none">Connecta la ràdio a l\'USB del telèfon</string>
+    <string name="radio_desc_audio">Només àudio: posa la freqüència en la ràdio a mà</string>
+    <string name="radio_desc_ready">Àudio i CAT: l\'aplicació ho ajusta tot</string>
     <string name="kind_direct">Directe</string>
     <string name="kind_group">Grup</string>
     <string name="kind_signal">Signal</string>
@@ -64,7 +97,7 @@
     <string name="quick_ok">Estic bé</string>
     <string name="quick_ok_body">Amb la teua posició</string>
     <string name="quick_position">Enviar la meua posició</string>
-    <string name="quick_phrases">Frases (en castellà, ocupen menys temps en l\'aire)</string>
+    <string name="quick_phrases">Frases (ocupen menys temps en l\'aire)</string>
     <string name="airtime">≈ %1$s · %2$s</string>
     <string name="duration_s">%1$d s</string>
     <string name="duration_min_s">%1$d min %2$d s</string>
@@ -167,10 +200,9 @@
     <string name="encrypt_all_body">Anul·la la configuració de cada xat. El SOS continua anant sense xifrar.</string>
     <string name="encrypt_all_confirm_title">Xifrar tots els xats?</string>
     <string name="settings_radio">Ràdio</string>
-    <string name="radio_disconnected">Ràdio no connectada</string>
-    <string name="radio_audio_only">Ràdio connectada només amb àudio: posa la freqüència en la ràdio</string>
+    <string name="radio_disconnected">Sense ràdio</string>
+    <string name="radio_audio_only">Ràdio connectada, només àudio</string>
     <string name="radio_ready">Ràdio connectada: àudio i control</string>
-    <string name="radio_states_help">Gris: sense ràdio. Taronja: només àudio, poses la freqüència a mà. Verd: àudio i CAT, l\'aplicació ho ajusta tot.</string>
     <string name="radio_usb_note">Connecta la ràdio a l\'USB del telèfon (USB OTG). El suport de ràdio arriba en la fase 2.</string>
     <string name="settings_radio_rig">Equip (QDX, G90)</string>
     <string name="settings_band">Banda i velocitat</string>
@@ -210,9 +242,36 @@
         <item quantity="many">Cada %d minuts</item>
         <item quantity="other">Cada %d minuts</item>
     </plurals>
+    <plurals name="chats_deleted">
+        <item quantity="one">%d xat eliminat</item>
+        <item quantity="many">%d xats eliminats</item>
+        <item quantity="other">%d xats eliminats</item>
+    </plurals>
     <plurals name="sos_contacts_count">
         <item quantity="one">%d xat triat</item>
         <item quantity="many">%d xats triats</item>
         <item quantity="other">%d xats triats</item>
     </plurals>
+    <string-array name="canned_phrases">
+        <item>Estic bé</item>
+        <item>Tot bé, sense novetats</item>
+        <item>Hem arribat bé</item>
+        <item>Necessite ajuda</item>
+        <item>Anem amb retard, no patiu</item>
+        <item>Demà baixem</item>
+        <item>Tornem hui</item>
+        <item>Hem acampat</item>
+        <item>Fa mal temps, esperem</item>
+        <item>Estem a cobert</item>
+        <item>Canvi de plans</item>
+        <item>Bateria baixa</item>
+        <item>Missatge rebut</item>
+        <item>Sí</item>
+        <item>No</item>
+        <item>T\'estime</item>
+        <item>Bona nit</item>
+        <item>Bon dia</item>
+        <item>Esteu bé?</item>
+        <item>Telefoneu a emergències (112)</item>
+    </string-array>
 </resources>

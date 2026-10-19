@@ -36,6 +36,39 @@
     <string name="callsign_optional">Callsign (optional)</string>
     <string name="callsign_help">Only if you hold an amateur radio licence, e.g. EA5XXX.</string>
     <string name="no_callsign">No callsign</string>
+    <string name="archive">Archive</string>
+    <string name="unarchive">Unarchive</string>
+    <string name="archived_chats">Archived chats</string>
+    <string name="archived_count">Archived chats (%1$d)</string>
+    <string name="mark_unread">Mark as unread</string>
+    <string name="mark_read">Mark as read</string>
+    <string name="pin">Pin</string>
+    <string name="unpin">Unpin</string>
+    <string name="pinned">Pinned</string>
+    <string name="pin_limit">Pinned chats limit reached: %1$d</string>
+    <string name="select">Select</string>
+    <string name="delete">Delete</string>
+    <string name="delete_named">Delete %1$s?</string>
+    <string name="undo">Undo</string>
+    <string name="block">Block</string>
+    <string name="unblock">Unblock</string>
+    <string name="blocked">Blocked</string>
+    <string name="chat_blocked">You blocked this chat</string>
+    <string name="blocked_list">Blocked</string>
+    <string name="blocked_list_body">Contacts, groups and Pharos you blocked</string>
+    <string name="blocked_empty">Nothing blocked.</string>
+    <string name="pharos_block">Block this Pharos</string>
+    <string name="start_chat">Start chat</string>
+    <string name="recents">Recent</string>
+    <string name="contact_delete_body">Its key is forgotten: to write again you will have to scan their code. The chat stays.</string>
+    <string name="group_leave_body">You leave the group and forget its key: to come back you need a new invitation. The chat stays.</string>
+    <string name="ping_contact_menu">Is it listening?</string>
+    <string name="ping_pharos_menu">Is the Pharos listening?</string>
+    <string name="ping_contact_ok">%1$s answered: hears you at %2$d dB</string>
+    <string name="ping_contact_silent">%1$s does not answer</string>
+    <string name="radio_desc_none">Plug the radio into the phone\'s USB port</string>
+    <string name="radio_desc_audio">Audio only: set the frequency on the radio by hand</string>
+    <string name="radio_desc_ready">Audio and CAT: the app sets everything</string>
     <string name="kind_direct">Direct</string>
     <string name="kind_group">Group</string>
     <string name="kind_signal">Signal</string>
@@ -65,7 +98,7 @@
     <string name="quick_ok">I\'m OK</string>
     <string name="quick_ok_body">With your position</string>
     <string name="quick_position">Send my position</string>
-    <string name="quick_phrases">Stock phrases (Spanish, shortest on air)</string>
+    <string name="quick_phrases">Stock phrases (shortest on air)</string>
     <string name="airtime">≈ %1$s · %2$s</string>
     <string name="duration_s">%1$d s</string>
     <string name="duration_min_s">%1$d min %2$d s</string>
@@ -168,10 +201,9 @@
     <string name="encrypt_all_body">Overrides each chat\'s setting. The SOS still goes unencrypted.</string>
     <string name="encrypt_all_confirm_title">Encrypt every chat?</string>
     <string name="settings_radio">Radio</string>
-    <string name="radio_disconnected">Radio not connected</string>
-    <string name="radio_audio_only">Radio connected, audio only: set the frequency on the radio</string>
+    <string name="radio_disconnected">No radio</string>
+    <string name="radio_audio_only">Radio connected, audio only</string>
     <string name="radio_ready">Radio connected: audio and control</string>
-    <string name="radio_states_help">Grey: no radio. Orange: audio only, you set the frequency by hand. Green: audio and CAT, the app sets everything.</string>
     <string name="radio_usb_note">Plug the radio into the phone\'s USB port (USB OTG). Radio support arrives in phase 2.</string>
     <string name="settings_radio_rig">Rig (QDX, G90)</string>
     <string name="settings_band">Band and speed</string>
@@ -207,8 +239,34 @@
         <item quantity="one">Every %d minute</item>
         <item quantity="other">Every %d minutes</item>
     </plurals>
+    <plurals name="chats_deleted">
+        <item quantity="one">%d chat deleted</item>
+        <item quantity="other">%d chats deleted</item>
+    </plurals>
     <plurals name="sos_contacts_count">
         <item quantity="one">%d chat chosen</item>
         <item quantity="other">%d chats chosen</item>
     </plurals>
+    <string-array name="canned_phrases">
+        <item>I\'m OK</item>
+        <item>All fine, nothing new</item>
+        <item>We arrived safely</item>
+        <item>I need help</item>
+        <item>We\'re running late, don\'t worry</item>
+        <item>We come down tomorrow</item>
+        <item>We\'re back today</item>
+        <item>We\'ve set up camp</item>
+        <item>Bad weather, we\'re waiting</item>
+        <item>We\'re under shelter</item>
+        <item>Change of plans</item>
+        <item>Low battery</item>
+        <item>Message received</item>
+        <item>Yes</item>
+        <item>No</item>
+        <item>Love you</item>
+        <item>Good night</item>
+        <item>Good morning</item>
+        <item>Are you all OK?</item>
+        <item>Call emergency services (112)</item>
+    </string-array>
 </resources>

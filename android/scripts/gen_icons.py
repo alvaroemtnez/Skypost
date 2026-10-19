@@ -16,6 +16,18 @@ from pathlib import Path
 
 ICONS = [
     ("ic_add", "add", False),
+    ("ic_archive", "archive", False),
+    ("ic_unarchive", "unarchive", False),
+    ("ic_push_pin", "push_pin", False),
+    ("ic_keep_off", "keep_off", False),
+    ("ic_mark_unread", "mark_chat_unread", False),
+    ("ic_mark_read", "mark_chat_read", False),
+    ("ic_check_box", "check_box", False),
+    ("ic_block", "block", False),
+    ("ic_delete", "delete", False),
+    ("ic_chat", "chat", False),
+    ("ic_close", "close", False),
+    ("ic_sensors", "sensors", False),
     ("ic_backup", "backup", False),
     ("ic_call", "call", False),
     ("ic_cell_tower", "cell_tower", False),
