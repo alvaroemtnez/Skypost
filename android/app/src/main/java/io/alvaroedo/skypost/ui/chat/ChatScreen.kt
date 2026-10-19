@@ -408,9 +408,11 @@ private fun Bubble(
             )
             .padding(horizontal = 12.dp, vertical = 3.dp),
         horizontalArrangement = if (m.outgoing) Arrangement.End else Arrangement.Start,
+        verticalAlignment = Alignment.CenterVertically,
     ) {
+        val failed = m.outgoing && m.delivery == Delivery.FAILED
         Box {
-            Surface(color = bg, contentColor = fg, shape = shape, modifier = Modifier.widthIn(max = 320.dp)) {
+            Surface(color = bg, contentColor = fg, shape = shape, modifier = Modifier.widthIn(max = 296.dp)) {
                 Column(Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
                     if (showSender && !m.outgoing && m.sender != null) {
                         Text(m.sender, style = MaterialTheme.typography.labelLarge, color = colors.primary)
@@ -429,7 +431,8 @@ private fun Bubble(
                         Text(shortTime(m.atMillis), style = MaterialTheme.typography.labelSmall)
                         if (m.outgoing) {
                             if (m.auth == Auth.ENCRYPTED) AuthIcon(Auth.ENCRYPTED, tint = fg)
-                            DeliveryIcon(m.delivery, tint = fg)
+                            // A failed send shows its warning beside the bubble instead.
+                            if (!failed) DeliveryIcon(m.delivery, tint = fg)
                         } else {
                             AuthIcon(m.auth, tint = fg)
                         }
@@ -451,6 +454,17 @@ private fun Bubble(
                 MenuItem(R.string.copy, R.drawable.ic_content_copy) { menu = false; onCopy() }
                 MenuItem(R.string.select, R.drawable.ic_check_box) { menu = false; onToggle() }
                 MenuItem(R.string.delete, R.drawable.ic_delete) { menu = false; onDelete() }
+            }
+        }
+        if (failed) {
+            // Big and red, between the bubble and the margin; tapping it opens the menu (Retry first).
+            IconButton(onClick = { if (selecting) onToggle() else menu = true }, modifier = Modifier.padding(start = 4.dp)) {
+                Icon(
+                    painterResource(R.drawable.ic_error),
+                    stringResource(R.string.delivery_failed),
+                    Modifier.size(28.dp),
+                    tint = colors.error,
+                )
             }
         }
     }
