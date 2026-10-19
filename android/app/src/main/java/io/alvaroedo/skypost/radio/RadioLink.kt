@@ -3,7 +3,17 @@ package io.alvaroedo.skypost.radio
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
-enum class RadioState { DISCONNECTED, CONNECTING, READY, TRANSMITTING }
+enum class RadioState {
+    DISCONNECTED,
+    CONNECTING,
+
+    /** Audio only, no CAT: the user sets the frequency on the radio by hand. */
+    AUDIO_ONLY,
+
+    /** Audio and CAT control. */
+    READY,
+    TRANSMITTING,
+}
 
 /**
  * The radio over USB OTG. Phase 2 implementation notes:

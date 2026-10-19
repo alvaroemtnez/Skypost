@@ -1,5 +1,8 @@
 package io.alvaroedo.skypost.core
 
+import kotlinx.serialization.Serializable
+import java.net.URLDecoder
+
 /**
  * Boundary to the Rust core (`core/crates/keryx`, protocol v1).
  *
@@ -8,6 +11,7 @@ package io.alvaroedo.skypost.core
  * `backup`. All protocol logic (identities, codec, crypto, URIs, ARQ, lane
  * choice) stays in Rust; nothing here re-implements it.
  */
+@Serializable
 data class Card(
     /** Base32 X25519 public key. */
     val key: String,
@@ -75,7 +79,7 @@ class FakeKeryxCore : KeryxCore {
         val rest = t.substringAfter(':').trimStart('/')
         val path = rest.substringBefore('?')
         val params = rest.substringAfter('?', "").split('&')
-            .mapNotNull { kv -> kv.split('=', limit = 2).takeIf { it.size == 2 }?.let { it[0] to it[1] } }
+            .mapNotNull { kv -> kv.split('=', limit = 2).takeIf { it.size == 2 }?.let { it[0] to URLDecoder.decode(it[1], "UTF-8") } }
             .toMap()
         val name = params["n"] ?: return null
         return when (path.substringBefore('/').lowercase()) {

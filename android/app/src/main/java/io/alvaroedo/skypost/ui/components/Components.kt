@@ -2,6 +2,7 @@ package io.alvaroedo.skypost.ui.components
 
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -48,6 +49,7 @@ import io.alvaroedo.skypost.model.ChatKind
 import io.alvaroedo.skypost.model.Delivery
 import io.alvaroedo.skypost.model.Pharos
 import io.alvaroedo.skypost.model.Scanned
+import io.alvaroedo.skypost.radio.RadioState
 import io.alvaroedo.skypost.ui.theme.extraColors
 import androidx.compose.material3.SnackbarHostState
 import java.time.Instant
@@ -97,16 +99,24 @@ fun Avatar(name: String, kind: ChatKind, size: Dp = 48.dp) {
                 color = fg,
             )
         }
+        val x = MaterialTheme.extraColors
+        val (badge, onBadge) = when (kind) {
+            ChatKind.DIRECT, ChatKind.GROUP -> colors.primary to colors.onPrimary
+            ChatKind.SIGNAL -> x.signal to x.onBrand
+            ChatKind.WHATSAPP -> x.whatsapp to x.onBrand
+            ChatKind.MESHCORE -> x.meshcore to x.onBrand
+        }
         Surface(
             shape = CircleShape,
-            color = colors.surface,
+            color = badge,
+            border = BorderStroke(1.5.dp, colors.surface),
             modifier = Modifier.align(Alignment.BottomEnd).offset(x = 2.dp, y = 2.dp).size(20.dp),
         ) {
             Icon(
                 painterResource(kind.icon()),
                 contentDescription = stringResource(kind.label()),
-                tint = colors.onSurfaceVariant,
-                modifier = Modifier.padding(2.dp),
+                tint = onBadge,
+                modifier = Modifier.padding(3.dp),
             )
         }
     }
@@ -170,6 +180,24 @@ fun signalColor(snrDb: Int?): Color {
         snrDb >= -18 -> x.signalFair
         snrDb >= -24 -> x.signalPoor
         else -> x.signalBad
+    }
+}
+
+/**
+ * Top-bar radio indicator: grey when no radio is connected, orange with audio
+ * only (frequency set by hand on the radio), green with audio and CAT.
+ */
+@Composable
+fun RadioIndicator(state: RadioState, onClick: () -> Unit) {
+    val x = MaterialTheme.extraColors
+    val (tint, desc) = when (state) {
+        RadioState.DISCONNECTED, RadioState.CONNECTING -> MaterialTheme.colorScheme.outline to R.string.radio_disconnected
+        RadioState.AUDIO_ONLY -> x.signalPoor to R.string.radio_audio_only
+        RadioState.READY, RadioState.TRANSMITTING -> x.signalGood to R.string.radio_ready
+    }
+    val text = stringResource(desc)
+    IconButton(onClick = onClick, modifier = Modifier.semantics { contentDescription = text }) {
+        Icon(painterResource(R.drawable.ic_radio), contentDescription = null, tint = tint)
     }
 }
 

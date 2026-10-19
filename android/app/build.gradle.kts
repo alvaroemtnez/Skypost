@@ -76,6 +76,7 @@ dependencies {
     implementation(libs.androidx.navigation3.runtime)
     implementation(libs.androidx.navigation3.ui)
     implementation(libs.kotlinx.serialization.core)
+    implementation(libs.kotlinx.serialization.json)
     implementation(libs.zxing.core)
     implementation(libs.androidx.camera.camera2)
     implementation(libs.androidx.camera.lifecycle)

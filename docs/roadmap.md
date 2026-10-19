@@ -58,7 +58,8 @@ Design: decisions [0015](decisions/0015-identities.md), [0016](decisions/0016-ph
 - [ ] Material 3 Expressive once material3 1.5 is stable
 - [ ] Try the debug APK on a phone
 - [ ] `keryx-ffi` crate (UniFFI) + cargo-ndk build into `jniLibs`
-- [ ] Radio foreground service: USB permission, CAT (usb-serial-for-android), USB audio routing
+- [ ] Radio foreground service: USB permission, CAT (usb-serial-for-android), USB audio routing; drive the top-bar radio indicator (grey / orange audio only / green audio + CAT)
+- [ ] Audio-only radios (no CAT): make setting the frequency by hand easy (show band and dial frequency, check it, remind on band changes)
 - [ ] GNSS time and position
 - [ ] QR provisioning, Keystore-encrypted state, PIN for advanced mode
 - [ ] Real `Repository` over the keyring (Keystore-encrypted state); delivery ticks wired to ARQ events

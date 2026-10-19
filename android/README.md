@@ -146,6 +146,10 @@ running on fakes (sample chats appear after creating an identity):
   placeholders, backup export and restore.
 - `skypost:` deep links: scanning a code with the camera app opens a confirm
   dialog.
+- Top bar: radio indicator (grey no radio, orange audio only, green audio +
+  CAT; opens the radio screen) next to the Pharos indicator.
+- Demo data survives restarts (`demo-state.json` in app storage); test QR
+  codes for the scanner are in [`test-qr/`](test-qr/README.md).
 - Boundaries: `data/Repository.kt` is all the UI uses (`FakeRepository`
   until phase 2); `core/KeryxCore.kt` is the Rust core boundary
   (`FakeKeryxCore`); `radio/RadioLink.kt` the radio (`FakeRadioLink`).

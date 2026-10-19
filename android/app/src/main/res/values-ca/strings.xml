@@ -167,6 +167,11 @@
     <string name="encrypt_all_body">Anul·la la configuració de cada xat. El SOS continua anant sense xifrar.</string>
     <string name="encrypt_all_confirm_title">Xifrar tots els xats?</string>
     <string name="settings_radio">Ràdio</string>
+    <string name="radio_disconnected">Ràdio no connectada</string>
+    <string name="radio_audio_only">Ràdio connectada només amb àudio: posa la freqüència en la ràdio</string>
+    <string name="radio_ready">Ràdio connectada: àudio i control</string>
+    <string name="radio_states_help">Gris: sense ràdio. Taronja: només àudio, poses la freqüència a mà. Verd: àudio i CAT, l\'aplicació ho ajusta tot.</string>
+    <string name="radio_usb_note">Connecta la ràdio a l\'USB del telèfon (USB OTG). El suport de ràdio arriba en la fase 2.</string>
     <string name="settings_radio_rig">Equip (QDX, G90)</string>
     <string name="settings_band">Banda i velocitat</string>
     <string name="settings_band_body">Automàtiques segons l\'hora i el senyal</string>

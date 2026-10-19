@@ -10,7 +10,8 @@ import androidx.compose.ui.graphics.Color
 /**
  * Semantic colours Material 3 has no role for. These are the only colours
  * defined by hand: an emergency red that must not follow the wallpaper
- * (dynamic `error` can be pale), and a traffic-light scale for signal reports.
+ * (dynamic `error` can be pale), a traffic-light scale for signal reports,
+ * and the networks' own colours for the chat-kind badges.
  */
 @Immutable
 data class ExtraColors(
@@ -21,6 +22,11 @@ data class ExtraColors(
     val signalFair: Color,
     val signalPoor: Color,
     val signalBad: Color,
+    /** Badge backgrounds for bridged chats, with [onBrand] icons. */
+    val meshcore: Color = Color(0xFF111827),
+    val whatsapp: Color = Color(0xFF25D366),
+    val signal: Color = Color(0xFF3B45FD),
+    val onBrand: Color = Color(0xFFFFFFFF),
 )
 
 val LightExtraColors = ExtraColors(

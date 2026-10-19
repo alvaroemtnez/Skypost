@@ -47,6 +47,8 @@ import io.alvaroedo.skypost.ui.onboarding.OnboardingScreen
 import io.alvaroedo.skypost.ui.pharos.PharosScreen
 import io.alvaroedo.skypost.ui.pharos.PharosViewModel
 import io.alvaroedo.skypost.ui.scan.ScanScreen
+import io.alvaroedo.skypost.radio.RadioLink
+import io.alvaroedo.skypost.ui.settings.RadioSettingsScreen
 import io.alvaroedo.skypost.ui.settings.SettingsScreen
 import io.alvaroedo.skypost.ui.settings.SosContactsScreen
 import io.alvaroedo.skypost.ui.theme.SkypostTheme
@@ -62,7 +64,8 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         if (savedInstanceState == null) handleLink(intent)
-        setContent { SkypostTheme { AppRoot(repo, appVm) } }
+        val radio = (application as SkypostApp).radio
+        setContent { SkypostTheme { AppRoot(repo, radio, appVm) } }
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -107,6 +110,9 @@ data object SosContactsRoute : NavKey
 @Serializable
 data object ScanRoute : NavKey
 
+@Serializable
+data object RadioRoute : NavKey
+
 private const val SLIDE_MS = 250
 
 /** Push: the new screen slides in from the right over the old one. */
@@ -132,8 +138,9 @@ private fun NavBackStack<NavKey>.openChat(id: String) {
 }
 
 @Composable
-private fun AppRoot(repo: Repository, appVm: AppViewModel) {
+private fun AppRoot(repo: Repository, radioLink: RadioLink, appVm: AppViewModel) {
     val identity by appVm.identity.collectAsStateWithLifecycle()
+    val radio by radioLink.state.collectAsStateWithLifecycle()
     val pending by appVm.pendingImport.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
     CompositionLocalProvider(LocalSnackbar provides snackbar) {
@@ -165,6 +172,8 @@ private fun AppRoot(repo: Repository, appVm: AppViewModel) {
                         onMyCode = { backStack.add(MyCode) },
                         onSettings = { backStack.add(SettingsRoute) },
                         onSosSettings = { backStack.add(SosContactsRoute) },
+                        radio = radio,
+                        onRadio = { backStack.add(RadioRoute) },
                     )
                 }
                 entry<ChatRoute> { key ->
@@ -225,8 +234,12 @@ private fun AppRoot(repo: Repository, appVm: AppViewModel) {
                         onMyCode = { backStack.add(MyCode) },
                         onPharos = { backStack.add(PharosRoute) },
                         onSosContacts = { backStack.add(SosContactsRoute) },
+                        onRadio = { backStack.add(RadioRoute) },
                         onBack = { backStack.removeLastOrNull() },
                     )
+                }
+                entry<RadioRoute> {
+                    RadioSettingsScreen(radio, onBack = { backStack.removeLastOrNull() })
                 }
                 entry<SosContactsRoute> {
                     SosContactsScreen(repo = repo, onBack = { backStack.removeLastOrNull() })

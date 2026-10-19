@@ -15,7 +15,8 @@ Kotlin + Jetpack Compose Material 3. Package `io.alvaroedo.skypost`, min SDK 26.
 - Colours: never hard-code; use `MaterialTheme.colorScheme`. The pre-12
   palette is generated (`scripts/gen_colors.py`), do not edit `Color.kt`.
   The only hand-picked colours are `ui/theme/ExtraColors.kt`
-  (`MaterialTheme.extraColors`): emergency red and the SNR traffic light.
+  (`MaterialTheme.extraColors`): emergency red, the SNR traffic light and
+  the Signal/WhatsApp/MeshCore badge colours.
 - Icons: Material Symbols vector drawables in `res/drawable`, not material-icons.
   Add them to `scripts/gen_icons.py` and run it; lint fails on unused ones.
 - Edge-to-edge is on: pad with window insets.
@@ -26,6 +27,8 @@ Kotlin + Jetpack Compose Material 3. Package `io.alvaroedo.skypost`, min SDK 26.
   Each screen takes its ViewModel; `AppViewModel` holds the identity gate and
   pending imports.
 - `data/Repository.kt` is all the UI talks to; `FakeRepository` until phase 2.
+  It saves its demo state to `filesDir/demo-state.json` (`DemoStore`).
+- `test-qr/`: QR codes to try the scanner; `FakeRepositoryTest` parses them.
 - `core/KeryxCore.kt` is the boundary to the Rust core; `FakeKeryxCore` until the
   UniFFI bindings exist. Do not implement protocol logic in Kotlin (the fakes'
   rough URI parsing and estimates are test doubles, not the real thing).

@@ -168,6 +168,11 @@
     <string name="encrypt_all_body">Overrides each chat\'s setting. The SOS still goes unencrypted.</string>
     <string name="encrypt_all_confirm_title">Encrypt every chat?</string>
     <string name="settings_radio">Radio</string>
+    <string name="radio_disconnected">Radio not connected</string>
+    <string name="radio_audio_only">Radio connected, audio only: set the frequency on the radio</string>
+    <string name="radio_ready">Radio connected: audio and control</string>
+    <string name="radio_states_help">Grey: no radio. Orange: audio only, you set the frequency by hand. Green: audio and CAT, the app sets everything.</string>
+    <string name="radio_usb_note">Plug the radio into the phone\'s USB port (USB OTG). Radio support arrives in phase 2.</string>
     <string name="settings_radio_rig">Rig (QDX, G90)</string>
     <string name="settings_band">Band and speed</string>
     <string name="settings_band_body">Automatic, by time of day and signal</string>

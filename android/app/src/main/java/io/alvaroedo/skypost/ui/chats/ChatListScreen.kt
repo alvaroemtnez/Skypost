@@ -54,7 +54,9 @@ import io.alvaroedo.skypost.ui.components.Avatar
 import io.alvaroedo.skypost.ui.components.AuthIcon
 import io.alvaroedo.skypost.ui.components.DeliveryIcon
 import io.alvaroedo.skypost.ui.components.LocalSnackbar
+import io.alvaroedo.skypost.radio.RadioState
 import io.alvaroedo.skypost.ui.components.PharosIndicator
+import io.alvaroedo.skypost.ui.components.RadioIndicator
 import io.alvaroedo.skypost.ui.components.label
 import io.alvaroedo.skypost.ui.components.shortTime
 import io.alvaroedo.skypost.ui.theme.extraColors
@@ -71,6 +73,8 @@ fun ChatListScreen(
     onMyCode: () -> Unit,
     onSettings: () -> Unit,
     onSosSettings: () -> Unit,
+    radio: RadioState,
+    onRadio: () -> Unit,
 ) {
     val ui by vm.ui.collectAsStateWithLifecycle()
     var confirmSos by remember { mutableStateOf(false) }
@@ -89,6 +93,7 @@ fun ChatListScreen(
                 title = { Text(stringResource(R.string.app_name)) },
                 scrollBehavior = scroll,
                 actions = {
+                    RadioIndicator(radio, onRadio)
                     PharosIndicator(ui.activePharos, onPharos)
                     IconButton(onClick = onNewChat) {
                         Icon(painterResource(R.drawable.ic_edit_square), stringResource(R.string.new_chat))
@@ -118,9 +123,9 @@ fun ChatListScreen(
                 onClick = { confirmSos = true },
                 containerColor = MaterialTheme.extraColors.emergency,
                 contentColor = MaterialTheme.extraColors.onEmergency,
-                icon = { Icon(painterResource(R.drawable.ic_sos), null) },
-                text = { Text(stringResource(R.string.sos), style = MaterialTheme.typography.titleMedium) },
-            )
+            ) {
+                Text(stringResource(R.string.sos), style = MaterialTheme.typography.titleLarge)
+            }
         },
     ) { padding ->
         Column(Modifier.padding(padding).fillMaxSize()) {
@@ -139,7 +144,6 @@ fun ChatListScreen(
     if (confirmSos) {
         AlertDialog(
             onDismissRequest = { confirmSos = false },
-            icon = { Icon(painterResource(R.drawable.ic_sos), null, tint = MaterialTheme.extraColors.emergency) },
             title = { Text(stringResource(R.string.sos_confirm_title)) },
             text = {
                 if (ui.sosTargets.isEmpty()) {
@@ -218,7 +222,12 @@ private fun ChatRow(chat: Chat, onClick: () -> Unit) {
             Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 last?.let { Text(shortTime(it.atMillis), style = MaterialTheme.typography.labelSmall) }
                 if (chat.unread > 0) {
-                    Badge { Text(chat.unread.toString()) }
+                    // Theme colour; emergency red only for an unread SOS.
+                    val sos = last?.sos == true && !last.outgoing
+                    Badge(
+                        containerColor = if (sos) MaterialTheme.extraColors.emergency else MaterialTheme.colorScheme.primary,
+                        contentColor = if (sos) MaterialTheme.extraColors.onEmergency else MaterialTheme.colorScheme.onPrimary,
+                    ) { Text(chat.unread.toString()) }
                 } else if (chat.encrypted) {
                     AuthIcon(Auth.ENCRYPTED, tint = MaterialTheme.colorScheme.error)
                 }

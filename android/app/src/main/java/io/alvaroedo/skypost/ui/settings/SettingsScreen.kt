@@ -64,6 +64,7 @@ fun SettingsScreen(
     onMyCode: () -> Unit,
     onPharos: () -> Unit,
     onSosContacts: () -> Unit,
+    onRadio: () -> Unit,
     onBack: () -> Unit,
 ) {
     val identity by repo.identity.collectAsStateWithLifecycle()
@@ -171,13 +172,9 @@ fun SettingsScreen(
 
                 Section(R.string.settings_radio)
                 ListItem(
+                    modifier = Modifier.clickable(onClick = onRadio),
                     leadingContent = { Icon(painterResource(R.drawable.ic_radio), null) },
                     headlineContent = { Text(stringResource(R.string.settings_radio_rig)) },
-                    supportingContent = { Text(stringResource(R.string.pending_phase2)) },
-                )
-                ListItem(
-                    leadingContent = { Icon(painterResource(R.drawable.ic_info), null) },
-                    headlineContent = { Text(stringResource(R.string.settings_band)) },
                     supportingContent = { Text(stringResource(R.string.settings_band_body)) },
                 )
 

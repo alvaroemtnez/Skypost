@@ -9,6 +9,7 @@ import io.alvaroedo.skypost.model.Registration
 import io.alvaroedo.skypost.model.Scanned
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
@@ -79,5 +80,34 @@ class FakeRepositoryTest {
         assertEquals(Registration.NEEDS_CODE, r.pharos.value.single().registration)
         r.register(found.card.key, "caballo pila grapa")
         assertEquals(Registration.REGISTERED, r.pharos.value.single().registration)
+    }
+
+    @Test
+    fun `state survives a restart through the store`() = runTest {
+        val file = java.io.File.createTempFile("demo", ".json").apply { delete() }
+        val store = FileDemoStore(file)
+        val io = StandardTestDispatcher(air.testScheduler)
+        val first = FakeRepository(FakeKeryxCore(), air, demo = true, ackDelayMs = 10, store = store, io = io)
+        first.createIdentity("ana", "EA5AAA")
+        first.setEncryptAll(true)
+        air.advanceUntilIdle()
+        val again = FakeRepository(FakeKeryxCore(), air, demo = true, store = store)
+        assertEquals("ana", again.identity.value?.card?.alias)
+        assertEquals(first.chats.value.map { it.id }.toSet(), again.chats.value.map { it.id }.toSet())
+        assertTrue(again.settings.value.encryptAll)
+        file.delete()
+    }
+
+    @Test
+    fun `test QR payloads parse`() = runTest {
+        val r = repo()
+        val dir = listOf("test-qr", "../test-qr").map { java.io.File(it) }.first { it.isDirectory }
+        val payloads = Regex("```\n(.+?)\n```").findAll(java.io.File(dir, "README.md").readText()).map { it.groupValues[1] }.toList()
+        val parsed = payloads.map { r.parse(it) }
+        assertTrue(parsed[0] is Scanned.Person)
+        assertTrue(parsed[1] is Scanned.PharosCard)
+        assertEquals("Montaña", (parsed[2] as Scanned.GroupInvite).name)
+        assertTrue(parsed[3] is Scanned.MeshCore)
+        assertNull(parsed[4])
     }
 }

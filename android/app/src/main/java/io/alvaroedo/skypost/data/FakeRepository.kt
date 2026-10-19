@@ -17,27 +17,38 @@ import io.alvaroedo.skypost.model.PharosAccess
 import io.alvaroedo.skypost.model.Registration
 import io.alvaroedo.skypost.model.Scanned
 import io.alvaroedo.skypost.model.Settings
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
- * In-memory stand-in for the real repository: no radio, no persistence.
+ * Stand-in for the real repository: no radio; state kept in [store] so the
+ * demo survives restarts.
  * Sent messages are "ACKed" after [ackDelayMs]. With [demo], a new identity
  * starts with sample chats so every screen has something to show.
  */
+@OptIn(FlowPreview::class)
 class FakeRepository(
     private val core: KeryxCore,
     private val scope: CoroutineScope,
     private val demo: Boolean = true,
     private val ackDelayMs: Long = 2_500,
     private val now: () -> Long = System::currentTimeMillis,
+    private val store: DemoStore? = null,
+    private val io: CoroutineDispatcher = Dispatchers.IO,
 ) : Repository {
     private val _identity = MutableStateFlow<Identity?>(null)
     private val _chats = MutableStateFlow<List<Chat>>(emptyList())
@@ -47,6 +58,44 @@ class FakeRepository(
     private val _settings = MutableStateFlow(Settings())
     private val messages = MutableStateFlow<Map<String, List<ChatMessage>>>(emptyMap())
     private var nextId = 1L
+
+    init {
+        store?.load()?.let(::restore)
+        if (store != null) {
+            scope.launch {
+                merge(_identity, _chats, _contacts, _groups, _pharos, _settings, messages)
+                    .drop(1)
+                    .debounce(300)
+                    .collect {
+                        val snap = snapshot()
+                        withContext(io) { store.save(snap) }
+                    }
+            }
+        }
+    }
+
+    private fun snapshot() = DemoSnapshot(
+        identity = _identity.value,
+        chats = _chats.value,
+        contacts = _contacts.value,
+        groups = _groups.value,
+        pharos = _pharos.value,
+        settings = _settings.value,
+        messages = messages.value,
+    )
+
+    /** Messages still waiting for an ACK when the app stopped are lost. */
+    private fun restore(s: DemoSnapshot) {
+        val pending = { m: ChatMessage -> if (m.delivery == Delivery.PENDING) m.copy(delivery = Delivery.FAILED) else m }
+        _identity.value = s.identity
+        _chats.value = s.chats.map { c -> c.copy(last = c.last?.let(pending)) }
+        _contacts.value = s.contacts
+        _groups.value = s.groups
+        _pharos.value = s.pharos
+        _settings.value = s.settings
+        messages.value = s.messages.mapValues { (_, l) -> l.map(pending) }
+        nextId = (s.messages.values.flatten().maxOfOrNull { it.id } ?: 0) + 1
+    }
 
     override val identity: StateFlow<Identity?> = _identity.asStateFlow()
     override val chats: StateFlow<List<Chat>> = _chats.asStateFlow()

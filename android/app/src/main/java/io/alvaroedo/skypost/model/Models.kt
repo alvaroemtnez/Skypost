@@ -1,8 +1,10 @@
 package io.alvaroedo.skypost.model
 
 import io.alvaroedo.skypost.core.Card
+import kotlinx.serialization.Serializable
 
 /** The five kinds of conversation, in filter-chip order. */
+@Serializable
 enum class ChatKind {
     DIRECT,
     GROUP,
@@ -16,11 +18,14 @@ enum class ChatKind {
 }
 
 /** How a received message was protected on air. Both verify the sender. */
+@Serializable
 enum class Auth { SIGNED, ENCRYPTED }
 
 /** Sent messages: waiting for the ACK, ACKed by the contact or Pharos, or given up. */
+@Serializable
 enum class Delivery { PENDING, ACKED, FAILED }
 
+@Serializable
 data class ChatMessage(
     val id: Long,
     val chatId: String,
@@ -34,6 +39,7 @@ data class ChatMessage(
     val sos: Boolean = false,
 )
 
+@Serializable
 data class Chat(
     val id: String,
     val kind: ChatKind,
@@ -48,12 +54,14 @@ data class Chat(
     val ref: String? = null,
 )
 
+@Serializable
 data class Contact(
     val card: Card,
     val verified: Boolean,
     val safetyNumber: String,
 )
 
+@Serializable
 data class Group(
     val id: String,
     val name: String,
@@ -62,11 +70,13 @@ data class Group(
     val members: List<String>,
 )
 
+@Serializable
 enum class Registration { REGISTERED, PENDING, REFUSED, NEEDS_CODE, NOT_REGISTERED }
 
 /** Who may use a Pharos, as its announce says. */
 enum class PharosAccess { OPEN, CODE, CLOSED }
 
+@Serializable
 data class Pharos(
     val card: Card,
     val verified: Boolean,
@@ -86,12 +96,14 @@ data class Discovered(
     val access: PharosAccess = PharosAccess.OPEN,
 )
 
+@Serializable
 data class Identity(
     val card: Card,
     val uri: String,
     val safetyNumber: String,
 )
 
+@Serializable
 data class Settings(
     /** Automatic Pharos ping, minutes; 0 = off (default: less RF footprint). */
     val pingIntervalMin: Int = 0,

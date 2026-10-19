@@ -167,6 +167,11 @@
     <string name="encrypt_all_body">Anula el ajuste de cada chat. El SOS sigue yendo sin cifrar.</string>
     <string name="encrypt_all_confirm_title">¿Cifrar todos los chats?</string>
     <string name="settings_radio">Radio</string>
+    <string name="radio_disconnected">Radio no conectada</string>
+    <string name="radio_audio_only">Radio conectada solo con audio: pon la frecuencia en la radio</string>
+    <string name="radio_ready">Radio conectada: audio y control</string>
+    <string name="radio_states_help">Gris: sin radio. Naranja: solo audio, pones la frecuencia a mano. Verde: audio y CAT, la app lo ajusta todo.</string>
+    <string name="radio_usb_note">Conecta la radio al USB del teléfono (USB OTG). El soporte de radio llega en la fase 2.</string>
     <string name="settings_radio_rig">Equipo (QDX, G90)</string>
     <string name="settings_band">Banda y velocidad</string>
     <string name="settings_band_body">Automáticas según la hora y la señal</string>
