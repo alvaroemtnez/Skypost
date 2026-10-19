@@ -62,6 +62,7 @@ S = {
 "delete": ("Delete","Eliminar","Eliminar"),
 "delete_named": ("Delete %1$s?","¿Eliminar %1$s?","Eliminar %1$s?"),
 "undo": ("Undo","Deshacer","Desfer"),
+"retry": ("Retry","Reintentar","Reintentar"),
 "block": ("Block","Bloquear","Blocar"),
 "unblock": ("Unblock","Desbloquear","Desblocar"),
 "blocked": ("Blocked","Bloqueado","Blocat"),
@@ -255,6 +256,7 @@ P = {
 "pharos_heard_min": (("Heard %d minute ago","Heard %d minutes ago"),("Oído hace %d minuto","Oído hace %d minutos"),("Escoltat fa %d minut","Escoltat fa %d minuts")),
 "pharos_heard_h": (("Heard %d hour ago","Heard %d hours ago"),("Oído hace %d hora","Oído hace %d horas"),("Escoltat fa %d hora","Escoltat fa %d hores")),
 "ping_every": (("Every %d minute","Every %d minutes"),("Cada %d minuto","Cada %d minutos"),("Cada %d minut","Cada %d minuts")),
+"messages_deleted": (("%d message deleted","%d messages deleted"),("%d mensaje eliminado","%d mensajes eliminados"),("%d missatge eliminat","%d missatges eliminats")),
 "chats_deleted": (("%d chat deleted","%d chats deleted"),("%d chat eliminado","%d chats eliminados"),("%d xat eliminat","%d xats eliminats")),
 "sos_contacts_count": (("%d chat chosen","%d chats chosen"),("%d chat elegido","%d chats elegidos"),("%d xat triat","%d xats triats")),
 }

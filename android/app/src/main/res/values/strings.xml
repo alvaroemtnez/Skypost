@@ -50,6 +50,7 @@
     <string name="delete">Delete</string>
     <string name="delete_named">Delete %1$s?</string>
     <string name="undo">Undo</string>
+    <string name="retry">Retry</string>
     <string name="block">Block</string>
     <string name="unblock">Unblock</string>
     <string name="blocked">Blocked</string>
@@ -244,6 +245,10 @@
     <plurals name="ping_every">
         <item quantity="one">Every %d minute</item>
         <item quantity="other">Every %d minutes</item>
+    </plurals>
+    <plurals name="messages_deleted">
+        <item quantity="one">%d message deleted</item>
+        <item quantity="other">%d messages deleted</item>
     </plurals>
     <plurals name="chats_deleted">
         <item quantity="one">%d chat deleted</item>

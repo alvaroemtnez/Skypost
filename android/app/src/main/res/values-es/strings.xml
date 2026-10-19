@@ -49,6 +49,7 @@
     <string name="delete">Eliminar</string>
     <string name="delete_named">¿Eliminar %1$s?</string>
     <string name="undo">Deshacer</string>
+    <string name="retry">Reintentar</string>
     <string name="block">Bloquear</string>
     <string name="unblock">Desbloquear</string>
     <string name="blocked">Bloqueado</string>
@@ -247,6 +248,11 @@
         <item quantity="one">Cada %d minuto</item>
         <item quantity="many">Cada %d minutos</item>
         <item quantity="other">Cada %d minutos</item>
+    </plurals>
+    <plurals name="messages_deleted">
+        <item quantity="one">%d mensaje eliminado</item>
+        <item quantity="many">%d mensajes eliminados</item>
+        <item quantity="other">%d mensajes eliminados</item>
     </plurals>
     <plurals name="chats_deleted">
         <item quantity="one">%d chat eliminado</item>

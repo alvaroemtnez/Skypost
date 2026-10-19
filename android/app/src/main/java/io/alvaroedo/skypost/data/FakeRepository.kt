@@ -212,6 +212,37 @@ class FakeRepository(
         _chats.update { list -> list.map { if (it.id == chatId) it.copy(unread = 0, markedUnread = false) else it } }
     }
 
+    private fun refreshLast(chatId: String) {
+        val last = messages.value[chatId].orEmpty().lastOrNull()
+        _chats.update { list -> list.map { if (it.id == chatId) it.copy(last = last) else it } }
+    }
+
+    override fun retry(chatId: String, messageId: Long) {
+        val c = chat(chatId)?.takeUnless { it.blocked } ?: return
+        val m = messages.value[chatId].orEmpty().firstOrNull { it.id == messageId && it.outgoing } ?: return
+        if (m.delivery != Delivery.FAILED) return
+        setDelivery(chatId, messageId, Delivery.PENDING)
+        val reachable = !c.kind.bridged || activePharos()?.takeUnless { it.blocked } != null
+        scope.launch {
+            delay(ackDelayMs)
+            setDelivery(chatId, messageId, if (reachable) Delivery.ACKED else Delivery.FAILED)
+        }
+    }
+
+    override fun deleteMessages(chatId: String, ids: Set<Long>): List<ChatMessage> {
+        val gone = messages.value[chatId].orEmpty().filter { it.id in ids }
+        messages.update { all -> all + (chatId to all[chatId].orEmpty().filterNot { it.id in ids }) }
+        refreshLast(chatId)
+        return gone
+    }
+
+    override fun restoreMessages(chatId: String, messages: List<ChatMessage>) {
+        this.messages.update { all ->
+            all + (chatId to (all[chatId].orEmpty() + messages).distinctBy { it.id }.sortedBy { it.atMillis })
+        }
+        refreshLast(chatId)
+    }
+
     override fun setArchived(ids: Set<String>, on: Boolean) {
         _chats.update { list -> list.map { if (it.id in ids) it.copy(archived = on, pinnedAt = it.pinnedAt.takeUnless { on }) else it } }
     }

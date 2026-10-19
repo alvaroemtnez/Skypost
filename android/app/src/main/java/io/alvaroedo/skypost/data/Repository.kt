@@ -60,6 +60,14 @@ interface Repository {
 
     fun markRead(chatId: String)
 
+    /** Send a failed message again (same content, new attempt). */
+    fun retry(chatId: String, messageId: Long)
+
+    /** Removes messages from this phone only; returns them for undo. */
+    fun deleteMessages(chatId: String, ids: Set<Long>): List<ChatMessage>
+
+    fun restoreMessages(chatId: String, messages: List<ChatMessage>)
+
     fun setArchived(ids: Set<String>, on: Boolean)
 
     fun setMarkedUnread(ids: Set<String>, on: Boolean)

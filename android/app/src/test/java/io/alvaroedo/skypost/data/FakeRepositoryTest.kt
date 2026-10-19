@@ -151,4 +151,25 @@ class FakeRepositoryTest {
         r.forgetRecent(r.recents.value.first())
         assertTrue("forgetting a recent keeps its chat", r.chats.value.any { it.kind == ChatKind.SIGNAL })
     }
+
+    @Test
+    fun `failed messages can be retried and deleted ones restored`() = runTest {
+        val r = repo(demo = true)
+        val mama = r.chats.value.first { it.kind == ChatKind.SIGNAL }.id
+        r.setPharosBlocked(r.pharos.value.first().card.key, true)
+        r.send(mama, "¿Hola?")
+        air.advanceUntilIdle()
+        val failed = r.messages(mama).first().last()
+        assertEquals(Delivery.FAILED, failed.delivery)
+        r.unblock(r.blocked.value.single().key)
+        r.setActivePharos(r.pharos.value.first().card.key)
+        r.retry(mama, failed.id)
+        air.advanceUntilIdle()
+        assertEquals(Delivery.ACKED, r.messages(mama).first().last().delivery)
+        val gone = r.deleteMessages(mama, setOf(failed.id))
+        assertTrue(r.messages(mama).first().none { it.id == failed.id })
+        assertTrue(r.chats.value.first { it.id == mama }.last?.id != failed.id)
+        r.restoreMessages(mama, gone)
+        assertEquals(failed.id, r.messages(mama).first().last().id)
+    }
 }

@@ -17,6 +17,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 sealed interface PingResult {
@@ -136,6 +137,23 @@ class ChatViewModel(
     fun sendPhrase(id: Int) = repo.sendPhrase(chatId, id)
 
     fun setBlocked(on: Boolean) = repo.setChatBlocked(chatId, on)
+
+    private val _selected = MutableStateFlow<Set<Long>>(emptySet())
+
+    /** Selected messages (bulk copy or delete). */
+    val selected: StateFlow<Set<Long>> = _selected.asStateFlow()
+
+    fun toggleSelected(id: Long) = _selected.update { if (id in it) it - id else it + id }
+
+    fun clearSelection() {
+        _selected.value = emptySet()
+    }
+
+    fun retry(id: Long) = repo.retry(chatId, id)
+
+    fun delete(ids: Set<Long>): List<ChatMessage> = repo.deleteMessages(chatId, ids).also { clearSelection() }
+
+    fun restore(messages: List<ChatMessage>) = repo.restoreMessages(chatId, messages)
 
     fun ping() {
         _ping.value = PingResult.Waiting

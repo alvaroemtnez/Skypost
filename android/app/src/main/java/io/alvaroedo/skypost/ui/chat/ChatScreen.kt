@@ -1,6 +1,17 @@
 package io.alvaroedo.skypost.ui.chat
 
 import androidx.compose.foundation.clickable
+import kotlinx.coroutines.launch
+import io.alvaroedo.skypost.ui.components.copyToClipboard
+import io.alvaroedo.skypost.ui.components.MenuItem
+import io.alvaroedo.skypost.model.Delivery
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.material3.SnackbarResult
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.MenuDefaults
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.background
+import androidx.compose.foundation.ExperimentalFoundationApi
 import java.util.Locale
 import io.alvaroedo.skypost.ui.components.rememberWithLocation
 import io.alvaroedo.skypost.ui.components.openPosition
@@ -97,8 +108,31 @@ fun ChatScreen(vm: ChatViewModel, onInvite: (uri: String, name: String) -> Unit,
     var quick by remember { mutableStateOf(false) }
     val phrases = stringArrayResource(R.array.canned_phrases).toList()
     val ping by vm.ping.collectAsStateWithLifecycle()
-    val locating by vm.locating.collectAsStateWithLifecycle()
+    val selected by vm.selected.collectAsStateWithLifecycle()
     val snackbar = LocalSnackbar.current
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val copiedText = stringResource(R.string.copied)
+    val undo = stringResource(R.string.undo)
+    val deletedOne = pluralStringResource(R.plurals.messages_deleted, 1, 1)
+    val deletedMany = pluralStringResource(R.plurals.messages_deleted, selected.size, selected.size)
+    // What "copy" puts on the clipboard, per message, in the app's language.
+    val copyTexts = ui.messages.associate { it.id to copyText(it) }
+    val copy: (Set<Long>) -> Unit = { ids ->
+        val text = ui.messages.filter { it.id in ids }.joinToString("\n") { copyTexts[it.id].orEmpty() }
+        copyToClipboard(context, chat?.title.orEmpty(), text)
+        vm.clearSelection()
+        scope.launch { snackbar.showSnackbar(copiedText) }
+    }
+    val delete: (Set<Long>) -> Unit = { ids ->
+        val text = if (ids.size == 1) deletedOne else deletedMany
+        val gone = vm.delete(ids)
+        scope.launch {
+            val r = snackbar.showSnackbar(text, actionLabel = undo, duration = SnackbarDuration.Short)
+            if (r == SnackbarResult.ActionPerformed) vm.restore(gone)
+        }
+    }
+    val locating by vm.locating.collectAsStateWithLifecycle()
     val withLocation = rememberWithLocation()
     val noFixSent = stringResource(R.string.sent_without_position)
     val noFix = stringResource(R.string.no_position)
@@ -124,7 +158,24 @@ fun ChatScreen(vm: ChatViewModel, onInvite: (uri: String, name: String) -> Unit,
     Scaffold(
         snackbarHost = { SnackbarHost(snackbar) },
         topBar = {
-            TopAppBar(
+            if (selected.isNotEmpty()) {
+                TopAppBar(
+                    navigationIcon = {
+                        IconButton(onClick = vm::clearSelection) {
+                            Icon(painterResource(R.drawable.ic_close), stringResource(R.string.cancel))
+                        }
+                    },
+                    title = { Text(selected.size.toString()) },
+                    actions = {
+                        IconButton(onClick = { copy(selected) }) {
+                            Icon(painterResource(R.drawable.ic_content_copy), stringResource(R.string.copy))
+                        }
+                        IconButton(onClick = { delete(selected) }) {
+                            Icon(painterResource(R.drawable.ic_delete), stringResource(R.string.delete))
+                        }
+                    },
+                )
+            } else TopAppBar(
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(painterResource(R.drawable.ic_arrow_back), stringResource(R.string.back))
@@ -249,7 +300,16 @@ fun ChatScreen(vm: ChatViewModel, onInvite: (uri: String, name: String) -> Unit,
                 contentPadding = PaddingValues(vertical = 8.dp),
             ) {
                 items(ui.messages.asReversed(), key = { it.id }) { m ->
-                    Bubble(m, showSender = chat?.kind == ChatKind.GROUP)
+                    Bubble(
+                        m,
+                        showSender = chat?.kind == ChatKind.GROUP,
+                        selecting = selected.isNotEmpty(),
+                        selected = m.id in selected,
+                        onToggle = { vm.toggleSelected(m.id) },
+                        onRetry = { vm.retry(m.id) },
+                        onCopy = { copy(setOf(m.id)) },
+                        onDelete = { delete(setOf(m.id)) },
+                    )
                 }
             }
         }
@@ -314,8 +374,19 @@ private fun Banner(icon: Int, text: String) {
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun Bubble(m: ChatMessage, showSender: Boolean) {
+private fun Bubble(
+    m: ChatMessage,
+    showSender: Boolean,
+    selecting: Boolean,
+    selected: Boolean,
+    onToggle: () -> Unit,
+    onRetry: () -> Unit,
+    onCopy: () -> Unit,
+    onDelete: () -> Unit,
+) {
+    var menu by remember { mutableStateOf(false) }
     val colors = MaterialTheme.colorScheme
     val (bg, fg) = when {
         m.sos -> MaterialTheme.extraColors.emergency to MaterialTheme.extraColors.onEmergency
@@ -328,42 +399,77 @@ private fun Bubble(m: ChatMessage, showSender: Boolean) {
         RoundedCornerShape(18.dp, 18.dp, 18.dp, 4.dp)
     }
     Row(
-        Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 3.dp),
+        Modifier
+            .fillMaxWidth()
+            .background(if (selected) colors.secondaryContainer else Color.Unspecified)
+            .combinedClickable(
+                onClick = { if (selecting) onToggle() },
+                onLongClick = { if (selecting) onToggle() else menu = true },
+            )
+            .padding(horizontal = 12.dp, vertical = 3.dp),
         horizontalArrangement = if (m.outgoing) Arrangement.End else Arrangement.Start,
     ) {
-        Surface(color = bg, contentColor = fg, shape = shape, modifier = Modifier.widthIn(max = 320.dp)) {
-            Column(Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
-                if (showSender && !m.outgoing && m.sender != null) {
-                    Text(m.sender, style = MaterialTheme.typography.labelLarge, color = colors.primary)
-                }
-                val text = when {
-                    m.sos -> stringResource(R.string.sos)
-                    m.position != null && m.phrase == null ->
-                        stringResource(if (m.outgoing) R.string.my_position else R.string.position)
-                    else -> shownText(m)
-                }
-                Text(text, style = MaterialTheme.typography.bodyLarge)
-                m.position?.let { fix ->
-                    // SOS: a lighter shade of its fixed red; otherwise the bubble's theme text colour.
-                    val outline = if (m.sos) lerp(bg, fg, 0.5f) else fg.copy(alpha = 0.5f)
-                    PositionChip(fix, fg, outline)
-                }
-                Row(
-                    Modifier.align(Alignment.End).padding(top = 2.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                ) {
-                    Text(shortTime(m.atMillis), style = MaterialTheme.typography.labelSmall)
-                    if (m.outgoing) {
-                        if (m.auth == Auth.ENCRYPTED) AuthIcon(Auth.ENCRYPTED, tint = fg)
-                        DeliveryIcon(m.delivery, tint = fg)
-                    } else {
-                        AuthIcon(m.auth, tint = fg)
+        Box {
+            Surface(color = bg, contentColor = fg, shape = shape, modifier = Modifier.widthIn(max = 320.dp)) {
+                Column(Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
+                    if (showSender && !m.outgoing && m.sender != null) {
+                        Text(m.sender, style = MaterialTheme.typography.labelLarge, color = colors.primary)
+                    }
+                    Text(messageLabel(m), style = MaterialTheme.typography.bodyLarge)
+                    m.position?.let { fix ->
+                        // SOS: a lighter shade of its fixed red; otherwise the bubble's theme text colour.
+                        val outline = if (m.sos) lerp(bg, fg, 0.5f) else fg.copy(alpha = 0.5f)
+                        PositionChip(fix, fg, outline)
+                    }
+                    Row(
+                        Modifier.align(Alignment.End).padding(top = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        Text(shortTime(m.atMillis), style = MaterialTheme.typography.labelSmall)
+                        if (m.outgoing) {
+                            if (m.auth == Auth.ENCRYPTED) AuthIcon(Auth.ENCRYPTED, tint = fg)
+                            DeliveryIcon(m.delivery, tint = fg)
+                        } else {
+                            AuthIcon(m.auth, tint = fg)
+                        }
                     }
                 }
             }
+            DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                if (m.outgoing && m.delivery == Delivery.FAILED) {
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.retry)) },
+                        leadingIcon = { Icon(painterResource(R.drawable.ic_refresh), null) },
+                        colors = MenuDefaults.itemColors(
+                            textColor = colors.error,
+                            leadingIconColor = colors.error,
+                        ),
+                        onClick = { menu = false; onRetry() },
+                    )
+                }
+                MenuItem(R.string.copy, R.drawable.ic_content_copy) { menu = false; onCopy() }
+                MenuItem(R.string.select, R.drawable.ic_check_box) { menu = false; onToggle() }
+                MenuItem(R.string.delete, R.drawable.ic_delete) { menu = false; onDelete() }
+            }
         }
     }
+}
+
+/** A message's title line: SOS, "my position"/"position" for a bare fix, or its text. */
+@Composable
+private fun messageLabel(m: ChatMessage): String = when {
+    m.sos -> stringResource(R.string.sos)
+    m.position != null && m.phrase == null ->
+        stringResource(if (m.outgoing) R.string.my_position else R.string.position)
+    else -> shownText(m)
+}
+
+/** What copying a message gives: its text, plus the coordinates when it has a position. */
+@Composable
+private fun copyText(m: ChatMessage): String {
+    val label = messageLabel(m)
+    return m.position?.let { "%s (%.5f, %.5f)".format(Locale.ROOT, label, it.lat, it.lon) } ?: label
 }
 
 /**
