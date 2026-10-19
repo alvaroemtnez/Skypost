@@ -65,3 +65,6 @@ android/build.sh test      # Android unit tests + lint (help: android/build.sh h
   first/last segments (`JS8_FRAME_PAYLOAD_BYTES`).
 - JS8Call 3.x API shape used by `prototype/skypost_p0/js8api.py`.
 - The band schedule in `keryx::bandplan` is a guess until Phase 0 data.
+- `wacli sync --follow --events` carries incoming message content (decision 0014).
+- MeshCore QR payload formats (`android/.../data/MeshCoreQr.kt`; channel form guessed).
+- JS8 decodes several simultaneous signals in the passband (group ACKs, discovery answers).
