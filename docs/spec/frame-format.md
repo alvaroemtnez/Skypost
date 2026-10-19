@@ -38,7 +38,7 @@ The tag covers header + body as sent. Unauthenticated types have no tag.
 | 6 | Poll | compact | compact layout below |
 | 7 | Ack | compact | compact layout below |
 | 8 | Discover | none | empty; `dst` = 15, counter = random query id |
-| 9 | Announce | none | public key (32) ‖ flags (1) ‖ name (text codec); counter = the query id it answers |
+| 9 | Announce | none | public key (32) ‖ flags (1) ‖ alias, then a space and the callsign if any (text codec); counter = the query id it answers |
 | 10 | Register | tag | public key (32) ‖ alias (text codec) |
 | 11 | GroupJoin | tag (group) | public key (32) ‖ alias (text codec) |
 | 12 | BridgeOpen | tag | handle (1) ‖ network (1) ‖ address ‖ [display name, text codec] |
@@ -46,7 +46,9 @@ The tag covers header + body as sent. Unauthenticated types have no tag.
 | 14 | Notice | tag | code (1) ‖ [handle (1)] |
 
 `Register` and `GroupJoin` are tagged with the key of the public key they
-carry, which proves possession of the matching secret.
+carry, which proves possession of the matching secret. They are always
+signed plaintext (`enc` = 0): the receiver needs the key in clear to find the
+link.
 
 ### Announce flags
 
@@ -138,7 +140,7 @@ Duplicates of a delivered frame are re-ACKed.
 | Estoy bien + position | 18 | 2 | 30 s | 60 s |
 | Bridged stock phrase | 15 | 2 | 30 s | 60 s |
 | 60-character text | 49 | 6 | 90 s | 180 s |
-| Announce ("Casa EA5YYY") | ~44 | 5 | 75 s | 150 s |
+| Announce ("casa EA5YYY") | ~46 | 6 | 90 s | 180 s |
 | Register (alias "Mamá") | ~48 | 6 | 90 s | 180 s |
 | BridgeOpen, Spanish mobile | 20 | 3 | 45 s | 90 s |
 

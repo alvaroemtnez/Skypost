@@ -2,7 +2,7 @@
 
 [station]
 callsign = "EA5XXX"
-# State file from `keryx provision`. Field: --me 1 (or 2..14). Base: --me 0.
+# Keyring from `keryx keygen` (see README: exchange `keryx id` URIs both ways).
 state = "~/.local/share/skypost/field.json"
 # keryx_bin = "/path/to/keryx"   # default: core/target/{release,debug}/keryx, then $PATH
 
@@ -13,6 +13,7 @@ port = 2442
 
 [peer]
 base_callsign = "EA5YYY"   # field side: the base station's callsign
+base = "casa"              # field side: the base's alias in this keyring
 
 [safety]
 # Encrypted frames only into a dummy load or in a real emergency.

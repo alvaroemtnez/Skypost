@@ -2,19 +2,22 @@
 //!
 //! ```text
 //! byte 0: version (2 bits) | encrypted (1 bit) | type (5 bits)
-//! byte 1: src id (4 bits)  | dst id (4 bits)
+//! byte 1: src short id (4 bits) | dst short id (4 bits)
 //! byte 2-3: counter (u16, big endian)
 //! ```
+//!
+//! Short ids are hashes of public keys (or group keys), so several stations
+//! can share one; the tag decides which candidate key a frame belongs to.
 
 use crate::Error;
 use serde::{Deserialize, Serialize};
 
-pub const VERSION: u8 = 0;
+pub const VERSION: u8 = 1;
 pub const HEADER_LEN: usize = 4;
-/// Destination id meaning "the whole group / the base".
+/// Destination id meaning "anyone listening".
 pub const BROADCAST: u8 = 0x0F;
-/// Highest member id. Ids 0..=14 are members, 15 is [`BROADCAST`].
-pub const MAX_MEMBER_ID: u8 = 14;
+/// Highest short id. 0..=14 name stations and groups, 15 is [`BROADCAST`].
+pub const MAX_SHORT_ID: u8 = 14;
 
 /// Message types. Values are part of the wire format: append only.
 #[repr(u8)]
@@ -25,9 +28,31 @@ pub enum MsgType {
     StatusOk = 3,
     Sos = 4,
     Position = 5,
+    /// Compact 9-byte frame (ping / "anything for me?"), see [`crate::keyring`].
     Poll = 6,
     /// Compact ACK frame, see [`crate::ack`]. Uses a different layout.
     Ack = 7,
+    /// Unauthenticated "any Pharos out there?".
+    Discover = 8,
+    /// Unauthenticated identity answer to a `Discover`.
+    Announce = 9,
+    /// A client asks a Pharos to register its key and alias.
+    Register = 10,
+    /// A new member introduces its key to a group.
+    GroupJoin = 11,
+    /// Binds a bridge handle to a Signal/WhatsApp/MeshCore address.
+    BridgeOpen = 12,
+    /// A message to or from a bridged contact.
+    Bridged = 13,
+    /// Status codes from a Pharos (registration, bridge errors).
+    Notice = 14,
+}
+
+impl MsgType {
+    /// Types sent without a tag.
+    pub fn is_unauthenticated(self) -> bool {
+        matches!(self, Self::Discover | Self::Announce)
+    }
 }
 
 impl TryFrom<u8> for MsgType {
@@ -41,6 +66,13 @@ impl TryFrom<u8> for MsgType {
             5 => Self::Position,
             6 => Self::Poll,
             7 => Self::Ack,
+            8 => Self::Discover,
+            9 => Self::Announce,
+            10 => Self::Register,
+            11 => Self::GroupJoin,
+            12 => Self::BridgeOpen,
+            13 => Self::Bridged,
+            14 => Self::Notice,
             other => return Err(Error::UnknownType(other)),
         })
     }
@@ -57,7 +89,7 @@ pub struct Header {
 
 impl Header {
     pub fn encode(&self) -> Result<[u8; HEADER_LEN], Error> {
-        if self.src > MAX_MEMBER_ID {
+        if self.src > MAX_SHORT_ID {
             return Err(Error::Range("src id must be 0..=14"));
         }
         if self.dst > BROADCAST {
@@ -109,7 +141,7 @@ mod tests {
             counter: 0xBEEF,
         };
         let b = h.encode().unwrap();
-        assert_eq!(b, [0b0010_0100, 0x3F, 0xBE, 0xEF]);
+        assert_eq!(b, [0b0110_0100, 0x3F, 0xBE, 0xEF]);
         assert_eq!(Header::decode(&b).unwrap(), h);
     }
 
@@ -124,12 +156,16 @@ mod tests {
         };
         assert!(h.encode().is_err());
         assert_eq!(
-            Header::decode(&[0b0100_0001, 0, 0, 0]),
-            Err(Error::Version(1))
+            Header::decode(&[0b0000_0001, 0, 0, 0]),
+            Err(Error::Version(0))
         );
         assert_eq!(
-            Header::decode(&[0b0000_0000, 0, 0, 0]),
+            Header::decode(&[0b0100_0000, 0, 0, 0]),
             Err(Error::UnknownType(0))
+        );
+        assert_eq!(
+            Header::decode(&[0b0101_1111, 0, 0, 0]),
+            Err(Error::UnknownType(31))
         );
     }
 }

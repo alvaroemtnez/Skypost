@@ -51,31 +51,25 @@ def main(argv: list[str] | None = None) -> int:
         snr, dt = snr_of(ev.params), dt_ds_of(ev.params)
         try:
             d = keryx.decode(payload)
-            src, counter = d["header"]["src"], d["header"]["counter"]
-            log_event(log_path, event="rx", from_call=from_call, src=src, counter=counter, snr=snr, dt_ds=dt,
-                      encrypted=d["header"]["encrypted"], type=d["header"]["msg_type"])
+            if d["kind"] != "message":
+                log_event(log_path, event="rx_unhandled", from_call=from_call, kind=d["kind"])
+                continue
+            sender, counter = d["sender"], d["header"]["counter"]
+            log_event(log_path, event="rx", from_call=from_call, src=d["link"].get("alias"), sender=sender,
+                      counter=counter, snr=snr, dt_ds=dt, encrypted=d["header"]["encrypted"],
+                      type=d["header"]["msg_type"])
             forward(cfg, format_message(d, from_call, snr), d["header"]["msg_type"] == "Sos", log_path)
         except Duplicate as e:
-            # Sender missed our ACK. The CLI error names sender and counter.
-            log_event(log_path, event="duplicate", from_call=from_call, detail=str(e))
-            src, counter = _parse_dup(str(e))
-            if src is None:
-                continue
+            # Sender missed our ACK: ACK again, deliver nothing.
+            sender, counter = e.info["sender"], e.info["counter"]
+            log_event(log_path, event="duplicate", from_call=from_call, sender=sender, counter=counter)
         except KeryxError as e:
             log_event(log_path, event="rx_rejected", from_call=from_call, snr=snr, error=str(e))
             continue
-        ack = keryx.ack_encode(src, counter, snr if snr is not None else 0, dt)
+        ack = keryx.ack_encode(sender, counter, snr if snr is not None else 0, dt)
         js8.transmit(wrap(ack, from_call))
-        log_event(log_path, event="ack_tx", to=from_call, src=src, counter=counter)
+        log_event(log_path, event="ack_tx", to=from_call, sender=sender, counter=counter)
     return 0
-
-
-def _parse_dup(msg: str) -> tuple[int | None, int | None]:
-    # "error: duplicate of an already delivered frame (sender 1, counter 0)"
-    import re
-
-    m = re.search(r"sender (\d+), counter (\d+)", msg)
-    return (int(m.group(1)), int(m.group(2))) if m else (None, None)
 
 
 if __name__ == "__main__":

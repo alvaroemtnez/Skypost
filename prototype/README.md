@@ -9,7 +9,7 @@ Throwaway by design: Phase 1 replaces it with `pharos` and binary JS8 frames.
 
 ## How it goes on air
 
-`EA5BAS NV0 <base32 of the wire frame>` as a JS8 directed message. JS8Call
+`EA5BAS NV1 <base32 of the wire frame>` as a JS8 directed message. JS8Call
 splits it into frames itself. Base32 costs an estimated 20–30 % more airtime than raw
 binary frames will in Phase 1; fine for collecting data.
 
@@ -17,9 +17,14 @@ binary frames will in Phase 1; fine for collecting data.
 
 ```sh
 cd core && cargo build --release -p keryx-cli          # builds core/target/release/keryx
-core/target/release/keryx keygen > group.code          # once; keep it secret (alias keryx=core/target/release/keryx)
-keryx provision --code @group.code --me 0 --state ~/.local/share/skypost/base.json   # on the base
-keryx provision --code @group.code --me 1 --state ~/.local/share/skypost/field.json  # on the laptop
+alias keryx=core/target/release/keryx
+keryx keygen --alias casa --callsign EA5YYY --pharos --state ~/.local/share/skypost/base.json  # on the base
+keryx keygen --alias ana --callsign EA5XXX --state ~/.local/share/skypost/field.json          # on the laptop
+# Exchange identities both ways (each prints a skypost:id/... URI):
+keryx id --state ~/.local/share/skypost/base.json
+keryx add --verified --state ~/.local/share/skypost/field.json 'skypost:id/...?n=casa&...'
+keryx id --state ~/.local/share/skypost/field.json
+keryx add --verified --state ~/.local/share/skypost/base.json 'skypost:id/...?n=ana&...'
 cp prototype/config.example.toml prototype/base.toml   # and field.toml; edit both
 ```
 

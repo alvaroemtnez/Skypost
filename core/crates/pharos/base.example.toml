@@ -3,7 +3,16 @@
 
 [station]
 callsign = "EA5XXX"                      # your callsign, sent in clear
-state_path = "/var/lib/pharos/base.json" # from: keryx provision --me 0 ...
+state_path = "/var/lib/pharos/base.json" # from: pharos init --alias casa ...
+
+[registration]
+mode = "allowlist"     # or "approve": others wait for the operator (docs/spec/pharos.md)
+
+# Field users allowed to register. Their URI comes from the app's "Mi código QR".
+# [[clients]]
+# key = "skypost:id/5P2V...?n=mama"
+# contacts = ["+34611111111"]   # may write to this user first
+# sos = ["+34611111111"]        # get this user's SOS
 
 [radio]
 kind = "loopback"      # "js8" once the JS8 engine is wired in (phase 1)

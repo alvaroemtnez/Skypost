@@ -19,12 +19,13 @@ from skypost_p0.keryxcli import KeryxError, find_binary, is_ack
 def test_framing_roundtrip_and_noise():
     assert extract("EA5AAA: " + wrap("ABCDEFGH234567", "ea5bbb")) == "ABCDEFGH234567"
     assert extract("EA5AAA: EA5BBB HOLA QUE TAL") is None
-    assert extract("nv0 abcdefgh") == "ABCDEFGH"
+    assert extract("nv1 abcdefgh") == "ABCDEFGH"
 
 
-def test_is_ack_by_type_bits():
-    assert is_ack("A4AQF3YENDPUAWI")  # an ACK from the CLI smoke test
-    assert not is_ack("AEPQAAGWWU6NNDHB")  # a Text frame header
+def test_is_ack_by_version_and_type_bits():
+    assert is_ack("M4HAF3YEHUCGEQA")  # 670E02EF043D046240, the v1 golden ACK
+    assert not is_ack("IJYAAAIHUG6ZC4ESTP5IO")  # a v1 Canned frame
+    assert not is_ack("A4AQF3YENDPUAWI")  # a v0 ACK
 
 
 def keryx_or_skip() -> str:
@@ -84,18 +85,23 @@ def write_cfg(path: Path, call: str, state: Path, port: int, peer: str) -> Path:
     path.write_text(
         f'[station]\ncallsign = "{call}"\nstate = "{state}"\n'
         f'[js8call]\nhost = "127.0.0.1"\nport = {port}\n'
-        f'[peer]\nbase_callsign = "{peer}"\n'
+        f'[peer]\nbase_callsign = "{peer}"\nbase = "casa"\n'
         f'[log]\npath = "{path.with_suffix(".jsonl")}"\n'
     )
     return path
 
 
+def make_identities(keryx: str, tmp: Path) -> None:
+    run = lambda *a: subprocess.run([keryx, *a], capture_output=True, text=True, check=True).stdout.strip()
+    base_uri = run("keygen", "--alias", "casa", "--callsign", "EA5BAS", "--pharos", "--state", str(tmp / "base.json"))
+    field_uri = run("keygen", "--alias", "ana", "--callsign", "EA5FLD", "--state", str(tmp / "field.json"))
+    run("add", "--verified", "--state", str(tmp / "field.json"), base_uri)
+    run("add", "--verified", "--state", str(tmp / "base.json"), field_uri)
+
+
 def test_end_to_end_field_to_base_with_ack(tmp_path: Path):
     keryx = keryx_or_skip()
-    code = subprocess.run([keryx, "keygen"], capture_output=True, text=True, check=True).stdout.strip()
-    for me, name in ((1, "field"), (0, "base")):
-        subprocess.run([keryx, "provision", "--code", code, "--me", str(me), "--state", str(tmp_path / f"{name}.json")],
-                       check=True, capture_output=True)
+    make_identities(keryx, tmp_path)
     air = FakeAir({"field": "EA5FLD", "base": "EA5BAS"})
     base_cfg = write_cfg(tmp_path / "base.toml", "EA5BAS", tmp_path / "base.json", air.ports["base"], "EA5BAS")
     field_cfg = write_cfg(tmp_path / "field.toml", "EA5FLD", tmp_path / "field.json", air.ports["field"], "EA5BAS")
@@ -108,7 +114,7 @@ def test_end_to_end_field_to_base_with_ack(tmp_path: Path):
 
     base_log = [json.loads(l) for l in (tmp_path / "base.jsonl").read_text().splitlines()]
     rx = next(e for e in base_log if e["event"] == "rx")
-    assert (rx["src"], rx["counter"], rx["snr"], rx["dt_ds"]) == (1, 0, -15, 3)
+    assert (rx["src"], rx["counter"], rx["snr"], rx["dt_ds"]) == ("ana", 0, -15, 3)
     field_log = [json.loads(l) for l in (tmp_path / "field.jsonl").read_text().splitlines()]
     done = next(e for e in field_log if e["event"] == "delivered")
     assert done["base_heard_snr"] == -15
@@ -120,10 +126,17 @@ def test_encrypt_needs_explicit_opt_in(tmp_path: Path):
     assert field.main(["--config", str(cfg), "--encrypt", "sos"]) == 2
 
 
-def test_duplicate_message_parsing_matches_cli_wording():
-    # Must match keryx::Error::Duplicate's Display text.
-    msg = "error: duplicate of an already delivered frame (sender 1, counter 300)"
-    assert base._parse_dup(msg) == (1, 300)
+def test_duplicate_is_reported_with_who_to_reack(tmp_path: Path):
+    from skypost_p0.keryxcli import Duplicate, Keryx
+
+    keryx = keryx_or_skip()
+    make_identities(keryx, tmp_path)
+    f, b = Keryx(tmp_path / "field.json", keryx), Keryx(tmp_path / "base.json", keryx)
+    frame = f.encode("text", "hola", to="casa")
+    b.decode(frame["base32"])
+    with pytest.raises(Duplicate) as e:
+        b.decode(frame["base32"])
+    assert e.value.info["counter"] == 0 and e.value.info["link"]["alias"] == "ana"
 
 
 def test_forward_calls_signal_cli_and_logs_failures(tmp_path: Path):

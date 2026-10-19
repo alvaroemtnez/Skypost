@@ -1,8 +1,9 @@
-//! # keryx — Keryx wire protocol, version 0
+//! # keryx — Keryx wire protocol, version 1
 //!
-//! Everything both ends (Android app and base daemon) must agree on lives in
-//! this crate: the message header, the Spanish text codec, the crypto
-//! ratchet, ACK frames, segmentation into PHY frames, lane selection, the
+//! Everything both ends (Android app and Pharos) must agree on lives in this
+//! crate: identities and the keyring, the message header and bodies, the
+//! Spanish text codec, ACK and poll frames, bridge addresses, `skypost:`
+//! URIs, backups, segmentation into PHY frames, lane selection, the
 //! stop-and-wait ARQ state machine and the default band schedule.
 //!
 //! The crate does no I/O. Radios, audio, storage and bridges belong to the
@@ -13,21 +14,27 @@
 
 pub mod ack;
 pub mod arq;
+pub mod backup;
 pub mod bandplan;
 pub mod bits;
+pub mod bridge;
 pub mod canned;
 pub mod crypto;
 pub mod error;
 pub mod header;
+pub mod keyring;
 pub mod lane;
 pub mod message;
 pub mod position;
 pub mod segment;
 pub mod textcodec;
+pub mod uri;
 
+pub use crypto::{GroupId, GroupKey, Identity, PublicKey};
 pub use error::Error;
 pub use header::{BROADCAST, Header, MsgType};
-pub use message::{Decoded, Message};
+pub use keyring::{Card, Keyring, LinkRef, PeerKind};
+pub use message::{Decoded, Message, Received};
 
 /// Payload bytes carried by one JS8 frame when used as a raw binary PHY.
 ///

@@ -22,4 +22,5 @@ def format_message(decoded: dict, from_call: str, snr: int | None) -> str:
     h = decoded["header"]
     lock = "cifrado" if h["encrypted"] else "firmado"
     snr_txt = f", {snr} dB" if snr is not None else ""
-    return f"[{from_call} #{h['src']} {lock}{snr_txt}] {decoded['text']}"
+    who = decoded["link"].get("alias") or from_call
+    return f"[{who} {from_call} {lock}{snr_txt}] {decoded['text']}"

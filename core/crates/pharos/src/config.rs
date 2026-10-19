@@ -1,5 +1,6 @@
 //! `base.toml` configuration. See `core/crates/pharos/base.example.toml`.
 
+use crate::station::RegistrationMode;
 use serde::Deserialize;
 use std::path::PathBuf;
 
@@ -10,7 +11,32 @@ pub struct Config {
     #[serde(default)]
     pub radio: RadioCfg,
     #[serde(default)]
+    pub registration: RegistrationCfg,
+    /// Field users on the allow list.
+    #[serde(default)]
+    pub clients: Vec<ClientCfg>,
+    #[serde(default)]
     pub bridges: BridgesCfg,
+}
+
+#[derive(Debug, Default, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct RegistrationCfg {
+    #[serde(default)]
+    pub mode: RegistrationMode,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ClientCfg {
+    /// The field user's `skypost:id/...` URI.
+    pub key: String,
+    /// Bridged contacts that may write first (phone numbers, usernames).
+    #[serde(default)]
+    pub contacts: Vec<String>,
+    /// Who gets this user's SOS on every bridge.
+    #[serde(default)]
+    pub sos: Vec<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -18,7 +44,7 @@ pub struct Config {
 pub struct StationCfg {
     /// Sent in clear for identification (Spain: Art. 29, Orden IET/1311/2013).
     pub callsign: String,
-    /// Session state from `keryx provision --me 0`. Holds key material: 0600.
+    /// State from `pharos init` (keyring, registry, queue). Key material: 0600.
     pub state_path: PathBuf,
 }
 
@@ -125,7 +151,9 @@ mod tests {
 
     #[test]
     fn example_bridges_parse_when_uncommented() {
-        let s = include_str!("../base.example.toml").replace("# [bridges.", "[bridges.");
+        let s = include_str!("../base.example.toml")
+            .replace("# [bridges.", "[bridges.")
+            .replace("# [[clients]]", "[[clients]]");
         let s: String = s
             .lines()
             .map(|l| match l.strip_prefix("# ") {
@@ -138,5 +166,6 @@ mod tests {
         assert_eq!(c.bridges.signal.unwrap().account, "+34600000000");
         assert_eq!(c.bridges.whatsapp.unwrap().bin, PathBuf::from("wacli"));
         assert_eq!(c.bridges.meshcore.unwrap().command[0], "python3");
+        assert!(c.clients[0].key.starts_with("skypost:id/"));
     }
 }

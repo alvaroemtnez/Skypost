@@ -36,6 +36,11 @@ impl Position {
             lon: lo / SCALE * 360.0 - 180.0,
         })
     }
+
+    /// Map link for bridged chats (opens the maps app on most phones).
+    pub fn map_link(&self) -> String {
+        format!("https://maps.google.com/?q={:.5},{:.5}", self.lat, self.lon)
+    }
 }
 
 #[cfg(test)]

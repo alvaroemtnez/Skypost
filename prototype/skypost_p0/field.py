@@ -55,7 +55,8 @@ def main(argv: list[str] | None = None) -> int:
         extra = [a.id]
     elif a.kind in ("ok", "sos", "pos") and a.lat is not None:
         extra = ["--lat", a.lat, "--lon", a.lon]
-    frame = keryx.encode(a.kind, *extra, encrypt=a.encrypt)
+    base = cfg["peer"]["base"]
+    frame = keryx.encode(a.kind, *extra, to=base, encrypt=a.encrypt)
     base_call = cfg["peer"]["base_callsign"]
     log_path = cfg.get("log", {}).get("path")
     js8 = Js8Api(cfg["js8call"]["host"], int(cfg["js8call"]["port"]))
@@ -74,11 +75,11 @@ def main(argv: list[str] | None = None) -> int:
                 if not payload or not is_ack(payload):
                     continue
                 try:
-                    ack = keryx.ack_decode(payload)
+                    ack = keryx.ack_check(base, frame["counter"], payload)
                 except KeryxError as e:
                     log_event(log_path, event="bad_ack", error=str(e))
                     continue
-                if ack["acked_counter_lo"] == frame["counter"] % 256:
+                if ack["counter"] == frame["counter"]:
                     log_event(log_path, event="delivered", counter=frame["counter"], attempt=attempt,
                               base_heard_snr=ack["snr_db"], base_dt_ds=ack["dt_ds"],
                               we_heard_snr=snr_of(ev.params), we_dt_ds=dt_ds_of(ev.params))

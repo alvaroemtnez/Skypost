@@ -1,0 +1,178 @@
+{
+  "ack": {
+    "counter": 2,
+    "dt_ds": 4,
+    "from": "pharos",
+    "more": true,
+    "snr_db": -17,
+    "wire_hex": "670E02EF043D046240"
+  },
+  "announce_hex": "490EBEEF0FAA684ED28867B97F4A6A2DEE5DF8CE974E76B7018E3F22A1C4CF2678570F2005C274353AAFA6BD75EBAF5DC0",
+  "discover_hex": "48EFBEEF",
+  "field_public": "PNHJBG56P77EJRDFUIQAG7LAR3RVRF6TD34XF4D7OSESZMHXH4JQ",
+  "field_secret_hex": "1111111111111111111111111111111111111111111111111111111111111111",
+  "frames": [
+    {
+      "encrypted": false,
+      "link": {
+        "Peer": "B6VGQTWSRBT3S72KNIW64XPYZ2LU45VXAGHD6IVBYTHSM6CXB4QA"
+      },
+      "message": {
+        "Text": "Llegamos al refugio, todo bien."
+      },
+      "name": "text_signed",
+      "wire_hex": "41E00000D6B53CD68CE15449F0CF3A371176B30E5431C370F080D6D59D86CB34"
+    },
+    {
+      "encrypted": true,
+      "link": {
+        "Peer": "B6VGQTWSRBT3S72KNIW64XPYZ2LU45VXAGHD6IVBYTHSM6CXB4QA"
+      },
+      "message": {
+        "Text": "Llegamos al refugio, todo bien."
+      },
+      "name": "text_encrypted",
+      "wire_hex": "61E00001449117ABFB9A8FF4B82672030E8F2D0A47890ECC05E68263DCD76913"
+    },
+    {
+      "encrypted": true,
+      "link": {
+        "Peer": "B6VGQTWSRBT3S72KNIW64XPYZ2LU45VXAGHD6IVBYTHSM6CXB4QA"
+      },
+      "message": {
+        "Canned": 0
+      },
+      "name": "canned_encrypted",
+      "wire_hex": "62E0000298DC3618EE95B49A72"
+    },
+    {
+      "encrypted": true,
+      "link": {
+        "Peer": "B6VGQTWSRBT3S72KNIW64XPYZ2LU45VXAGHD6IVBYTHSM6CXB4QA"
+      },
+      "message": {
+        "StatusOk": {
+          "lat": 42.6311,
+          "lon": 0.6588
+        }
+      },
+      "name": "ok_with_position_encrypted",
+      "wire_hex": "63E00003B7054BA3D5BF46B1CF686DDA5A4F"
+    },
+    {
+      "encrypted": false,
+      "link": {
+        "Peer": "B6VGQTWSRBT3S72KNIW64XPYZ2LU45VXAGHD6IVBYTHSM6CXB4QA"
+      },
+      "message": {
+        "Sos": null
+      },
+      "name": "sos_signed",
+      "wire_hex": "44E000046092443FE55D2CD5"
+    },
+    {
+      "encrypted": false,
+      "link": {
+        "Peer": "B6VGQTWSRBT3S72KNIW64XPYZ2LU45VXAGHD6IVBYTHSM6CXB4QA"
+      },
+      "message": {
+        "Poll": {
+          "listen_min": 30
+        }
+      },
+      "name": "poll",
+      "wire_hex": "46E000051E3654ECF3"
+    },
+    {
+      "encrypted": false,
+      "link": {
+        "Peer": "B6VGQTWSRBT3S72KNIW64XPYZ2LU45VXAGHD6IVBYTHSM6CXB4QA"
+      },
+      "message": {
+        "Register": {
+          "alias": "ana",
+          "key": "PNHJBG56P77EJRDFUIQAG7LAR3RVRF6TD34XF4D7OSESZMHXH4JQ"
+        }
+      },
+      "name": "register",
+      "wire_hex": "4AE000067B4E909BBE7FFE44C465A220037D608EE35897D31EF972F07F74892CB0F73F1350B7AE688B4FEA28F3BD"
+    },
+    {
+      "encrypted": false,
+      "link": {
+        "Peer": "B6VGQTWSRBT3S72KNIW64XPYZ2LU45VXAGHD6IVBYTHSM6CXB4QA"
+      },
+      "message": {
+        "BridgeOpen": {
+          "address": {
+            "address": "34600123456",
+            "network": "whatsapp_phone"
+          },
+          "handle": 0,
+          "name": null
+        }
+      },
+      "name": "bridge_open_whatsapp",
+      "wire_hex": "4CE00007000334600123456FE599672C50A7A920"
+    },
+    {
+      "encrypted": false,
+      "link": {
+        "Peer": "B6VGQTWSRBT3S72KNIW64XPYZ2LU45VXAGHD6IVBYTHSM6CXB4QA"
+      },
+      "message": {
+        "Bridged": {
+          "handle": 0,
+          "inner": {
+            "Text": "Hola mamá"
+          }
+        }
+      },
+      "name": "bridged_text",
+      "wire_hex": "4DE000080001D7BDAA868B4F3DC08C5C3510C96C3D35"
+    },
+    {
+      "encrypted": false,
+      "link": {
+        "Peer": "B6VGQTWSRBT3S72KNIW64XPYZ2LU45VXAGHD6IVBYTHSM6CXB4QA"
+      },
+      "message": {
+        "Notice": {
+          "code": 16,
+          "handle": 0
+        }
+      },
+      "name": "notice",
+      "wire_hex": "4EE0000910002F3650B3F3D647D3"
+    },
+    {
+      "encrypted": false,
+      "link": {
+        "Group": "P4E5CJ2VUMMFXKGZCMUWIPHOP6IGSQ35FV7MV7S6T5MEWFS5BDWQ"
+      },
+      "message": {
+        "GroupJoin": {
+          "alias": "ana",
+          "key": "PNHJBG56P77EJRDFUIQAG7LAR3RVRF6TD34XF4D7OSESZMHXH4JQ"
+        }
+      },
+      "name": "group_join",
+      "wire_hex": "4BE700007B4E909BBE7FFE44C465A220037D608EE35897D31EF972F07F74892CB0F73F1350B75C43FB57B3EE6402"
+    },
+    {
+      "encrypted": false,
+      "link": {
+        "Group": "P4E5CJ2VUMMFXKGZCMUWIPHOP6IGSQ35FV7MV7S6T5MEWFS5BDWQ"
+      },
+      "message": {
+        "Text": "A cenar"
+      },
+      "name": "group_text_signed",
+      "wire_hex": "41E70001D50C1853B8B491DCC8A54CA386"
+    }
+  ],
+  "group_key_hex": "4242424242424242424242424242424242424242424242424242424242424242",
+  "pharos_public": "B6VGQTWSRBT3S72KNIW64XPYZ2LU45VXAGHD6IVBYTHSM6CXB4QA",
+  "pharos_secret_hex": "2222222222222222222222222222222222222222222222222222222222222222",
+  "protocol": 1
+}

@@ -1,12 +1,12 @@
-"""On-air text framing for Phase 0: `NV0 <base32 wire bytes>` inside a JS8
+"""On-air text framing for Phase 0: `NV1 <base32 wire bytes>` inside a JS8
 directed message. Base32 (A-Z, 2-7) fits JS8's character set."""
 
 from __future__ import annotations
 
 import re
 
-MARKER = "NV0"
-_RE = re.compile(r"\bNV0 ([A-Z2-7]{8,})\b")
+MARKER = "NV1"  # protocol version 1
+_RE = re.compile(r"\bNV1 ([A-Z2-7]{7,})\b")
 
 
 def wrap(b32: str, to_call: str) -> str:
