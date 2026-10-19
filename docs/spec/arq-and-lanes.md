@@ -52,6 +52,14 @@ Fixed lanes:
   one at a time while the client listens (see [pharos.md](pharos.md)).
 - Replies mirror the peer's last mode (encrypted iff it last sent encrypted).
 
+## Pinging a contact
+
+The compact `Poll` also works between phones: "are you listening?". The other
+phone answers with an ACK (SNR and clock offset) without showing anything to
+its user, only if the poller is one of its contacts, not blocked, and the tag
+verifies. For a bridged chat the app pings the Pharos instead. Groups are not
+pinged.
+
 ## Groups
 
 Every member that verifies a group message ACKs it, after a random delay of

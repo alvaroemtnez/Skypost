@@ -118,6 +118,10 @@ pub struct Peer {
     /// Fingerprint confirmed in person (QR) or by comparing safety numbers.
     #[serde(default)]
     pub verified: bool,
+    /// Frames from a blocked peer are dropped unopened: no delivery, no ACK,
+    /// no answer to its pings; its group messages are dropped too.
+    #[serde(default)]
+    pub blocked: bool,
     #[serde(default)]
     state: LinkState,
 }
@@ -128,6 +132,9 @@ pub struct Group {
     pub name: String,
     /// Known members (public key → alias), this station included.
     pub roster: BTreeMap<PublicKey, String>,
+    /// Frames for a blocked group are dropped unopened.
+    #[serde(default)]
+    pub blocked: bool,
     #[serde(default)]
     state: LinkState,
 }
@@ -229,6 +236,7 @@ impl Keyring {
                     Peer {
                         card,
                         verified,
+                        blocked: false,
                         state: LinkState::default(),
                     },
                 );
@@ -243,6 +251,21 @@ impl Keyring {
 
     pub fn peer(&self, key: &PublicKey) -> Option<&Peer> {
         self.peers.get(key)
+    }
+
+    /// Block or unblock a contact, Pharos or group (see [`Peer::blocked`]).
+    pub fn set_blocked(&mut self, link: &LinkRef, blocked: bool) -> Result<(), Error> {
+        match link {
+            LinkRef::Peer(k) => self.peers.get_mut(k).ok_or(Error::UnknownLink)?.blocked = blocked,
+            LinkRef::Group(id) => {
+                self.groups.get_mut(id).ok_or(Error::UnknownLink)?.blocked = blocked
+            }
+        }
+        Ok(())
+    }
+
+    fn peer_blocked(&self, k: &PublicKey) -> bool {
+        self.peers.get(k).is_some_and(|p| p.blocked)
     }
 
     pub fn set_verified(&mut self, key: &PublicKey) -> Result<(), Error> {
@@ -265,6 +288,7 @@ impl Keyring {
                 key,
                 name: name.to_owned(),
                 roster: BTreeMap::from([me]),
+                blocked: false,
                 state: LinkState::default(),
             });
         id
@@ -409,6 +433,15 @@ impl Keyring {
     }
 
     fn candidates(&self, header: &Header, body: &[u8]) -> Vec<(LinkRef, PublicKey)> {
+        let mut c = self.all_candidates(header, body);
+        c.retain(|(link, sender)| {
+            !self.peer_blocked(sender)
+                && !matches!(link, LinkRef::Group(id) if self.groups[id].blocked)
+        });
+        c
+    }
+
+    fn all_candidates(&self, header: &Header, body: &[u8]) -> Vec<(LinkRef, PublicKey)> {
         let mine = header.dst == self.short_id() || header.dst == BROADCAST;
         match header.msg_type {
             MsgType::Register => match body.get(..32) {
@@ -606,7 +639,10 @@ impl Keyring {
                     .unwrap_or_default(),
             };
             let Ok(root) = self.root(link) else { continue };
-            for acker in ackers.into_iter().filter(|k| k.short_id() == a.src) {
+            for acker in ackers
+                .into_iter()
+                .filter(|k| k.short_id() == a.src && !self.peer_blocked(k))
+            {
                 if Ack::verify(frame, &root.ack_key(&acker), *counter).is_ok() {
                     return Ok(AckInfo {
                         link: *link,
@@ -783,6 +819,29 @@ mod tests {
         );
         // Same low byte, different counter: the full counter is bound in the tag.
         assert!(a.open_ack(&ack, &[(link, p.counter + 256)]).is_err());
+    }
+
+    #[test]
+    fn blocked_peers_and_groups_are_dropped_unopened() {
+        let (mut a, mut b) = friends();
+        let ping = a.seal_poll(&b.public(), 0).unwrap();
+        b.set_blocked(&LinkRef::Peer(a.public()), true).unwrap();
+        assert_eq!(
+            b.open(&ping.wire),
+            Err(Error::UnknownSender),
+            "no answer to pings"
+        );
+        b.set_blocked(&LinkRef::Peer(a.public()), false).unwrap();
+        assert!(b.open(&ping.wire).is_ok());
+        let gk = GroupKey([5; 32]);
+        let id = a.add_group(gk.clone(), "Familia");
+        b.add_group(gk, "Familia");
+        b.add_group_member(&id, a.public(), "ana").unwrap();
+        b.set_blocked(&LinkRef::Group(id), true).unwrap();
+        let g = a
+            .seal(&LinkRef::Group(id), MsgType::Text, false, b"hola")
+            .unwrap();
+        assert!(b.open(&g.wire).is_err());
     }
 
     #[test]

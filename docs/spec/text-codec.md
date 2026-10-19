@@ -30,6 +30,9 @@ Compression happens before encryption, so the codec sees plaintext.
 
 ## Stock phrases
 
-`canned.rs` holds 20 phrases (id = index). Append only. `Message::from_text`
+`canned.rs` holds 20 phrases (id = index). Append only. Only the id travels,
+so the app shows each phrase in its own language (`canned_phrases` string
+array, same order) and sends the id; Pharos renders Spanish for the bridges.
+Free text stays Spanish-optimised: the codec weights are tuned for Spanish. `Message::from_text`
 uses a phrase id automatically when the text matches one exactly (ignoring
 case and outer spaces).

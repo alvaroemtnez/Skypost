@@ -68,7 +68,9 @@ Unauthenticated frames (`Discover`, `Announce`) carry no tag.
    whose short id is `src` (if `dst` is ours or 15), and group links whose
    short id is `dst` with roster members whose short id is `src`.
    `Register` and `GroupJoin` carry the sender's public key in the body, which
-   names the candidate directly.
+   names the candidate directly. Blocked contacts, Pharos and groups are not
+   candidates: their frames are dropped unopened (no delivery, no ACK, no
+   answer to pings), and so are a blocked contact's group messages.
 2. For each candidate: check the replay window, derive the key, verify the
    tag in constant time. First match wins; none → `AuthFailed`.
 3. Replay window per (link, sender): highest counter seen plus a 64-bit
