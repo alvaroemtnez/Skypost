@@ -13,6 +13,7 @@
 mod config;
 mod outbox;
 mod registry;
+mod router;
 mod station;
 
 use anyhow::{Context, Result, bail};

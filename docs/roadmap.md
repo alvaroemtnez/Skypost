@@ -30,7 +30,7 @@ Design: decisions [0015](decisions/0015-identities.md), [0016](decisions/0016-ph
 - [x] `keryx`: identities, keyring (pair and group links, replay windows), v1 header, new types, compact Poll and ACK, `skypost:` URIs, backups; v1 golden vectors
 - [x] `keryx` CLI and Phase 0 prototype on identities
 - [x] `pharos`: registry (allow list, aliases, approval), store and forward with listen windows, handles
-- [ ] `pharos`: bridge bot router (alias prompts, `@alias`, sticky target, limits)
+- [x] `pharos`: bridge bot router (alias prompts, `@alias`, sticky target, limits); wiring to sidecars is Phase 1
 - [ ] Android: chat UI on fakes (onboarding, chat list, chat, new chat, Pharos, settings, my QR, `skypost:` deep links)
 - [ ] Optional ephemeral rekey for forward secrecy in encrypted mode
 

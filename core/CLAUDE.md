@@ -13,7 +13,8 @@
   (frames and ticks in, `Effect`s out: registration, store and forward,
   handles) and is where behaviour gets tested; `registry.rs` and `outbox.rs`
   are its persisted state; `main.rs` is the async shell (`pharos init`,
-  `identity`, `run`). Radio side, bridges and the bot router are TODO.
+  `identity`, `run`). `router.rs` is the bridge bot (pure logic). Radio
+  side and bridge sidecars are TODO.
 
 Before finishing a change: `cargo fmt --all && cargo clippy --workspace --all-targets && cargo test --workspace`.
 
