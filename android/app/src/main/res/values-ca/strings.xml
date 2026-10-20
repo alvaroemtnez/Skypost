@@ -3,6 +3,7 @@
 <resources>
     <string name="add">Afegir</string>
     <string name="activate">Activar</string>
+    <string name="deactivate">Apagar</string>
     <string name="back">Tornar</string>
     <string name="cancel">Cancel·lar</string>
     <string name="close">Tancar</string>
@@ -220,6 +221,9 @@
     <string name="admin_replies">Respostes</string>
     <string name="admin_replies_empty">Ací apareixen les ordres que envies i les respostes del Pharos.</string>
     <string name="admin_waiting">Esperant el Pharos…</string>
+    <string name="admin_timeout">El Pharos encara no ha respost. Pot ser que arribe més tard: ho veuràs en les respostes de baix.</string>
+    <string name="switch_confirm_on">Activar «%1$s»?</string>
+    <string name="switch_confirm_off">Apagar «%1$s»?</string>
     <string name="admin_ssh_note">Cada ordre és un missatge curt per ràdio. El codi d\'accés, la contrasenya d\'administració, les passarel·les i les freqüències es canvien per SSH.</string>
     <string name="admin_target_field">Usuari de ràdio</string>
     <string name="admin_alias_label">Nom (@àlies)</string>
@@ -284,7 +288,7 @@
     <string name="switch_login">Entrada amb contrasenya</string>
     <string name="switch_requests_body">Mentre siga privat, usuaris i contactes desconeguts poden demanar entrar</string>
     <string name="switch_requests">Sol·licituds d\'accés</string>
-    <string name="switch_open_body">Apagat: només usuaris registrats i contactes acceptats</string>
+    <string name="switch_open_body">Qualsevol pot fer-lo servir. Apagat: només usuaris registrats i contactes acceptats</string>
     <string name="switch_open">Obert a qualsevol</string>
     <string name="admin_refresh">Preguntar al Pharos</string>
     <string name="admin_switches_unknown">Encara no se saben: pregunta al Pharos amb el botó d\'actualitzar.</string>

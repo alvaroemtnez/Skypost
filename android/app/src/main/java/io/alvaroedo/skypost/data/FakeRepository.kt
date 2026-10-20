@@ -603,8 +603,8 @@ class FakeRepository(
         fakeSwitches.getOrPut(key) { setOf(PharosSwitch.REQUESTS, PharosSwitch.LOGIN) }
 
     /** Logs [command] and fills in the Pharos's reply after the ACK delay. */
-    private fun adminRoundTrip(pharosKey: String, command: AdminCommand, reply: () -> AdminReply) {
-        if (_pharos.value.none { it.card.key == pharosKey && !it.blocked }) return
+    private fun adminRoundTrip(pharosKey: String, command: AdminCommand, reply: () -> AdminReply): Long? {
+        if (_pharos.value.none { it.card.key == pharosKey && !it.blocked }) return null
         val entry = AdminEntry(nextId++, pharosKey, command, now())
         _adminLog.update { (it + entry).takeLast(ADMIN_LOG_MAX) }
         scope.launch {
@@ -612,12 +612,13 @@ class FakeRepository(
             val r = reply()
             _adminLog.update { log -> log.map { if (it.id == entry.id) it.copy(reply = r) else it } }
         }
+        return entry.id
     }
 
     override fun revealsPersonalData(command: AdminCommand) = core.revealsPersonalData(command)
 
     // The real one sends Message::Admin and decodes Message::AdminReply.
-    override fun sendAdmin(pharosKey: String, command: AdminCommand) = adminRoundTrip(pharosKey, command) {
+    override fun sendAdmin(pharosKey: String, command: AdminCommand): Long? = adminRoundTrip(pharosKey, command) {
         val ok = AdminReply.Done(AdminOutcome.OK)
         val me = "@" + _identity.value?.card?.alias.orEmpty()
         if (!isAdmin(pharosKey)) return@adminRoundTrip AdminReply.Done(AdminOutcome.NOT_ADMIN)

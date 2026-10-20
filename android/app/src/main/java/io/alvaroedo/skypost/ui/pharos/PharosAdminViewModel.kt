@@ -49,7 +49,8 @@ class PharosAdminViewModel(private val repo: Repository, private val key: String
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), PharosAdminUi())
 
-    fun send(command: AdminCommand) = repo.sendAdmin(key, command)
+    /** The log entry id, to follow the reply in a popup; null if not sent. */
+    fun send(command: AdminCommand): Long? = repo.sendAdmin(key, command)
 
     /** It goes out in plain and puts a name or number on air: ask first. */
     fun needsWarning(command: AdminCommand): Boolean = !ui.value.encryptAll && repo.revealsPersonalData(command)
@@ -75,6 +76,13 @@ class PharosAdminViewModel(private val repo: Repository, private val key: String
     }
 
     companion object {
+        /**
+         * How long a popup waits for the Pharos before saying so. Over the
+         * radio a command and its reply take a few frames each, plus retries
+         * on slower lanes; the reply still lands in the log if it comes later.
+         */
+        const val REPLY_TIMEOUT_MS = 180_000L
+
         /** A MeshCore key, or its first 8 hex digits at least. */
         private val HEX = Regex("^[0-9a-f]{8,64}$")
 

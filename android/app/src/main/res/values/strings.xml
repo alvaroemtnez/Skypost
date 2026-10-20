@@ -4,6 +4,7 @@
     <string name="app_name" translatable="false">Skypost</string>
     <string name="add">Add</string>
     <string name="activate">Turn on</string>
+    <string name="deactivate">Turn off</string>
     <string name="back">Back</string>
     <string name="cancel">Cancel</string>
     <string name="close">Close</string>
@@ -221,6 +222,9 @@
     <string name="admin_replies">Replies</string>
     <string name="admin_replies_empty">The commands you send and the Pharos\'s replies appear here.</string>
     <string name="admin_waiting">Waiting for the Pharos…</string>
+    <string name="admin_timeout">No answer from the Pharos yet. It may still come: the replies below will show it.</string>
+    <string name="switch_confirm_on">Turn on “%1$s”?</string>
+    <string name="switch_confirm_off">Turn off “%1$s”?</string>
     <string name="admin_ssh_note">Each command is a short message on air. Access code, admin password, bridges and frequencies are changed over SSH.</string>
     <string name="admin_target_field">Field user</string>
     <string name="admin_alias_label">Name (@alias)</string>
@@ -285,7 +289,7 @@
     <string name="switch_login">Password sign-in</string>
     <string name="switch_requests_body">While private, unknown users and contacts may ask to join</string>
     <string name="switch_requests">Access requests</string>
-    <string name="switch_open_body">Off: only registered users and accepted contacts</string>
+    <string name="switch_open_body">Anyone can use it. Off: only registered users and accepted contacts</string>
     <string name="switch_open">Open to anyone</string>
     <string name="admin_refresh">Ask the Pharos</string>
     <string name="admin_switches_unknown">Not known yet: ask the Pharos with the refresh button.</string>

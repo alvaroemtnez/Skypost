@@ -183,8 +183,11 @@ interface Repository {
     /** Admin commands sent to this Pharos and its replies, oldest first. */
     fun adminLog(pharosKey: String): Flow<List<AdminEntry>>
 
-    /** Sends an admin command to the Pharos (an `Admin` message on air). */
-    fun sendAdmin(pharosKey: String, command: AdminCommand)
+    /**
+     * Sends an admin command to the Pharos (an `Admin` message on air).
+     * Returns its [AdminEntry] id, to follow its reply; null if not sent.
+     */
+    fun sendAdmin(pharosKey: String, command: AdminCommand): Long?
 
     /**
      * The command, or its reply, may put a name or phone number on air

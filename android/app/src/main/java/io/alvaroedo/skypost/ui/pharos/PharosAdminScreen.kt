@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -69,6 +68,7 @@ import io.alvaroedo.skypost.ui.components.label
 import io.alvaroedo.skypost.ui.components.readPickedPhone
 import io.alvaroedo.skypost.ui.components.shortTime
 import io.alvaroedo.skypost.ui.theme.extraColors
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /** A target dialog: what it asks for and what its buttons send. */
@@ -91,29 +91,20 @@ fun PharosAdminScreen(vm: PharosAdminViewModel, onBack: () -> Unit) {
     var showRequests by remember { mutableStateOf(false) }
     /** A command waiting for the personal-data warning. */
     var warnFor by remember { mutableStateOf<(() -> Unit)?>(null) }
-    var confirmSwitch by remember { mutableStateOf<PharosSwitch?>(null) }
+    /** A switch flip waiting for confirmation. */
+    var confirmSwitch by remember { mutableStateOf<Pair<PharosSwitch, Boolean>?>(null) }
+    /** The command whose reply the popup is waiting for (log entry id). */
+    var call by remember { mutableStateOf<Long?>(null) }
     val sentEncrypted = stringResource(R.string.admin_sign_in_sent)
     val p = ui.pharos
     val bridged = listOf(ChatKind.SIGNAL, ChatKind.WHATSAPP, ChatKind.MESHCORE)
     val anyone = listOf<ChatKind?>(null) + bridged
-    val list = rememberLazyListState()
-
-    /** Send, after the warning if it would put names or numbers on air in plain. */
-    val guarded: (AdminCommand) -> Unit = { c ->
-        if (vm.needsWarning(c)) warnFor = { vm.send(c) } else vm.send(c)
-    }
-    // A new command: show it and, soon, its reply. Not for status and
-    // switches: their answer shows in the switches themselves.
-    val newest = ui.log.firstOrNull()?.takeUnless { it.command is AdminCommand.Status || it.command is AdminCommand.Set }?.id
-    var seen by remember { mutableStateOf<Long?>(null) }
-    var loaded by remember { mutableStateOf(false) }
-    LaunchedEffect(p != null, newest) {
-        if (p == null) return@LaunchedEffect
-        if (loaded && newest != null && newest != seen && !showRequests) {
-            list.animateScrollToItem(if (p.admin) 4 else 1)
-        }
-        loaded = true
-        seen = newest
+    /**
+     * Send and open the popup that waits for the reply, after the warning if
+     * it would put names or numbers on air in plain.
+     */
+    val run: (AdminCommand) -> Unit = { c ->
+        if (vm.needsWarning(c)) warnFor = { call = vm.send(c) } else call = vm.send(c)
     }
 
     Scaffold(
@@ -129,7 +120,7 @@ fun PharosAdminScreen(vm: PharosAdminViewModel, onBack: () -> Unit) {
             )
         },
     ) { padding ->
-        LazyColumn(Modifier.padding(padding), state = list, contentPadding = PaddingValues(bottom = 24.dp)) {
+        LazyColumn(Modifier.padding(padding), contentPadding = PaddingValues(bottom = 24.dp)) {
             item {
                 RoleCard(admin = p?.admin == true, encryptAll = ui.encryptAll, onSignIn = { login = true })
             }
@@ -143,16 +134,16 @@ fun PharosAdminScreen(vm: PharosAdminViewModel, onBack: () -> Unit) {
                     }
                 }
                 item {
-                    Switches(ui.switches) { s, on ->
-                        if (on && (s == PharosSwitch.EMERGENCY || s == PharosSwitch.STEALTH)) {
-                            confirmSwitch = s
-                        } else {
-                            vm.send(AdminCommand.Set(s, on))
-                        }
-                    }
+                    Switches(ui.switches) { s, on -> confirmSwitch = s to on }
                 }
                 item {
                     Header(R.string.admin_commands)
+                    Command(R.drawable.ic_info, R.string.admin_status, R.string.admin_status_body) {
+                        run(AdminCommand.Status)
+                    }
+                    Command(R.drawable.ic_group, R.string.admin_clients, R.string.admin_clients_body) {
+                        run(AdminCommand.Clients)
+                    }
                     Command(R.drawable.ic_person_add, R.string.admin_requests, R.string.admin_requests_body) {
                         if (vm.needsWarning(AdminCommand.Requests)) {
                             warnFor = { showRequests = true; vm.send(AdminCommand.Requests) }
@@ -160,12 +151,6 @@ fun PharosAdminScreen(vm: PharosAdminViewModel, onBack: () -> Unit) {
                             showRequests = true
                             vm.send(AdminCommand.Requests)
                         }
-                    }
-                    Command(R.drawable.ic_info, R.string.admin_status, R.string.admin_status_body) {
-                        vm.send(AdminCommand.Status)
-                    }
-                    Command(R.drawable.ic_group, R.string.admin_clients, R.string.admin_clients_body) {
-                        guarded(AdminCommand.Clients)
                     }
                     Command(R.drawable.ic_check_circle, R.string.admin_allow, R.string.admin_allow_body) {
                         ask = Ask(
@@ -185,7 +170,7 @@ fun PharosAdminScreen(vm: PharosAdminViewModel, onBack: () -> Unit) {
                         )
                     }
                     Command(R.drawable.ic_admin, R.string.admin_admins, R.string.admin_admins_body) {
-                        guarded(AdminCommand.Admins)
+                        run(AdminCommand.Admins)
                     }
                     Command(R.drawable.ic_person_add, R.string.admin_add, R.string.admin_add_body) {
                         ask = Ask(R.string.admin_add, anyone, listOf(R.string.admin_add_action to { t -> AdminCommand.AddAdmin(t) }))
@@ -217,16 +202,25 @@ fun PharosAdminScreen(vm: PharosAdminViewModel, onBack: () -> Unit) {
             vm::target,
             onSend = { c ->
                 ask = null
-                guarded(c)
+                run(c)
             },
             onDismiss = { ask = null },
         )
     }
 
     if (showRequests) {
+        var late by remember { mutableStateOf(false) }
+        LaunchedEffect(ui.requestsLoading) {
+            late = false
+            if (ui.requestsLoading) {
+                delay(PharosAdminViewModel.REPLY_TIMEOUT_MS)
+                late = true
+            }
+        }
         RequestsDialog(
             requests = ui.requests,
             loading = ui.requestsLoading,
+            late = late,
             onDecide = { num, accept -> vm.send(if (accept) AdminCommand.Accept(num) else AdminCommand.Refuse(num)) },
             onDismiss = { showRequests = false },
         )
@@ -243,16 +237,48 @@ fun PharosAdminScreen(vm: PharosAdminViewModel, onBack: () -> Unit) {
         )
     }
 
-    confirmSwitch?.let { s ->
-        val emergency = s == PharosSwitch.EMERGENCY
+    confirmSwitch?.let { (s, on) ->
+        val emergency = s == PharosSwitch.EMERGENCY && on
+        val stealth = s == PharosSwitch.STEALTH && on
+        val name = stringResource(s.title())
         AlertDialog(
             onDismissRequest = { confirmSwitch = null },
-            icon = { Icon(painterResource(if (emergency) R.drawable.ic_lock else R.drawable.ic_radar), null) },
-            title = { Text(stringResource(if (emergency) R.string.emergency_on_title else R.string.stealth_on_title)) },
-            text = { Text(stringResource(if (emergency) R.string.emergency_on_body else R.string.stealth_on_body)) },
+            icon = {
+                Icon(
+                    painterResource(
+                        when {
+                            emergency -> R.drawable.ic_lock
+                            stealth -> R.drawable.ic_radar
+                            else -> R.drawable.ic_settings
+                        },
+                    ),
+                    null,
+                )
+            },
+            title = {
+                Text(
+                    when {
+                        emergency -> stringResource(R.string.emergency_on_title)
+                        stealth -> stringResource(R.string.stealth_on_title)
+                        on -> stringResource(R.string.switch_confirm_on, name)
+                        else -> stringResource(R.string.switch_confirm_off, name)
+                    },
+                )
+            },
+            text = {
+                Text(
+                    stringResource(
+                        when {
+                            emergency -> R.string.emergency_on_body
+                            stealth -> R.string.stealth_on_body
+                            else -> s.body()
+                        },
+                    ),
+                )
+            },
             confirmButton = {
                 Button(
-                    onClick = { confirmSwitch = null; vm.send(AdminCommand.Set(s, true)) },
+                    onClick = { confirmSwitch = null; call = vm.send(AdminCommand.Set(s, on)) },
                     colors = if (emergency) {
                         ButtonDefaults.buttonColors(
                             containerColor = MaterialTheme.extraColors.emergency,
@@ -261,10 +287,20 @@ fun PharosAdminScreen(vm: PharosAdminViewModel, onBack: () -> Unit) {
                     } else {
                         ButtonDefaults.buttonColors()
                     },
-                ) { Text(stringResource(R.string.activate)) }
+                ) { Text(stringResource(if (on) R.string.activate else R.string.deactivate)) }
             },
             dismissButton = { TextButton(onClick = { confirmSwitch = null }) { Text(stringResource(R.string.cancel)) } },
         )
+    }
+
+    call?.let { id ->
+        val entry = ui.log.firstOrNull { it.id == id }
+        var late by remember(id) { mutableStateOf(false) }
+        LaunchedEffect(id) {
+            delay(PharosAdminViewModel.REPLY_TIMEOUT_MS)
+            late = true
+        }
+        ReplyDialog(entry, late, onDismiss = { call = null })
     }
 
     if (login) {
@@ -455,11 +491,35 @@ private fun LogEntry(e: AdminEntry) {
     )
 }
 
+/** A command sent: waits for the Pharos, then shows its answer (or that it is late). */
+@Composable
+private fun ReplyDialog(entry: AdminEntry?, late: Boolean, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(entry?.command.shown()) },
+        text = {
+            Column(Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState())) {
+                val reply = entry?.reply
+                when {
+                    reply != null -> Text(reply.shown())
+                    late -> Text(stringResource(R.string.admin_timeout))
+                    else -> {
+                        Text(stringResource(R.string.admin_waiting))
+                        LinearProgressIndicator(Modifier.fillMaxWidth().padding(vertical = 8.dp))
+                    }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.close)) } },
+    )
+}
+
 /** Pending requests: fetched from the Pharos, each accepted or refused here. */
 @Composable
 private fun RequestsDialog(
     requests: List<RequestEntry>?,
     loading: Boolean,
+    late: Boolean,
     onDecide: (Int, Boolean) -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -468,7 +528,9 @@ private fun RequestsDialog(
         title = { Text(stringResource(R.string.admin_requests)) },
         text = {
             Column(Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState())) {
-                if (loading) {
+                if (loading && late) {
+                    Text(stringResource(R.string.admin_timeout))
+                } else if (loading) {
                     Text(stringResource(R.string.admin_requests_loading))
                     LinearProgressIndicator(Modifier.fillMaxWidth().padding(vertical = 8.dp))
                 }

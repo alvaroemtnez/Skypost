@@ -3,6 +3,7 @@
 <resources>
     <string name="add">Añadir</string>
     <string name="activate">Activar</string>
+    <string name="deactivate">Apagar</string>
     <string name="back">Volver</string>
     <string name="cancel">Cancelar</string>
     <string name="close">Cerrar</string>
@@ -220,6 +221,9 @@
     <string name="admin_replies">Respuestas</string>
     <string name="admin_replies_empty">Aquí aparecen las órdenes que envías y las respuestas del Pharos.</string>
     <string name="admin_waiting">Esperando al Pharos…</string>
+    <string name="admin_timeout">El Pharos aún no ha respondido. Puede que llegue más tarde: lo verás en las respuestas de abajo.</string>
+    <string name="switch_confirm_on">¿Activar «%1$s»?</string>
+    <string name="switch_confirm_off">¿Apagar «%1$s»?</string>
     <string name="admin_ssh_note">Cada orden es un mensaje corto por radio. El código de acceso, la contraseña de administración, las pasarelas y las frecuencias se cambian por SSH.</string>
     <string name="admin_target_field">Usuario de radio</string>
     <string name="admin_alias_label">Nombre (@alias)</string>
@@ -284,7 +288,7 @@
     <string name="switch_login">Entrada con contraseña</string>
     <string name="switch_requests_body">Mientras sea privado, usuarios y contactos desconocidos pueden pedir entrar</string>
     <string name="switch_requests">Solicitudes de acceso</string>
-    <string name="switch_open_body">Apagado: solo usuarios registrados y contactos aceptados</string>
+    <string name="switch_open_body">Cualquiera puede usarlo. Apagado: solo usuarios registrados y contactos aceptados</string>
     <string name="switch_open">Abierto a cualquiera</string>
     <string name="admin_refresh">Preguntar al Pharos</string>
     <string name="admin_switches_unknown">Aún no se saben: pregunta al Pharos con el botón de actualizar.</string>
