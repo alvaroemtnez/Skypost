@@ -91,12 +91,12 @@ class FakeRepositoryTest {
         first.createIdentity("ana", "EA5AAA")
         first.setEncryptAll(true)
         val pharos = first.pharos.value.first().card.key
-        first.sendAdmin(pharos, "estado")
+        first.sendAdmin(pharos, "status")
         air.advanceUntilIdle()
         val again = FakeRepository(FakeKeryxCore(), air, demo = true, store = store)
         assertEquals("ana", again.identity.value?.card?.alias)
         // Ids stay unique across restarts (they key the lists in the UI).
-        again.sendAdmin(pharos, "clientes")
+        again.sendAdmin(pharos, "clients")
         assertEquals(2, again.adminLog(pharos).first().map { it.id }.distinct().size)
         assertEquals(first.chats.value.map { it.id }.toSet(), again.chats.value.map { it.id }.toSet())
         assertTrue(again.settings.value.encryptAll)

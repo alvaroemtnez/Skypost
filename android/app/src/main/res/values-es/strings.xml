@@ -220,7 +220,7 @@
     <string name="admin_replies">Respuestas</string>
     <string name="admin_replies_empty">Aquí aparecen las órdenes que envías y las respuestas del Pharos.</string>
     <string name="admin_waiting">Esperando al Pharos…</string>
-    <string name="admin_ssh_note">Cada orden es un mensaje corto por radio; el Pharos responde en español. El modo de acceso, los códigos, las pasarelas y las frecuencias se cambian por SSH.</string>
+    <string name="admin_ssh_note">Cada orden es un mensaje corto por radio; el Pharos responde en inglés. El modo de acceso, los códigos, las pasarelas y las frecuencias se cambian por SSH.</string>
     <string name="admin_target_field">Usuario de radio</string>
     <string name="admin_alias_label">Nombre (@alias)</string>
     <string name="admin_phone_label">Teléfono con prefijo de país</string>

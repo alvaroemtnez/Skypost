@@ -58,7 +58,8 @@ android/build.sh test      # Android unit tests + lint (help: android/build.sh h
 - Decisions with lasting impact get a short record in `docs/decisions/`.
   Keep `docs/roadmap.md` ticked.
 - Code, comments and docs in English. App strings in English, Spanish and
-  Valencian (`android/scripts/gen_strings.py`); Pharos bot texts in Spanish.
+  Valencian (`android/scripts/gen_strings.py`); Pharos bot texts for users in Spanish (help also in English and
+  Valencian); Pharos admin commands and replies in English.
 
 ## Unverified assumptions (check before building on them)
 

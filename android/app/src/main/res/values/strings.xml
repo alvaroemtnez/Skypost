@@ -221,7 +221,7 @@
     <string name="admin_replies">Replies</string>
     <string name="admin_replies_empty">The commands you send and the Pharos\'s replies appear here.</string>
     <string name="admin_waiting">Waiting for the Pharos…</string>
-    <string name="admin_ssh_note">Each command is a short message on air; the Pharos answers in Spanish. Access mode, codes, bridges and frequencies are changed over SSH.</string>
+    <string name="admin_ssh_note">Each command is a short message on air; the Pharos answers in English. Access mode, codes, bridges and frequencies are changed over SSH.</string>
     <string name="admin_target_field">Field user</string>
     <string name="admin_alias_label">Name (@alias)</string>
     <string name="admin_phone_label">Phone number with country code</string>

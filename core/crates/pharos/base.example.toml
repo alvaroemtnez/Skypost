@@ -15,7 +15,7 @@ discoverable = true      # answer "Buscar Pharos cercanos"
 
 [bot]
 inbound = "code"         # bridged contacts: "code", "contacts" (authorised only) or "anyone"
-# admins = ["+34600000000"]               # may send admin commands ("/admin ayuda")
+# admins = ["+34600000000"]               # may send admin commands ("/admin help")
 
 # Field users on the allow list. Their URI comes from the app's "Mi código QR".
 # [[clients]]

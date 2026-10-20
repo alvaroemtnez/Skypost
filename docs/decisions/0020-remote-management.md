@@ -27,18 +27,19 @@ nothing (Spanish rules), so a password sent there is broadcast.
   cannot). The held command then runs. Five wrong passwords an hour silence
   the bot for that account; a wrong one ends the wait, so the next text is chat
   again. Other admins are told about every new admin.
-- **Commands**: `ayuda`, `estado`, `clientes`, `admins`, `aceptar`,
-  `rechazar`, `bloquear`, `desbloquear`, `permitir`, `revocar`, `acceder`.
-  English verbs work too (`help`, `status`, …). Over the radio the `/admin`
-  prefix is optional (every text to the Pharos is a command) and replies are
-  short. `revocar` only removes rights granted by password; config admins are
+- **Commands**, English only, replies too (revised the same day; Spanish
+  verbs dropped for simplicity): `help`, `status`, `clients`, `admins`,
+  `accept`, `refuse`, `allow`, `block`, `unblock`, `revoke`, `login`. Over the
+  radio the `/admin` prefix is optional (every text to the Pharos is a
+  command), replies are short and `help` gets none (the app has it). `revocar` only removes rights granted by password; config admins are
   removed over SSH.
 - **SSH only**: access mode, access code, admin password, discoverability,
   bridges and their accounts, callsign, frequencies, config admins, SOS
   contacts, restarts and updates.
 - **Help and welcome**: on Signal and WhatsApp the bot welcomes each contact
   once (after the access code if one is needed, or before a field user's
-  first message to them) and answers `/ayuda` (`/help`). On MeshCore, made for
+  first message to them) and answers `/ayuda`, `/help` and `/ajuda` in
+  Spanish, English and Valencian. On MeshCore, made for
   short messages, there is no welcome and every reply has a short form.
 
 ## Consequences

@@ -845,26 +845,26 @@ mod tests {
             assert_eq!(encrypted, enc);
             gate.on_text(p, &mut router, k.public(), text, encrypted, now)
         };
-        let o = said(&mut p, &mut bea, "estado", false, T0);
+        let o = said(&mut p, &mut bea, "status", false, T0);
         assert!(o.actions.is_empty());
         assert!(!p.registry().get(&bea.public()).unwrap().is_admin());
         // In clear: refused even though it is right, and the operator is told.
         let o = said(
             &mut p,
             &mut bea,
-            "acceder faro viejo de la costa",
+            "login faro viejo de la costa",
             false,
             T0 + 60,
         );
         assert!(!p.registry().get(&bea.public()).unwrap().is_admin());
         assert!(
-            matches!(&o.actions[..], [Action::Reply { to, text }] if *to == op && text.contains("SIN CIFRAR"))
+            matches!(&o.actions[..], [Action::Reply { to, text }] if *to == op && text.contains("UNENCRYPTED"))
         );
         // Encrypted: granted.
         said(
             &mut p,
             &mut bea,
-            "acceder faro viejo de la costa",
+            "login faro viejo de la costa",
             true,
             T0 + 120,
         );

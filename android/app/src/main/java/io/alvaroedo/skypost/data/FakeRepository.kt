@@ -578,28 +578,28 @@ class FakeRepository(
         val words = command.trim().split(Regex("\\s+"))
         val arg = words.drop(1).joinToString(" ")
         when {
-            !isAdmin(pharosKey) -> "No eres administrador."
-            words[0] == "estado" -> "Registrados: 3. Pendientes: 1. A la escucha: 1. Mensajes en cola: 2. Contactos autorizados: 4."
-            words[0] == "clientes" -> "@bea — registrado — oído hace 41 min\n@tio — pendiente — oído hace 12 min\n@${_identity.value?.card?.alias} — registrado — oído hace 0 min"
-            words[0] == "admins" -> "Administradores: @${_identity.value?.card?.alias} (config), +34600000000 (config)."
-            words[0] == "aceptar" -> "$arg aceptado."
-            words[0] == "rechazar" -> "$arg rechazado."
-            words[0] == "bloquear" -> "$arg bloqueado."
-            words[0] == "desbloquear" -> "$arg desbloqueado."
-            words[0] == "permitir" -> "$arg autorizado."
-            words[0] == "revocar" -> "$arg ya no es administrador."
-            else -> "estado · clientes · admins · aceptar/rechazar @alias · bloquear/desbloquear @alias|nº · permitir nº · revocar @alias|nº"
+            !isAdmin(pharosKey) -> "You are not an admin."
+            words[0] == "status" -> "Registered: 3. Pending: 1. Listening: 1. Queued messages: 2. Authorised contacts: 4."
+            words[0] == "clients" -> "@bea — registered — heard 41 min ago\n@tio — pending — heard 12 min ago\n@${_identity.value?.card?.alias} — registered — heard 0 min ago"
+            words[0] == "admins" -> "Admins: @${_identity.value?.card?.alias} (config), +34600000000 (config)."
+            words[0] == "accept" -> "$arg accepted."
+            words[0] == "refuse" -> "$arg refused."
+            words[0] == "block" -> "$arg blocked."
+            words[0] == "unblock" -> "$arg unblocked."
+            words[0] == "allow" -> "$arg allowed."
+            words[0] == "revoke" -> "$arg is no longer an admin."
+            else -> "status · clients · admins · accept/refuse @alias · allow nº · block/unblock @alias|nº · revoke @alias|nº"
         }
     }
 
     override fun adminLogin(pharosKey: String, password: String): Boolean {
         if (!_settings.value.encryptAll || password.isBlank()) return false
-        adminRoundTrip(pharosKey, "acceder ••••••") {
+        adminRoundTrip(pharosKey, "login ••••••") {
             if (password.length < 8) {
-                "Contraseña incorrecta."
+                "Wrong password."
             } else {
                 _pharos.update { list -> list.map { if (it.card.key == pharosKey) it.copy(admin = true) else it } }
-                "Eres administrador."
+                "You are an admin now."
             }
         }
         return true

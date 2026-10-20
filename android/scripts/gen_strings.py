@@ -240,7 +240,7 @@ S = {
 "admin_replies": ("Replies","Respuestas","Respostes"),
 "admin_replies_empty": ("The commands you send and the Pharos's replies appear here.","Aquí aparecen las órdenes que envías y las respuestas del Pharos.","Ací apareixen les ordres que envies i les respostes del Pharos."),
 "admin_waiting": ("Waiting for the Pharos…","Esperando al Pharos…","Esperant el Pharos…"),
-"admin_ssh_note": ("Each command is a short message on air; the Pharos answers in Spanish. Access mode, codes, bridges and frequencies are changed over SSH.","Cada orden es un mensaje corto por radio; el Pharos responde en español. El modo de acceso, los códigos, las pasarelas y las frecuencias se cambian por SSH.","Cada ordre és un missatge curt per ràdio; el Pharos respon en castellà. El mode d'accés, els codis, les passarel·les i les freqüències es canvien per SSH."),
+"admin_ssh_note": ("Each command is a short message on air; the Pharos answers in English. Access mode, codes, bridges and frequencies are changed over SSH.","Cada orden es un mensaje corto por radio; el Pharos responde en inglés. El modo de acceso, los códigos, las pasarelas y las frecuencias se cambian por SSH.","Cada ordre és un missatge curt per ràdio; el Pharos respon en anglés. El mode d'accés, els codis, les passarel·les i les freqüències es canvien per SSH."),
 "admin_target_field": ("Field user","Usuario de radio","Usuari de ràdio"),
 "admin_alias_label": ("Name (@alias)","Nombre (@alias)","Nom (@àlies)"),
 "admin_phone_label": ("Phone number with country code","Teléfono con prefijo de país","Telèfon amb prefix de país"),

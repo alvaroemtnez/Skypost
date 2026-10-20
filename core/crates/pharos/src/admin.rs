@@ -2,20 +2,20 @@
 //! account or a field user over the radio. Everything else is done over SSH.
 //!
 //! Commands start with `/admin` (optional over the radio, where every text to
-//! the Pharos is a command). Verbs are Spanish; the English ones work too:
+//! the Pharos is a command). Commands and replies are English:
 //!
 //! ```text
-//! /admin [ayuda]                     list the commands            (help)
-//! /admin estado                      clients, pending, queued     (status)
-//! /admin clientes                    every field user and status  (clients)
+//! /admin [help]                      list the commands (bridges only)
+//! /admin status                      clients, pending, queued
+//! /admin clients                     every field user and status
 //! /admin admins                      who administers this Pharos
-//! /admin aceptar @alias              admit a pending registration (accept)
-//! /admin rechazar @alias             refuse it                    (refuse)
-//! /admin bloquear @alias | número    ignore a field user/contact  (block)
-//! /admin desbloquear @alias | número                              (unblock)
-//! /admin permitir número             authorise a bridged contact  (allow)
-//! /admin revocar @alias | número     drop admin rights granted by password (revoke)
-//! /admin acceder contraseña          become admin                 (login)
+//! /admin accept @alias               admit a pending registration
+//! /admin refuse @alias               refuse it
+//! /admin allow number                authorise a bridged contact
+//! /admin block @alias | number       ignore a field user or contact
+//! /admin unblock @alias | number
+//! /admin revoke @alias | number      drop admin rights granted by password
+//! /admin login password              become admin
 //! ```
 //!
 //! A number is a phone with country code (`+34…`, on the admin's own network
@@ -56,36 +56,29 @@ pub enum Command {
     Login(String),
 }
 
-/// Help for Signal and WhatsApp, where the bot can be chatty.
-pub const HELP: &str = "Órdenes de administración (empieza cada una con /admin):
-• estado — resumen del Pharos
-• clientes — usuarios de radio y cuándo se les oyó
-• aceptar @alias · rechazar @alias — registros pendientes
-• bloquear @alias|número · desbloquear @alias|número
-• permitir número — autoriza a un contacto a escribir
-• admins — quién administra · revocar @alias|número
-Lo demás (modo de acceso, códigos, pasarelas, frecuencias), por SSH.";
+/// Admin help for Signal and WhatsApp, where the bot can be chatty. Not sent
+/// over the radio: the app has its own.
+pub const HELP: &str = "Admin commands (start each with /admin):
+• status — summary of this Pharos
+• clients — field users and when they were last heard
+• accept @alias · refuse @alias — pending registrations
+• allow number — let a contact write through this Pharos
+• block @alias|number · unblock @alias|number
+• admins — who manages it · revoke @alias|number
+Everything else (access mode, codes, bridges, frequencies) over SSH.";
 
-/// Help for MeshCore and the radio: every character counts.
-pub const HELP_SHORT: &str = "estado · clientes · admins · aceptar/rechazar @alias · \
-bloquear/desbloquear @alias|nº · permitir nº · revocar @alias|nº";
+/// Admin help for MeshCore: every character counts.
+pub const HELP_SHORT: &str = "status · clients · admins · accept/refuse @alias · \
+allow nº · block/unblock @alias|nº · revoke @alias|nº";
 
-/// Canonical (Spanish) verb for a Spanish or English one.
+/// The verb, if it is one. English only (decision 0020, revised).
 fn verb(word: &str) -> Option<&'static str> {
-    Some(match word.to_lowercase().as_str() {
-        "ayuda" | "help" => "ayuda",
-        "estado" | "status" => "estado",
-        "clientes" | "clients" => "clientes",
-        "admins" => "admins",
-        "aceptar" | "accept" => "aceptar",
-        "rechazar" | "refuse" | "reject" => "rechazar",
-        "bloquear" | "block" => "bloquear",
-        "desbloquear" | "unblock" => "desbloquear",
-        "permitir" | "allow" => "permitir",
-        "revocar" | "revoke" => "revocar",
-        "acceder" | "login" => "acceder",
-        _ => return None,
-    })
+    const VERBS: [&str; 11] = [
+        "help", "status", "clients", "admins", "accept", "refuse", "block", "unblock", "allow",
+        "revoke", "login",
+    ];
+    let w = word.to_lowercase();
+    VERBS.into_iter().find(|v| *v == w)
 }
 
 /// The text after a leading `/admin`, or `None` if it does not start so.
@@ -169,17 +162,17 @@ pub fn parse(text: &str, net: Option<u8>) -> Option<Command> {
         _ => None,
     };
     let cmd = match verb {
-        "ayuda" => Some(Command::Help),
-        "estado" => Some(Command::Status),
-        "clientes" => Some(Command::Clients),
+        "help" => Some(Command::Help),
+        "status" => Some(Command::Status),
+        "clients" => Some(Command::Clients),
         "admins" => Some(Command::Admins),
-        "aceptar" => alias().map(Command::Accept),
-        "rechazar" => alias().map(Command::Refuse),
-        "bloquear" => target(args, net).map(Command::Block),
-        "desbloquear" => target(args, net).map(Command::Unblock),
-        "permitir" => contact(args, net).map(Command::Allow),
-        "revocar" => target(args, net).map(Command::Revoke),
-        "acceder" => body
+        "accept" => alias().map(Command::Accept),
+        "refuse" => alias().map(Command::Refuse),
+        "block" => target(args, net).map(Command::Block),
+        "unblock" => target(args, net).map(Command::Unblock),
+        "allow" => contact(args, net).map(Command::Allow),
+        "revoke" => target(args, net).map(Command::Revoke),
+        "login" => body
             .split_once(char::is_whitespace)
             .map(|(_, pw)| pw.trim())
             .filter(|pw| !pw.is_empty())
@@ -191,11 +184,11 @@ pub fn parse(text: &str, net: Option<u8>) -> Option<Command> {
 
 fn status_word(s: Status) -> &'static str {
     match s {
-        Status::Registered => "registrado",
-        Status::Pending => "pendiente",
-        Status::Refused => "rechazado",
-        Status::Unregistered => "sin registrar",
-        Status::Blocked => "bloqueado",
+        Status::Registered => "registered",
+        Status::Pending => "pending",
+        Status::Refused => "refused",
+        Status::Unregistered => "unregistered",
+        Status::Blocked => "blocked",
     }
 }
 
@@ -212,7 +205,7 @@ pub fn execute(
     let find = |s: &Station, a: &str| s.registry().find(a);
     match cmd {
         Command::Help => ((if terse { HELP_SHORT } else { HELP }).to_owned(), vec![]),
-        Command::Login(_) => ("Ya eres administrador.".to_owned(), vec![]),
+        Command::Login(_) => ("You are an admin already.".to_owned(), vec![]),
         Command::Status => {
             let count = |st: Status| {
                 station
@@ -233,7 +226,7 @@ pub fn execute(
                 .count();
             (
                 format!(
-                    "Registrados: {}. Pendientes: {}. A la escucha: {listening}. Mensajes en cola: {queued}. Contactos autorizados: {}.",
+                    "Registered: {}. Pending: {}. Listening: {listening}. Queued messages: {queued}. Authorised contacts: {}.",
                     count(Status::Registered),
                     count(Status::Pending),
                     router.state().authorized.len(),
@@ -247,15 +240,15 @@ pub fn execute(
                 .iter()
                 .map(|(_, c)| {
                     let heard = if c.last_heard == 0 {
-                        "nunca oído".to_owned()
+                        "never heard".to_owned()
                     } else {
-                        format!("oído hace {} min", now.saturating_sub(c.last_heard) / 60)
+                        format!("heard {} min ago", now.saturating_sub(c.last_heard) / 60)
                     };
                     format!("@{} — {} — {heard}", c.alias, status_word(c.status))
                 })
                 .collect();
             let text = if lines.is_empty() {
-                "No hay clientes.".to_owned()
+                "No clients.".to_owned()
             } else {
                 lines.join("\n")
             };
@@ -267,7 +260,7 @@ pub fn execute(
                 .iter()
                 .filter(|(_, c)| c.is_admin())
                 .map(|(_, c)| {
-                    let how = if c.admin { "config" } else { "contraseña" };
+                    let how = if c.admin { "config" } else { "password" };
                     format!("@{} ({how})", c.alias)
                 })
                 .collect();
@@ -276,63 +269,63 @@ pub fn execute(
             names.extend(
                 granted
                     .iter()
-                    .map(|a| format!("{} (contraseña)", a.display())),
+                    .map(|a| format!("{} (password)", a.display())),
             );
-            (format!("Administradores: {}.", names.join(", ")), vec![])
+            (format!("Admins: {}.", names.join(", ")), vec![])
         }
         Command::Accept(a) | Command::Refuse(a) if find(station, &a).is_none() => {
-            (format!("No conozco a @{a}."), vec![])
+            (format!("Unknown: @{a}."), vec![])
         }
         Command::Accept(a) => {
             let k = find(station, &a).unwrap();
             let fx = station.approve(&k, now).unwrap_or_default();
-            (format!("@{a} aceptado."), fx)
+            (format!("@{a} accepted."), fx)
         }
         Command::Refuse(a) => {
             let k = find(station, &a).unwrap();
             let fx = station.refuse(&k, now).unwrap_or_default();
-            (format!("@{a} rechazado."), fx)
+            (format!("@{a} refused."), fx)
         }
         Command::Block(Target::Alias(a)) => match find(station, &a) {
             Some(k) => {
                 let _ = station.block(&k);
-                (format!("@{a} bloqueado."), vec![])
+                (format!("@{a} blocked."), vec![])
             }
-            None => (format!("No conozco a @{a}."), vec![]),
+            None => (format!("Unknown: @{a}."), vec![]),
         },
         Command::Unblock(Target::Alias(a)) => match find(station, &a) {
             Some(k) => {
                 let _ = station.unblock(&k);
-                (format!("@{a} desbloqueado."), vec![])
+                (format!("@{a} unblocked."), vec![])
             }
-            None => (format!("No conozco a @{a}."), vec![]),
+            None => (format!("Unknown: @{a}."), vec![]),
         },
         Command::Block(Target::Contact(c)) => {
             router.block(&c);
-            (format!("{} bloqueado.", c.display()), vec![])
+            (format!("{} blocked.", c.display()), vec![])
         }
         Command::Unblock(Target::Contact(c)) => {
             router.unblock(&c);
-            (format!("{} desbloqueado.", c.display()), vec![])
+            (format!("{} unblocked.", c.display()), vec![])
         }
         Command::Allow(c) => {
             router.authorize(&c);
-            (format!("{} autorizado.", c.display()), vec![])
+            (format!("{} allowed.", c.display()), vec![])
         }
         Command::Revoke(t) => {
             let (who, r) = match t {
                 Target::Alias(a) => match find(station, &a) {
                     Some(k) => (format!("@{a}"), station.revoke_admin(&k).ok()),
-                    None => return (format!("No conozco a @{a}."), vec![]),
+                    None => return (format!("Unknown: @{a}."), vec![]),
                 },
                 Target::Contact(c) => (c.display(), Some(router.revoke_admin(&c))),
             };
             let text = match r {
-                Some(Revoked::Done) => format!("{who} ya no es administrador."),
+                Some(Revoked::Done) => format!("{who} is no longer an admin."),
                 Some(Revoked::InConfig) => {
-                    format!("{who} es administrador por configuración: quítalo por SSH.")
+                    format!("{who} is an admin in the config: remove them over SSH.")
                 }
-                _ => format!("{who} no es administrador."),
+                _ => format!("{who} is not an admin."),
             };
             (text, vec![])
         }
@@ -355,7 +348,7 @@ pub struct Outcome {
 }
 
 /// Admin commands from field users over the radio. Plain text to the Pharos
-/// from an admin client is a command. The password (`acceder …`) is accepted
+/// from an admin client is a command. The password (`login …`) is accepted
 /// only inside an encrypted frame; in signed plaintext it went out in clear,
 /// so it is refused and, if it was right, the admins are told to change it.
 pub struct RadioGate {
@@ -398,7 +391,7 @@ impl RadioGate {
         let (alias, admin) = (client.alias.clone(), client.is_admin());
         let mut out = Outcome::default();
         let reply = match cmd {
-            Command::Login(_) if admin => "Ya eres administrador.".to_owned(),
+            Command::Login(_) if admin => "You are an admin already.".to_owned(),
             Command::Login(pw) => {
                 let wrong = self.wrong.entry(from).or_default();
                 if locked_out(wrong, now, self.max_attempts) {
@@ -412,25 +405,27 @@ impl RadioGate {
                     (true, true) => {
                         let _ = station.grant_admin(&from);
                         out.actions = router.alert_admins(
-                            &format!("@{alias} es administrador (contraseña por radio, cifrada)."),
+                            &format!("@{alias} is now an admin (password over radio, encrypted)."),
                             None,
                         );
-                        "Eres administrador.".to_owned()
+                        "You are an admin now.".to_owned()
                     }
                     (false, true) => {
                         out.actions = router.alert_admins(
                             &format!(
-                                "⚠️ @{alias} envió la contraseña de administración SIN CIFRAR por radio. Cámbiala por SSH."
+                                "⚠️ @{alias} sent the admin password UNENCRYPTED over the radio. Change it over SSH."
                             ),
                             None,
                         );
-                        "CONTRASEÑA ENVIADA EN CLARO: no vale. Cámbiala por SSH.".to_owned()
+                        "PASSWORD SENT IN CLEAR: refused. Change it over SSH.".to_owned()
                     }
-                    (false, false) => "Solo con cifrado. Contraseña incorrecta.".to_owned(),
-                    (true, false) => "Contraseña incorrecta.".to_owned(),
+                    (false, false) => "Encrypted only. Wrong password.".to_owned(),
+                    (true, false) => "Wrong password.".to_owned(),
                 }
             }
-            _ if !admin => "No eres administrador.".to_owned(),
+            _ if !admin => "You are not an admin.".to_owned(),
+            // No admin help on air: the app has it.
+            Command::Help => return out,
             cmd => {
                 let (text, fx) = execute(cmd, station, router, now, true);
                 out.effects = fx;
@@ -452,23 +447,24 @@ mod tests {
     fn parses_commands_and_ignores_chat() {
         let sig = Some(network::SIGNAL_PHONE);
         assert_eq!(parse("hola", sig), None);
-        assert_eq!(parse("Estado", sig), Some(Command::Status));
+        assert_eq!(parse("Status", sig), Some(Command::Status));
         assert_eq!(parse("/admin", sig), Some(Command::Help));
         assert_eq!(parse("/ADMIN status", sig), Some(Command::Status));
         assert_eq!(parse("/admin qué tal", sig), Some(Command::Help));
         assert_eq!(parse("/administrar", sig), None);
+        assert_eq!(parse("estado", sig), None, "English only");
         assert_eq!(
-            parse("/admin aceptar @bea", sig),
+            parse("/admin accept @bea", sig),
             Some(Command::Accept("bea".into()))
         );
-        assert_eq!(parse("aceptar", sig), Some(Command::Help));
+        assert_eq!(parse("accept", sig), Some(Command::Help));
         assert_eq!(
-            parse("permitir +34 600 123 456", None),
+            parse("allow +34 600 123 456", None),
             Some(Command::Help),
             "split number: one argument only"
         );
         assert_eq!(
-            parse("permitir +34600123456", sig),
+            parse("allow +34600123456", sig),
             Some(Command::Allow(Address::SignalPhone("34600123456".into())))
         );
         assert_eq!(
@@ -476,27 +472,27 @@ mod tests {
             Some(Command::Allow(Address::WhatsappPhone("34600123456".into())))
         );
         assert_eq!(
-            parse("bloquear @ana", None),
+            parse("block @ana", None),
             Some(Command::Block(Target::Alias("ana".into())))
         );
         assert_eq!(
-            parse("bloquear mama.01", sig),
+            parse("block mama.01", sig),
             Some(Command::Block(Target::Contact(Address::SignalUsername(
                 "mama.01".into()
             ))))
         );
         assert_eq!(
-            parse("permitir +34600123456", None),
+            parse("allow +34600123456", None),
             Some(Command::Help),
             "radio admins name the network"
         );
         assert_eq!(
-            parse("/admin acceder  caballo pila grapa ", sig),
+            parse("/admin login  caballo pila grapa ", sig),
             Some(Command::Login("caballo pila grapa".into()))
         );
         assert_eq!(parse("/admin login", sig), Some(Command::Help));
         assert_eq!(
-            parse("/admin revocar @bea", sig),
+            parse("/admin revoke @bea", sig),
             Some(Command::Revoke(Target::Alias("bea".into())))
         );
     }

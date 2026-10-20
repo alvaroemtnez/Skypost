@@ -28,8 +28,8 @@ sealed interface AdminTarget {
 
 /**
  * Remote management of one Pharos (decision 0020): builds the admin command
- * texts and sends them as plain messages to the Pharos. The Pharos answers
- * in Spanish; replies are shown as they come.
+ * texts (English) and sends them as messages to the Pharos. Replies are
+ * English too and are shown as they come.
  */
 class PharosAdminViewModel(private val repo: Repository, private val key: String) : ViewModel() {
     val ui: StateFlow<PharosAdminUi> = combine(repo.pharos, repo.settings, repo.adminLog(key)) { list, settings, log ->
@@ -38,37 +38,37 @@ class PharosAdminViewModel(private val repo: Repository, private val key: String
 
     private fun send(command: String) = repo.sendAdmin(key, command)
 
-    fun help() = send("ayuda")
+    fun help() = send("help")
 
-    fun status() = send("estado")
+    fun status() = send("status")
 
-    fun clients() = send("clientes")
+    fun clients() = send("clients")
 
     fun admins() = send("admins")
 
     /** False if the alias is not valid. */
     fun decide(alias: String, accept: Boolean): Boolean {
         val a = alias(alias) ?: return false
-        send(if (accept) "aceptar @$a" else "rechazar @$a")
+        send(if (accept) "accept @$a" else "refuse @$a")
         return true
     }
 
     fun block(target: AdminTarget, on: Boolean): Boolean {
         val t = text(target) ?: return false
-        send(if (on) "bloquear $t" else "desbloquear $t")
+        send(if (on) "block $t" else "unblock $t")
         return true
     }
 
     /** Authorise a bridged contact to write first. */
     fun allow(target: AdminTarget.Bridged): Boolean {
         val t = text(target) ?: return false
-        send("permitir $t")
+        send("allow $t")
         return true
     }
 
     fun revoke(target: AdminTarget): Boolean {
         val t = text(target) ?: return false
-        send("revocar $t")
+        send("revoke $t")
         return true
     }
 

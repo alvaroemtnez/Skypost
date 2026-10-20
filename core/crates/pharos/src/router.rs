@@ -185,10 +185,35 @@ const HELP: &str = "Escribe @alias y tu mensaje, p. ej. «@ana ¿Llegasteis bien
 /// How long a `/admin` command waits for the password.
 const PASSWORD_WAIT_SECS: u64 = 600;
 
-fn is_user_help(text: &str) -> bool {
-    ["/ayuda", "/help"]
-        .iter()
-        .any(|h| text.trim().eq_ignore_ascii_case(h))
+/// The language of the user help: the bot's other texts are Spanish, admin
+/// texts English, and the help answers in the language it was asked in.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Lang {
+    Es,
+    En,
+    /// Valencian.
+    Ca,
+}
+
+/// `/ayuda`, `/help` or `/ajuda`: the user help, in that language.
+fn user_help_command(text: &str) -> Option<Lang> {
+    [
+        ("/ayuda", Lang::Es),
+        ("/help", Lang::En),
+        ("/ajuda", Lang::Ca),
+    ]
+    .into_iter()
+    .find(|(h, _)| text.trim().eq_ignore_ascii_case(h))
+    .map(|(_, l)| l)
+}
+
+/// The one-line help, for MeshCore.
+fn short_help(lang: Lang) -> &'static str {
+    match lang {
+        Lang::Es => HELP,
+        Lang::En => "Write @alias and your message, e.g. «@ana Did you get there OK?».",
+        Lang::Ca => "Escriu @àlies i el teu missatge, p. ex. «@ana Heu arribat bé?».",
+    }
 }
 
 fn split_at_alias(text: &str) -> Option<(&str, &str)> {
@@ -298,14 +323,28 @@ impl Router {
         )
     }
 
-    fn user_help(&self) -> String {
-        format!(
-            "• Para escribir a alguien: @alias y el mensaje, p. ej. «@ana ¿Llegasteis bien?». Después basta con escribir: va a la misma persona.
-• Solo texto, hasta {} caracteres. Llega cuando su radio conecta: puede tardar.
+    fn user_help(&self, lang: Lang) -> String {
+        let max = self.cfg.max_chars;
+        match lang {
+            Lang::Es => format!(
+                "• Para escribir a alguien: @alias y el mensaje, p. ej. «@ana ¿Llegasteis bien?». Después basta con escribir: va a la misma persona.
+• Solo texto, hasta {max} caracteres. Llega cuando su radio conecta: puede tardar.
 • 📡 en cola · ✅ entregado · ❌ no llegará (te digo por qué).
-• /ayuda muestra esto otra vez.",
-            self.cfg.max_chars
-        )
+• /ayuda muestra esto otra vez (/help in English, /ajuda en valencià)."
+            ),
+            Lang::En => format!(
+                "• To write to someone: @alias and the message, e.g. «@ana Did you get there OK?». After that just write: it goes to the same person.
+• Text only, up to {max} characters. It arrives when their radio connects: it can take a while.
+• 📡 queued · ✅ delivered · ❌ will not arrive (I say why).
+• /help shows this again. Other replies from this Pharos are in Spanish."
+            ),
+            Lang::Ca => format!(
+                "• Per a escriure a algú: @àlies i el missatge, p. ex. «@ana Heu arribat bé?». Després només cal escriure: va a la mateixa persona.
+• Només text, fins a {max} caràcters. Arriba quan la seua ràdio connecta: pot tardar.
+• 📡 en cua · ✅ lliurat · ❌ no arribarà (et dic per què).
+• /ajuda mostra açò una altra vegada."
+            ),
+        }
     }
 
     /// Once per contact, on Signal and WhatsApp: who the bot is and how to use it.
@@ -322,20 +361,27 @@ impl Router {
             to,
             format!(
                 "👋 Hola, soy {me}: una estación de radio que lleva mensajes a quienes están sin cobertura.\n{}",
-                self.user_help()
+                self.user_help(Lang::Es)
             ),
         ))
     }
 
     /// `/ayuda` from an authorised contact.
-    fn help_reply(&self, dir: &dyn Directory, to: &Address) -> Action {
+    /// Counts as the welcome: a contact who asks in English gets no Spanish one.
+    fn help_reply(&mut self, dir: &dyn Directory, to: &Address, lang: Lang) -> Action {
+        self.state.welcomed.insert(to.clone());
         let c = self.contacts.get(to).cloned().unwrap_or_default();
         let recent = self.recent_aliases(dir, &c);
-        let mut long = self.user_help();
-        let mut short = HELP.to_owned();
+        let mut long = self.user_help(lang);
+        let mut short = short_help(lang).to_owned();
         if !recent.is_empty() {
-            long += &format!("\nRecientes: {}.", list(&recent));
-            short += &format!(" Recientes: {}.", list(&recent));
+            let word = match lang {
+                Lang::Es => "Recientes",
+                Lang::En => "Recent",
+                Lang::Ca => "Recents",
+            };
+            long += &format!("\n{word}: {}.", list(&recent));
+            short += &format!(" {word}: {}.", list(&recent));
         }
         Self::say(to, long, short)
     }
@@ -351,10 +397,7 @@ impl Router {
     fn admin_gate(&mut self, m: &Incoming, command: Command) -> Vec<Action> {
         let max = self.cfg.max_code_attempts;
         let Some(password) = self.cfg.admin_password.clone() else {
-            return vec![Self::reply(
-                &m.from,
-                "No eres administrador de este Pharos.",
-            )];
+            return vec![Self::reply(&m.from, "You are not an admin of this Pharos.")];
         };
         let c = self.contacts.entry(m.from.clone()).or_default();
         if admin::locked_out(&mut c.wrong_passwords, m.now, max) {
@@ -366,8 +409,8 @@ impl Router {
         c.admin_asked = Some((command, m.now));
         vec![Self::say(
             &m.from,
-            "Para administrar este Pharos, envíame la contraseña de administración.",
-            "Envía la contraseña de administración.",
+            "To manage this Pharos, send me its admin password.",
+            "Send the admin password.",
         )]
     }
 
@@ -384,9 +427,9 @@ impl Router {
         if sent.trim() != password.trim() {
             c.wrong_passwords.push(m.now);
             let t = if c.wrong_passwords.len() >= max {
-                "Contraseña incorrecta. Demasiados intentos: vuelve a probar dentro de una hora."
+                "Wrong password. Too many attempts: try again in an hour."
             } else {
-                "Contraseña incorrecta. Vuelve a empezar con /admin."
+                "Wrong password. Start again with /admin."
             };
             return vec![Self::reply(&m.from, t)];
         }
@@ -395,11 +438,11 @@ impl Router {
         self.state.admins.insert(m.from.clone());
         let mut out = vec![Self::say(
             &m.from,
-            "Contraseña correcta: ya eres administrador.\n⚠️ BORRA AHORA EL MENSAJE CON LA CONTRASEÑA. YO NO PUEDO HACERLO.",
-            "Ya eres administrador. ⚠️ BORRA EL MENSAJE CON LA CONTRASEÑA.",
+            "Right password: you are an admin now.\n⚠️ DELETE THE MESSAGE WITH THE PASSWORD NOW. I CANNOT DO IT.",
+            "You are an admin. ⚠️ DELETE THE MESSAGE WITH THE PASSWORD.",
         )];
         out.extend(self.alert_admins(
-            &format!("{} es administrador (con la contraseña).", m.from.display()),
+            &format!("{} is now an admin (with the password).", m.from.display()),
             Some(&m.from),
         ));
         if let Some(command) = then.filter(|c| !matches!(c, Command::Login(_))) {
@@ -631,7 +674,7 @@ impl Router {
             return vec![Self::reply(&m.from, t)];
         }
         c.asked_code = true;
-        let help = is_user_help(text);
+        let help = user_help_command(text).is_some();
         let held = help || self.hold(m, text);
         let mut long =
             "Hola. Para escribir por radio a través de este Pharos, envíame su código de acceso."
@@ -704,12 +747,8 @@ impl Router {
                 "Solo contactos autorizados. No se ha enviado.",
             )];
         }
-        if is_user_help(text) {
-            let mut out: Vec<Action> = self.welcome(&m.from).into_iter().collect();
-            if out.is_empty() {
-                out.push(self.help_reply(dir, &m.from));
-            }
-            return out;
+        if let Some(lang) = user_help_command(text) {
+            return vec![self.help_reply(dir, &m.from, lang)];
         }
         let mut out: Vec<Action> = self.welcome(&m.from).into_iter().collect();
         let welcomed = !out.is_empty();
@@ -878,7 +917,7 @@ impl Router {
                 Self::reply(
                     a,
                     format!(
-                        "¿Aceptar a @{alias} ({})? Responde «/admin aceptar {alias}» o «/admin rechazar {alias}».",
+                        "Accept @{alias} ({})? Reply «/admin accept {alias}» or «/admin refuse {alias}».",
                         key.safety_number()
                     ),
                 )
@@ -1111,7 +1150,7 @@ mod tests {
             admins: vec![admin.clone()],
             ..RouterCfg::default()
         });
-        let mut m = msg("/admin aceptar @bea", T);
+        let mut m = msg("/admin accept @bea", T);
         m.from = admin.clone();
         assert_eq!(
             r.on_incoming(&dir(), m),
@@ -1137,14 +1176,14 @@ mod tests {
     #[test]
     fn admin_password_is_asked_then_the_command_runs() {
         let (mut r, d) = (admin_router(), dir());
-        let a = r.on_incoming(&d, msg("/admin estado", T));
+        let a = r.on_incoming(&d, msg("/admin status", T));
         assert_eq!(
             replies(&a),
-            "Para administrar este Pharos, envíame la contraseña de administración."
+            "To manage this Pharos, send me its admin password."
         );
         let a = r.on_incoming(&d, msg("faro viejo de la costa", T + 5));
         assert!(
-            replies(&a).contains("BORRA AHORA EL MENSAJE CON LA CONTRASEÑA"),
+            replies(&a).contains("DELETE THE MESSAGE WITH THE PASSWORD NOW"),
             "{a:?}"
         );
         assert!(queued(&a).is_empty(), "the password is never routed");
@@ -1154,11 +1193,11 @@ mod tests {
         }));
         assert!(a.contains(&Action::Reply {
             to: Address::SignalPhone("34600000000".into()),
-            text: "+34611111111 es administrador (con la contraseña).".into()
+            text: "+34611111111 is now an admin (with the password).".into()
         }));
         assert!(r.is_admin(&mama()));
         // From now on, no password.
-        let a = r.on_incoming(&d, msg("/admin clientes", T + 10));
+        let a = r.on_incoming(&d, msg("/admin clients", T + 10));
         assert!(matches!(
             a.as_slice(),
             [Action::Admin {
@@ -1173,29 +1212,29 @@ mod tests {
     #[test]
     fn wrong_admin_password_is_not_routed_and_locks_out() {
         let (mut r, d) = (admin_router(), dir());
-        r.on_incoming(&d, msg("/admin estado", T));
+        r.on_incoming(&d, msg("/admin status", T));
         let a = r.on_incoming(&d, msg("@ana nope", T + 1));
         assert!(queued(&a).is_empty());
-        assert!(replies(&a).contains("Contraseña incorrecta"));
+        assert!(replies(&a).contains("Wrong password"));
         // The next text is a normal message again.
         assert_eq!(queued(&r.on_incoming(&d, msg("@ana hola", T + 2))).len(), 1);
         for i in 0..4 {
-            r.on_incoming(&d, msg("/admin acceder mal", T + 10 + i));
+            r.on_incoming(&d, msg("/admin login mal", T + 10 + i));
         }
         assert!(
-            r.on_incoming(&d, msg("/admin acceder faro viejo de la costa", T + 20))
+            r.on_incoming(&d, msg("/admin login faro viejo de la costa", T + 20))
                 .is_empty()
         );
-        let a = r.on_incoming(&d, msg("/admin acceder faro viejo de la costa", T + 3700));
-        assert!(replies(&a).contains("ya eres administrador"));
+        let a = r.on_incoming(&d, msg("/admin login faro viejo de la costa", T + 3700));
+        assert!(replies(&a).contains("you are an admin now"));
     }
 
     #[test]
     fn without_a_password_only_config_admins_manage() {
         let (mut r, d) = (router(), dir());
         assert_eq!(
-            replies(&r.on_incoming(&d, msg("/admin estado", T))),
-            "No eres administrador de este Pharos."
+            replies(&r.on_incoming(&d, msg("/admin status", T))),
+            "You are not an admin of this Pharos."
         );
         // The password wait did not start: the next text goes on as chat.
         assert!(replies(&r.on_incoming(&d, msg("hola", T + 1))).contains("¿Para quién es?"));
@@ -1204,14 +1243,28 @@ mod tests {
     #[test]
     fn welcome_and_help_are_chatty_on_signal_and_short_on_meshcore() {
         let (mut r, d) = (router(), dir());
-        let a = r.on_incoming(&d, msg("/ayuda", T));
+        let a = r.on_incoming(&d, msg("hola", T));
         assert!(replies(&a).starts_with("👋 Hola, soy un Pharos"), "{a:?}");
-        let a = r.on_incoming(&d, msg("/help", T + 1));
+        let a = r.on_incoming(&d, msg("/ayuda", T + 1));
         assert!(
             replies(&a).starts_with("• Para escribir a alguien"),
             "{a:?}"
         );
         assert!(queued(&a).is_empty());
+        let a = r.on_incoming(&d, msg("/HELP", T + 2));
+        assert!(replies(&a).starts_with("• To write to someone"), "{a:?}");
+        let a = r.on_incoming(&d, msg("/ajuda", T + 3));
+        assert!(replies(&a).starts_with("• Per a escriure a algú"), "{a:?}");
+        // Asking for help first in English: no Spanish welcome afterwards.
+        let mut other = msg("/help", T);
+        other.from = Address::WhatsappPhone("34622222222".into());
+        let mut r = with(RouterCfg {
+            inbound: Inbound::Anyone,
+            ..RouterCfg::default()
+        });
+        r.on_incoming(&d, other.clone());
+        other.text = Some("@ana hi".into());
+        assert!(!replies(&r.on_incoming(&d, other)).contains("👋"));
 
         let mesh = Address::MeshcoreContact([7; 32]);
         let mut r = with(RouterCfg {
@@ -1225,11 +1278,11 @@ mod tests {
         m.from = mesh.clone();
         let a = r.on_incoming(&d, m);
         assert!(!replies(&a).contains("👋"), "no welcome on MeshCore");
-        let mut m = msg("/admin estado", T + 2);
+        let mut m = msg("/admin status", T + 2);
         m.from = mesh;
         assert_eq!(
             replies(&r.on_incoming(&d, m)),
-            "No eres administrador de este Pharos."
+            "You are not an admin of this Pharos."
         );
     }
 

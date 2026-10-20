@@ -220,7 +220,7 @@
     <string name="admin_replies">Respostes</string>
     <string name="admin_replies_empty">Ací apareixen les ordres que envies i les respostes del Pharos.</string>
     <string name="admin_waiting">Esperant el Pharos…</string>
-    <string name="admin_ssh_note">Cada ordre és un missatge curt per ràdio; el Pharos respon en castellà. El mode d\'accés, els codis, les passarel·les i les freqüències es canvien per SSH.</string>
+    <string name="admin_ssh_note">Cada ordre és un missatge curt per ràdio; el Pharos respon en anglés. El mode d\'accés, els codis, les passarel·les i les freqüències es canvien per SSH.</string>
     <string name="admin_target_field">Usuari de ràdio</string>
     <string name="admin_alias_label">Nom (@àlies)</string>
     <string name="admin_phone_label">Telèfon amb prefix de país</string>

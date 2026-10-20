@@ -121,7 +121,7 @@ data class Pharos(
 data class AdminEntry(
     val id: Long,
     val pharosKey: String,
-    /** What went on air, e.g. "aceptar @bea". The password is never kept. */
+    /** What went on air, e.g. "accept @bea". The password is never kept. */
     val command: String,
     val atMillis: Long,
     val reply: String? = null,

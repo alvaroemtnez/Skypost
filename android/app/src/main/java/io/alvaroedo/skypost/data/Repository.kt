@@ -179,11 +179,11 @@ interface Repository {
     /** Admin commands sent to this Pharos and its replies, oldest first. */
     fun adminLog(pharosKey: String): Flow<List<AdminEntry>>
 
-    /** Sends an admin command (`estado`, `aceptar @bea`, …) as text to the Pharos. */
+    /** Sends an admin command (`status`, `accept @bea`, …) as text to the Pharos. */
     fun sendAdmin(pharosKey: String, command: String)
 
     /**
-     * Sends the admin password (`acceder …`). Only while emergency encryption is
+     * Sends the admin password (`login …`). Only while emergency encryption is
      * on: in signed plaintext it would be broadcast, so nothing is sent and it
      * returns false.
      */

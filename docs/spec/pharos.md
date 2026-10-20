@@ -74,23 +74,24 @@ config admins only).
 | Channel | Config admins | Others, with the admin password |
 |---|---|---|
 | Radio, signed plaintext | yes | no: the password would be broadcast; it is refused even if right, and the admins are told to change it |
-| Radio, encrypted | yes | `acceder <contraseña>` once, then admin for good |
-| Signal, WhatsApp, MeshCore | yes | `/admin …` → the bot asks for the password → admin for good; "BORRA AHORA EL MENSAJE CON LA CONTRASEÑA" |
+| Radio, encrypted | yes | `login <password>` once, then admin for good |
+| Signal, WhatsApp, MeshCore | yes | `/admin …` → the bot asks for the password → admin for good; "DELETE THE MESSAGE WITH THE PASSWORD NOW" |
 
-Commands start with `/admin` on the bridges; on the radio the prefix is
-optional (every text to the Pharos is a command). English verbs work too.
+Commands and their replies are English only. They start with `/admin` on the
+bridges; on the radio the prefix is optional (every text to the Pharos is a
+command).
 
 | Command | Effect |
 |---|---|
-| `ayuda` (`help`), or `/admin` alone | list the commands |
-| `estado` (`status`) | registered, pending, listening, queued, authorised contacts |
-| `clientes` (`clients`) | each field user, status and when it was last heard |
+| `help`, or `/admin` alone | list the commands (bridges only; the app has its own) |
+| `status` | registered, pending, listening, queued, authorised contacts |
+| `clients` | each field user, status and when it was last heard |
 | `admins` | who administers, and how (config or password) |
-| `aceptar @alias` / `rechazar @alias` | decide a pending registration |
-| `bloquear @alias\|número` / `desbloquear …` | ignore a field user or a bridged contact |
-| `permitir número` | authorise a bridged contact |
-| `revocar @alias\|número` | drop admin rights granted by password |
-| `acceder contraseña` (`login`) | become admin |
+| `accept @alias` / `refuse @alias` | decide a pending registration |
+| `allow number` | authorise a bridged contact |
+| `block @alias\|number` / `unblock …` | ignore a field user or a bridged contact |
+| `revoke @alias\|number` | drop admin rights granted by password |
+| `login password` | become admin |
 
 A number is a phone with country code (on the admin's own network unless
 `signal`/`whatsapp`/`meshcore` comes first), a Signal username or a MeshCore
@@ -174,8 +175,10 @@ any contact; the bot routes by alias. All bot texts are Spanish.
   to write with `@alias`, limits, what 📡 ✅ ❌ mean, `/ayuda`). It comes
   after the access code when one is needed, on the contact's first message
   otherwise, or just before a field user's first message to them.
-- `/ayuda` (`/help`) repeats the instructions and lists recent aliases. It is
-  never held or routed as a message.
+- `/ayuda`, `/help` and `/ajuda` repeat the instructions, in Spanish, English
+  or Valencian, and list recent aliases. They are never held or routed as a
+  message; asking for help first counts as the welcome. The bot's other user
+  texts are Spanish; admin texts English.
 - `/admin` commands: see "Remote management" above.
 
 ### Choosing the field user
@@ -218,7 +221,7 @@ note.
   are never bridged.
 - Made for short messages: no welcome, and every reply has a short form
   ("Envía el código de acceso de este Pharos.", "Solo contactos
-  autorizados. No se ha enviado."). `/ayuda` answers with one line.
+  autorizados. No se ha enviado."). The help commands answer with one line.
 
 ## 3. Configuration (sketch)
 
