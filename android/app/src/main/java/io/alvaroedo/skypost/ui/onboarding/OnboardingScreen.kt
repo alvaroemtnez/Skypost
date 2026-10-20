@@ -53,6 +53,9 @@ fun OnboardingScreen(repo: Repository) {
     var restoreFrom by remember { mutableStateOf<Uri?>(null) }
     val pickBackup = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { restoreFrom = it }
     val snackbar = LocalSnackbar.current
+    val context = LocalContext.current
+    // Outside the dialog: closing it must not cancel the restore.
+    val scope = rememberCoroutineScope()
 
     Scaffold(snackbarHost = { SnackbarHost(snackbar) }) { padding ->
         Column(
@@ -90,8 +93,6 @@ fun OnboardingScreen(repo: Repository) {
     }
 
     restoreFrom?.let { uri ->
-        val context = LocalContext.current
-        val scope = rememberCoroutineScope()
         val failed = stringResource(R.string.backup_wrong_passphrase)
         PassphraseDialog(
             title = stringResource(R.string.onboarding_restore),
