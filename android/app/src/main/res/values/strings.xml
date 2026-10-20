@@ -67,6 +67,8 @@
     <string name="ping_pharos_menu">Is the Pharos listening?</string>
     <string name="ping_contact_ok">%1$s answered: hears you at %2$d dB</string>
     <string name="ping_contact_silent">%1$s does not answer</string>
+    <string name="ping_pharos_ok">The Pharos %1$s answered: hears you at %2$d dB. That does not tell whether %3$s is online.</string>
+    <string name="ping_pharos_silent">The Pharos %1$s does not answer</string>
     <string name="radio_desc_none">Plug the radio into the phone\'s USB port</string>
     <string name="radio_desc_audio">Audio only: set the frequency on the radio by hand</string>
     <string name="radio_desc_ready">Audio and CAT: the app sets everything</string>

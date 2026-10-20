@@ -66,6 +66,8 @@
     <string name="ping_pharos_menu">Està el Pharos a l\'escolta?</string>
     <string name="ping_contact_ok">%1$s ha respost: et sent a %2$d dB</string>
     <string name="ping_contact_silent">%1$s no respon</string>
+    <string name="ping_pharos_ok">El Pharos %1$s ha respost: et sent a %2$d dB. Això no diu si %3$s està connectat.</string>
+    <string name="ping_pharos_silent">El Pharos %1$s no respon</string>
     <string name="radio_desc_none">Connecta la ràdio a l\'USB del telèfon</string>
     <string name="radio_desc_audio">Només àudio: posa la freqüència en la ràdio a mà</string>
     <string name="radio_desc_ready">Àudio i CAT: l\'aplicació ho ajusta tot</string>

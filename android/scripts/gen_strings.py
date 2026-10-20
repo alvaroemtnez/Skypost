@@ -79,6 +79,8 @@ S = {
 "ping_pharos_menu": ("Is the Pharos listening?","¿Está el Pharos a la escucha?","Està el Pharos a l'escolta?"),
 "ping_contact_ok": ("%1$s answered: hears you at %2$d dB","%1$s ha respondido: te oye a %2$d dB","%1$s ha respost: et sent a %2$d dB"),
 "ping_contact_silent": ("%1$s does not answer","%1$s no responde","%1$s no respon"),
+"ping_pharos_ok": ("The Pharos %1$s answered: hears you at %2$d dB. That does not tell whether %3$s is online.","El Pharos %1$s ha respondido: te oye a %2$d dB. Eso no dice si %3$s está conectado.","El Pharos %1$s ha respost: et sent a %2$d dB. Això no diu si %3$s està connectat."),
+"ping_pharos_silent": ("The Pharos %1$s does not answer","El Pharos %1$s no responde","El Pharos %1$s no respon"),
 "radio_desc_none": ("Plug the radio into the phone's USB port","Conecta la radio al USB del teléfono","Connecta la ràdio a l'USB del telèfon"),
 "radio_desc_audio": ("Audio only: set the frequency on the radio by hand","Solo audio: pon la frecuencia en la radio a mano","Només àudio: posa la freqüència en la ràdio a mà"),
 "radio_desc_ready": ("Audio and CAT: the app sets everything","Audio y CAT: la app lo ajusta todo","Àudio i CAT: l'aplicació ho ajusta tot"),

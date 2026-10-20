@@ -152,8 +152,19 @@ fun ChatScreen(
 
     LaunchedEffect(ui.messages.size) { vm.markRead() }
     LaunchedEffect(phrases) { vm.setLocalPhrases(phrases) }
-    val heard = (ping as? PingResult.Heard)?.let { stringResource(R.string.ping_contact_ok, chat?.title.orEmpty(), it.snrDb) }
-    val silent = stringResource(R.string.ping_contact_silent, chat?.title.orEmpty())
+    // A bridged chat pings the Pharos, not the contact: say so, so nobody
+    // takes it for the contact being online.
+    val bridged = chat?.kind?.bridged == true
+    val title = chat?.title.orEmpty()
+    val via = ui.via.orEmpty()
+    val heard = (ping as? PingResult.Heard)?.let {
+        if (bridged) {
+            stringResource(R.string.ping_pharos_ok, via, it.snrDb, title)
+        } else {
+            stringResource(R.string.ping_contact_ok, title, it.snrDb)
+        }
+    }
+    val silent = if (bridged) stringResource(R.string.ping_pharos_silent, via) else stringResource(R.string.ping_contact_silent, title)
     LaunchedEffect(ping) {
         when (ping) {
             is PingResult.Heard -> snackbar.showSnackbar(heard.orEmpty())
