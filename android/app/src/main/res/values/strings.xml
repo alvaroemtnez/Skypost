@@ -227,7 +227,7 @@
     <string name="switch_confirm_off">Turn off “%1$s”?</string>
     <string name="admin_ssh_note">Each command is a short message on air. Access code, admin password, bridges and frequencies are changed over SSH.</string>
     <string name="admin_target_field">Field user</string>
-    <string name="admin_phone_label">Phone number with country code</string>
+    <string name="admin_phone_label">Phone (+34…)</string>
     <string name="admin_signal_label">Phone number or username</string>
     <string name="admin_target_invalid">Check what you typed</string>
     <string name="admin_impostor">Not your contact %1$s: same name, different key</string>

@@ -600,7 +600,12 @@ class FakeRepository(
             RequestEntry(4, Who.WHATSAPP, "Tía Carmen +34633333333"),
             RequestEntry(5, Who.MESHCORE, "Refugio Bachimaña", "9F3C2A1B7D604E58"),
             RequestEntry(6, Who.RADIO, "bea", core.userId("NOT-THE-REAL-BEA")),
-        )
+        ).apply {
+            // And the real Bea, one of our contacts, asking too.
+            _contacts.value.firstOrNull { it.card.alias == "bea" }?.let {
+                add(RequestEntry(7, Who.RADIO, "bea", core.userId(it.card.key)))
+            }
+        }
     }
 
     override fun userId(key: String): String = core.userId(key)

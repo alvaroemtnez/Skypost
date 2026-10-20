@@ -226,7 +226,7 @@
     <string name="switch_confirm_off">Apagar «%1$s»?</string>
     <string name="admin_ssh_note">Cada ordre és un missatge curt per ràdio. El codi d\'accés, la contrasenya d\'administració, les passarel·les i les freqüències es canvien per SSH.</string>
     <string name="admin_target_field">Usuari de ràdio</string>
-    <string name="admin_phone_label">Telèfon amb prefix de país</string>
+    <string name="admin_phone_label">Telèfon (+34…)</string>
     <string name="admin_signal_label">Telèfon o nom d\'usuari</string>
     <string name="admin_target_invalid">Revisa el que has escrit</string>
     <string name="admin_impostor">No és el teu contacte %1$s: mateix nom, una altra clau</string>

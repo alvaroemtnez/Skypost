@@ -32,6 +32,14 @@ data class PharosAdminUi(
     val requests: List<RequestEntry>? = null,
     /** A request list was asked for and has not arrived. */
     val requestsLoading: Boolean = false,
+    /** A status (the switches' refresh) was asked for and has not arrived. */
+    val statusLoading: Boolean = false,
+    /** The Pharos's users were asked for and have not arrived. */
+    val clientsLoading: Boolean = false,
+    /** Accept or refuse sent for these request numbers, the Pharos has not answered. */
+    val deciding: Set<Int> = emptySet(),
+    /** The Pharos refused these decisions (e.g. the request expired). */
+    val decisionFailed: Map<Int, AdminOutcome> = emptyMap(),
     /** Who a command can name: our contacts and MeshCore chats, plus the Pharos's lists. */
     val people: List<Person> = emptyList(),
     /** Our contacts by radio id, and their aliases, to tell people apart. */
@@ -74,8 +82,13 @@ class PharosAdminViewModel(private val repo: Repository, private val key: String
             log = log.asReversed(),
             switches = switchesFrom(log),
             requests = requestsFrom(log),
-            requestsLoading = log.lastOrNull { it.command == AdminCommand.Requests }?.reply == null &&
-                log.any { it.command == AdminCommand.Requests },
+            requestsLoading = waiting(log, AdminCommand.Requests),
+            statusLoading = waiting(log, AdminCommand.Status),
+            clientsLoading = waiting(log, AdminCommand.Clients),
+            deciding = decisions(log).filterValues { it.reply == null }.keys,
+            decisionFailed = decisions(log).mapNotNull { (n, e) ->
+                ((e.reply as? AdminReply.Done)?.outcome)?.takeIf { it != AdminOutcome.OK }?.let { n to it }
+            }.toMap(),
             people = peopleFrom(log, byId, aliases, chats),
             contactIds = byId,
             contactAliases = aliases,
@@ -168,17 +181,28 @@ class PharosAdminViewModel(private val repo: Repository, private val key: String
             return s
         }
 
+        /** The last command of this kind is still waiting for its reply. */
+        fun waiting(log: List<AdminEntry>, c: AdminCommand): Boolean =
+            log.lastOrNull { it.command == c }?.let { it.reply == null } == true
+
+        /** The latest accept or refuse per request number, since the last request list. */
+        fun decisions(log: List<AdminEntry>): Map<Int, AdminEntry> {
+            val i = log.indexOfLast { it.reply is AdminReply.Requests }
+            return log.drop(i + 1).mapNotNull { e ->
+                when (val c = e.command) {
+                    is AdminCommand.Accept -> c.num to e
+                    is AdminCommand.Refuse -> c.num to e
+                    else -> null
+                }
+            }.toMap()
+        }
+
+        /** The last request list minus those the Pharos confirmed decided. */
         fun requestsFrom(log: List<AdminEntry>): List<RequestEntry>? {
             val i = log.indexOfLast { it.reply is AdminReply.Requests }
             if (i < 0) return null
-            val decided = log.drop(i + 1).mapNotNull {
-                when (val c = it.command) {
-                    is AdminCommand.Accept -> c.num
-                    is AdminCommand.Refuse -> c.num
-                    else -> null
-                }
-            }.toSet()
-            return (log[i].reply as AdminReply.Requests).list.filterNot { it.num in decided }
+            val done = decisions(log).filterValues { (it.reply as? AdminReply.Done)?.outcome == AdminOutcome.OK }.keys
+            return (log[i].reply as AdminReply.Requests).list.filterNot { it.num in done }
         }
     }
 }

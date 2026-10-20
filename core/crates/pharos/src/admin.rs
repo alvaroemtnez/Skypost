@@ -268,7 +268,9 @@ pub fn render(r: &Reply) -> String {
         Reply::Requests(l) => l
             .iter()
             .map(|e| {
-                let id = e.id.map(|i| format!(" ({})", hex(&i))).unwrap_or_default();
+                let id =
+                    e.id.map(|i| format!(" ({})", id_text(e.who, &i)))
+                        .unwrap_or_default();
                 format!("#{} {} — {}{id}", e.num, network_name(e.who), e.name)
             })
             .collect::<Vec<_>>()
@@ -300,7 +302,9 @@ pub fn render(r: &Reply) -> String {
                     let how = ["SSH", "by an admin", "password"]
                         .get(usize::from(e.how))
                         .unwrap_or(&"?");
-                    let id = e.id.map(|i| format!(" {}", hex(&i))).unwrap_or_default();
+                    let id =
+                        e.id.map(|i| format!(" {}", id_text(e.who, &i)))
+                            .unwrap_or_default();
                     format!("{}{id} ({}, {how})", e.name, network_name(e.who))
                 })
                 .collect::<Vec<_>>()
@@ -353,6 +357,16 @@ fn switch_names(s: Switches) -> String {
 /// An id as 16 hex digits, to copy into a bridge command.
 pub fn hex(id: &Id) -> String {
     id.iter().map(|b| format!("{b:02X}")).collect()
+}
+
+/// A MeshCore id in lower case, a field user's in capitals (like its safety
+/// code), so the two never look alike.
+pub fn id_text(who: u8, id: &Id) -> String {
+    if who == who::MESHCORE {
+        hex(id).to_lowercase()
+    } else {
+        hex(id)
+    }
 }
 
 /// The start of an id as the safety code shows it: "4F2A 9C11".
@@ -436,9 +450,10 @@ impl Admin {
     /// Name and id together, for replies that say who was acted on.
     fn subject(station: &Station, router: &Router, w: &Who) -> String {
         let name = Self::name_of(station, router, w);
-        match id_of(w) {
-            Some(id) => format!("{name} · {}", short(&id)),
-            None => name,
+        match (w, id_of(w)) {
+            (Who::Radio(_), Some(id)) => format!("{name} · {}", short(&id)),
+            (_, Some(id)) => format!("{name} · {}", hex(&id)[..8].to_lowercase()),
+            (_, None) => name,
         }
     }
 
@@ -634,9 +649,10 @@ impl Admin {
                     }
                     Who::Contact(a) => ran.actions.extend(router.on_request_decided(a, accept)),
                 }
-                let subject = match id_of(&r.who) {
-                    Some(id) => format!("{} · {}", r.name, short(&id)),
-                    None => r.name,
+                let subject = match (&r.who, id_of(&r.who)) {
+                    (Who::Radio(_), Some(id)) => format!("{} · {}", r.name, short(&id)),
+                    (_, Some(id)) => format!("{} · {}", r.name, hex(&id)[..8].to_lowercase()),
+                    (_, None) => r.name,
                 };
                 done(Outcome::Ok, Some(subject))
             }

@@ -123,6 +123,12 @@ Each one becomes a decision record when settled.
   only, signed with the pair key, 4-byte tag, never shown to the user).
   Candidates: a flag in a message's content, or part of the highway
   handshake (the offer itself says "I can"). The ACK has no spare bit.
+- **Alias rules (owner, 2026-10-21).** Decide what an alias may be: no
+  accents or symbols, case-insensitive (one alias whatever the capitals),
+  always shown in lower case, length, maybe a reserved list (admin, pharos…).
+  The protocol (`keryx::uri::valid_alias`) and the app must agree. Aliases
+  never identify anyone (decision 0021: people are named by key), but clear
+  rules make look-alike names harder.
 - **Time sync for JS8 (owner, 2026-10-20).** JS8 slots need both ends within
   ~1–2 s of UTC. Today: the phone takes UTC from GNSS (or the QMX+'s GPS),
   and every ACK reports the clock offset the other end measured, so the app

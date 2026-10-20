@@ -246,7 +246,7 @@ S = {
 "switch_confirm_off": ("Turn off “%1$s”?","¿Apagar «%1$s»?","Apagar «%1$s»?"),
 "admin_ssh_note": ("Each command is a short message on air. Access code, admin password, bridges and frequencies are changed over SSH.","Cada orden es un mensaje corto por radio. El código de acceso, la contraseña de administración, las pasarelas y las frecuencias se cambian por SSH.","Cada ordre és un missatge curt per ràdio. El codi d'accés, la contrasenya d'administració, les passarel·les i les freqüències es canvien per SSH."),
 "admin_target_field": ("Field user","Usuario de radio","Usuari de ràdio"),
-"admin_phone_label": ("Phone number with country code","Teléfono con prefijo de país","Telèfon amb prefix de país"),
+"admin_phone_label": ("Phone (+34…)","Teléfono (+34…)","Telèfon (+34…)"),
 "admin_signal_label": ("Phone number or username","Teléfono o nombre de usuario","Telèfon o nom d'usuari"),
 "admin_target_invalid": ("Check what you typed","Revisa lo que has escrito","Revisa el que has escrit"),
 "admin_impostor": ("Not your contact %1$s: same name, different key","No es tu contacto %1$s: mismo nombre, otra clave","No és el teu contacte %1$s: mateix nom, una altra clau"),

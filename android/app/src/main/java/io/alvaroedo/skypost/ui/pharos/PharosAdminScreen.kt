@@ -142,6 +142,8 @@ fun PharosAdminScreen(vm: PharosAdminViewModel, onBack: () -> Unit) {
                     }
                 }
                 item {
+                    // The refresh's feedback: between the title and the switches.
+                    if (ui.statusLoading) LinearProgressIndicator(Modifier.fillMaxWidth().padding(horizontal = 16.dp))
                     Switches(ui.switches) { s, on -> confirmSwitch = s to on }
                 }
                 item {
@@ -209,6 +211,7 @@ fun PharosAdminScreen(vm: PharosAdminViewModel, onBack: () -> Unit) {
             a,
             vm::target,
             people = ui.people,
+            loadingUsers = ui.clientsLoading,
             onLoadUsers = {
                 if (vm.needsWarning(AdminCommand.Clients)) warnFor = { vm.send(AdminCommand.Clients) } else vm.send(AdminCommand.Clients)
             },
@@ -234,6 +237,8 @@ fun PharosAdminScreen(vm: PharosAdminViewModel, onBack: () -> Unit) {
             loading = ui.requestsLoading,
             late = late,
             look = look,
+            deciding = ui.deciding,
+            failed = ui.decisionFailed,
             onDecide = { num, accept -> vm.send(if (accept) AdminCommand.Accept(num) else AdminCommand.Refuse(num)) },
             onDismiss = { showRequests = false },
         )
@@ -416,11 +421,14 @@ private fun Who.shown(): String = when (this) {
 /** The first two groups of an id, as the safety code shows them: "4F2A 9C11". */
 private fun short(id: String): String = "${id.take(4)} ${id.substring(4, 8)}"
 
+/** A MeshCore key's start: lower case, no space, so it never looks like a safety code. */
+private fun shortMeshcore(id: String): String = id.take(8).lowercase()
+
 @Composable
 private fun AdminTarget.shown(): String = when (this) {
     is AdminTarget.User -> "$name · ${short(id)}"
     is AdminTarget.Contact -> "${stringResource(kind.label())} " + if (address.all { it.isDigit() }) "+$address" else address
-    is AdminTarget.MeshCore -> "${stringResource(ChatKind.MESHCORE.label())} $name · ${short(id)}"
+    is AdminTarget.MeshCore -> "${stringResource(ChatKind.MESHCORE.label())} $name · ${shortMeshcore(id)}"
 }
 
 /**
@@ -428,10 +436,18 @@ private fun AdminTarget.shown(): String = when (this) {
  * verified contacts, a warning if it only borrows a contact's name.
  */
 @Composable
-private fun PersonLine(name: String, id: String?, verified: Boolean, impostor: Boolean, style: TextStyle = MaterialTheme.typography.titleMedium) {
+private fun PersonLine(
+    name: String,
+    id: String?,
+    verified: Boolean,
+    impostor: Boolean,
+    style: TextStyle = MaterialTheme.typography.titleMedium,
+    meshcore: Boolean = false,
+) {
     Column {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(listOfNotNull(name, id?.let(::short)).joinToString(" · "), style = style)
+            val shownId = id?.let { if (meshcore) shortMeshcore(it) else short(it) }
+            Text(listOfNotNull(name, shownId).joinToString(" · "), style = style)
             if (verified) VerifiedBadge(Modifier.padding(start = 6.dp).size(18.dp))
         }
         if (impostor) {
@@ -499,14 +515,18 @@ private fun AdminReply.shown(): String = when (this) {
         if (list.isEmpty()) {
             stringResource(R.string.admin_requests_none)
         } else {
-            list.map { listOfNotNull("#${it.num}", it.who.shown(), it.name, it.id?.let(::short)).joinToString(" · ") }.joinToString("\n")
+            list.map {
+                val id = it.id?.let { i -> if (it.who == Who.MESHCORE) shortMeshcore(i) else short(i) }
+                listOfNotNull("#${it.num}", it.who.shown(), it.name, id).joinToString(" · ")
+            }.joinToString("\n")
         }
     is AdminReply.Clients -> list.map {
         val heard = it.heardMin?.let { m -> stringResource(R.string.heard_min_ago, m) } ?: stringResource(R.string.heard_never)
         "@${it.alias} · ${short(it.id)} · ${stringResource(it.status.short())} · $heard"
     }.joinToString("\n")
     is AdminReply.Admins -> list.map {
-        listOfNotNull(it.name, it.id?.let(::short), it.who.shown(), stringResource(it.how.text())).joinToString(" · ")
+        val id = it.id?.let { i -> if (it.who == Who.MESHCORE) shortMeshcore(i) else short(i) }
+        listOfNotNull(it.name, id, it.who.shown(), stringResource(it.how.text())).joinToString(" · ")
     }.joinToString("\n")
     is AdminReply.NewRequests ->
         stringResource(R.string.reply_new_requests, networks.map { it.shown() }.joinToString(), pending)
@@ -558,7 +578,7 @@ private fun ReplyDialog(
                     }
                     reply is AdminReply.Admins -> reply.list.forEach {
                         val (verified, impostor) = look(it.who, it.id, it.name)
-                        PersonLine(it.name, it.id, verified, impostor)
+                        PersonLine(it.name, it.id, verified, impostor, meshcore = it.who == Who.MESHCORE)
                         Text(
                             "${it.who.shown()} · ${stringResource(it.how.text())}",
                             style = MaterialTheme.typography.bodySmall,
@@ -585,6 +605,8 @@ private fun RequestsDialog(
     loading: Boolean,
     late: Boolean,
     look: (Who, String?, String) -> Pair<Boolean, Boolean>,
+    deciding: Set<Int>,
+    failed: Map<Int, AdminOutcome>,
     onDecide: (Int, Boolean) -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -606,11 +628,19 @@ private fun RequestsDialog(
                     Column(Modifier.padding(vertical = 8.dp)) {
                         val name = if (r.who == Who.RADIO) "@" + r.name else r.name
                         val (verified, impostor) = look(r.who, r.id, name)
-                        PersonLine(name, r.id, verified, impostor)
+                        PersonLine(name, r.id, verified, impostor, meshcore = r.who == Who.MESHCORE)
                         Text("#${r.num} · ${r.who.shown()}", style = MaterialTheme.typography.bodySmall)
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            TextButton(onClick = { onDecide(r.num, false) }) { Text(stringResource(R.string.admin_refuse)) }
-                            Button(onClick = { onDecide(r.num, true) }) { Text(stringResource(R.string.admin_accept)) }
+                        failed[r.num]?.let {
+                            Text(stringResource(it.text()), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                        }
+                        if (r.num in deciding) {
+                            Text(stringResource(R.string.admin_waiting), style = MaterialTheme.typography.bodySmall)
+                            LinearProgressIndicator(Modifier.fillMaxWidth().padding(vertical = 8.dp))
+                        } else {
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                TextButton(onClick = { onDecide(r.num, false) }) { Text(stringResource(R.string.admin_refuse)) }
+                                Button(onClick = { onDecide(r.num, true) }) { Text(stringResource(R.string.admin_accept)) }
+                            }
                         }
                     }
                 }
@@ -631,6 +661,7 @@ private fun TargetDialog(
     ask: Ask,
     parse: (ChatKind?, String) -> AdminTarget?,
     people: List<Person>,
+    loadingUsers: Boolean,
     onLoadUsers: () -> Unit,
     onSend: (AdminCommand) -> Unit,
     onDismiss: () -> Unit,
@@ -697,10 +728,13 @@ private fun TargetDialog(
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             RadioButton(selected = chosen == p.target, onClick = { chosen = p.target })
-                            PersonLine(p.name, p.id, p.verified, p.impostor, MaterialTheme.typography.bodyLarge)
+                            PersonLine(p.name, p.id, p.verified, p.impostor, MaterialTheme.typography.bodyLarge, meshcore = p.who == Who.MESHCORE)
                         }
                     }
-                    if (who == Who.RADIO) {
+                    if (who == Who.RADIO && loadingUsers) {
+                        Text(stringResource(R.string.admin_waiting), style = MaterialTheme.typography.bodySmall)
+                        LinearProgressIndicator(Modifier.fillMaxWidth())
+                    } else if (who == Who.RADIO) {
                         TextButton(onClick = onLoadUsers) { Text(stringResource(R.string.admin_load_users)) }
                     }
                 }

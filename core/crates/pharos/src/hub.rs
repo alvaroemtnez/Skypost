@@ -570,7 +570,7 @@ mod tests {
             T + 50,
         ));
         assert!(
-            texts_to(&out, &op()).contains("Refugio · A1A1 A1A1"),
+            texts_to(&out, &op()).contains("Refugio · a1a1a1a1"),
             "{out:?}"
         );
         assert!(h.router.state().blocked.contains(&node));

@@ -99,7 +99,7 @@ fun PharosScreen(
         },
     ) { padding ->
         LazyColumn(Modifier.padding(padding), contentPadding = PaddingValues(bottom = 24.dp)) {
-            item { ActiveCard(ui.list.firstOrNull { it.active }, ui.pinging, vm::ping, onAdmin) }
+            item { ActiveCard(ui.list.firstOrNull { it.active }, ui.pinging, vm::ping, onAdmin, onDetails = { details = it }) }
             item { Section(R.string.pharos_trusted) }
             if (ui.list.isEmpty()) {
                 item { ListItem(headlineContent = { Text(stringResource(R.string.pharos_trusted_empty)) }) }
@@ -247,7 +247,13 @@ private fun Section(text: Int) {
 }
 
 @Composable
-private fun ActiveCard(p: Pharos?, pinging: Boolean, onPing: () -> Unit, onAdmin: (key: String) -> Unit) {
+private fun ActiveCard(
+    p: Pharos?,
+    pinging: Boolean,
+    onPing: () -> Unit,
+    onAdmin: (key: String) -> Unit,
+    onDetails: (key: String) -> Unit,
+) {
     ElevatedCard(Modifier.fillMaxWidth().padding(16.dp)) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -259,7 +265,10 @@ private fun ActiveCard(p: Pharos?, pinging: Boolean, onPing: () -> Unit, onAdmin
                     modifier = Modifier.weight(1f),
                 )
                 if (p != null) {
-                    if (p.verified) VerifiedBadge()
+                    // Same details as tapping it in the list (verify, QR, block…).
+                    if (p.verified) {
+                        IconButton(onClick = { onDetails(p.card.key) }) { VerifiedBadge() }
+                    }
                     IconButton(onClick = { onAdmin(p.card.key) }) {
                         Icon(painterResource(R.drawable.ic_settings), stringResource(R.string.pharos_admin))
                     }
