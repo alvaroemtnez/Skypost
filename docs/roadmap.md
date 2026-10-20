@@ -118,10 +118,21 @@ Each one becomes a decision record when settled.
 - **OFDM capability belongs to the radio, not the identity (owner,
   2026-10-20).** The same person may use a QDX one day (no OFDM transmit) and
   a G90 or QMX+ the next, so it cannot go in the QR card. It must travel on
-  air with the current session. Options: bit 5 of byte 0 of the compact Poll
-  (always 0 today), a flag in the next message's content, or part of the
-  highway handshake (the offer itself says "I can"). The ACK has no spare
-  bit (byte 0 bit 5 is `more`).
+  air with the current session. To revisit. Not in the ping: the ping is
+  only for checking two-way contact without bothering anyone (contacts
+  only, signed with the pair key, 4-byte tag, never shown to the user).
+  Candidates: a flag in a message's content, or part of the highway
+  handshake (the offer itself says "I can"). The ACK has no spare bit.
+- **Time sync for JS8 (owner, 2026-10-20).** JS8 slots need both ends within
+  ~1–2 s of UTC. Today: the phone takes UTC from GNSS (or the QMX+'s GPS),
+  and every ACK reports the clock offset the other end measured, so the app
+  can correct its slots (spec `arq-and-lanes.md`, "Clock offset"). To check
+  in Phase 0 whether that is enough: phones without a fix (indoors, first
+  start), a Pharos with no internet and no GNSS (see the Pharos clock item
+  above), drift over a day, and how far off a first message can be and
+  still decode. If it is a problem: let a station adopt the offset reported
+  by a Pharos or contact it trusts, a GNSS module on the Pharos, or a clock
+  sync command.
 
 ## Phase 3 — fast lane
 
