@@ -47,6 +47,7 @@ Design: decisions [0015](decisions/0015-identities.md), [0016](decisions/0016-ph
 - [ ] WhatsApp bridge: `wacli`; verify `sync --follow --events` carries message content (else a `whatsmeow` sidecar)
 - [ ] MeshCore bridge: `sidecars/meshcore/` on `meshcore_py`, JSON lines over stdio
 - [ ] systemd units for pharos and the sidecars; update routine for signal-cli
+- [ ] Remote reboot admin command: decide what it restarts (the `pharos` service, the sidecars, or the whole Pi via a narrow sudoers/polkit rule) and how the station is sure to come back (hardware watchdog, radio and bridges re-attached on boot)
 - [ ] Channel-simulator tests (codec2 `ch`, Watterson fading) in CI
 - [x] Decide tag length (8 vs 16): 8, decision 0015
 - [ ] Text codec v1: word dictionary, weights trained on Phase 0 messages
