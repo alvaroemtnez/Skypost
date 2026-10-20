@@ -447,6 +447,9 @@ private enum class AdminList(val title: Int, val command: AdminCommand) {
 /** Popups that list things keep one height, so they do not jump when the answer comes. */
 private val LIST_HEIGHT = 380.dp
 
+/** A done-or-refused popup: the same height while waiting and once answered. */
+private val RESULT_HEIGHT = 168.dp
+
 private fun PharosSwitch.title(): Int = when (this) {
     PharosSwitch.OPEN -> R.string.switch_open
     PharosSwitch.REQUESTS -> R.string.switch_requests
@@ -654,15 +657,31 @@ private fun ReplyDialog(
         onDismissRequest = onDismiss,
         title = { Text(entry?.command.shown()) },
         text = {
-            // Grows smoothly when the answer comes, instead of jumping.
-            Column(Modifier.animateContentSize().heightIn(max = LIST_HEIGHT).verticalScroll(rememberScrollState())) {
-                val reply = entry?.reply
-                when {
-                    reply is AdminReply.Status -> StatusBody(reply)
-                    reply is AdminReply.Done -> DoneBody(reply)
-                    reply != null -> Text(reply.shown())
-                    late -> Text(stringResource(R.string.admin_timeout))
-                    else -> Waiting()
+            val reply = entry?.reply
+            if (entry?.command != AdminCommand.Status) {
+                // Commands answered with done or a reason (switches, block,
+                // add admin…): one height from waiting to the answer, which
+                // sits low, close to the button.
+                Column(
+                    Modifier.fillMaxWidth().height(RESULT_HEIGHT),
+                    verticalArrangement = if (reply == null) Arrangement.Center else Arrangement.Bottom,
+                ) {
+                    when {
+                        reply is AdminReply.Done -> DoneBody(reply)
+                        reply != null -> Text(reply.shown())
+                        late -> Text(stringResource(R.string.admin_timeout))
+                        else -> Waiting()
+                    }
+                }
+            } else {
+                // The status grows smoothly when it comes, instead of jumping.
+                Column(Modifier.animateContentSize().heightIn(max = LIST_HEIGHT).verticalScroll(rememberScrollState())) {
+                    when {
+                        reply is AdminReply.Status -> StatusBody(reply)
+                        reply != null -> Text(reply.shown())
+                        late -> Text(stringResource(R.string.admin_timeout))
+                        else -> Waiting()
+                    }
                 }
             }
         },
