@@ -1,8 +1,10 @@
 # Pharos — discovery, registration, store and forward, bridge bot
 
 Implemented in `core/crates/pharos` (`station.rs` on air, `registry.rs`
-clients, `router.rs` bridge bot, `admin.rs` commands). Decisions: [0014](../decisions/0014-bridges-sidecars.md),
-[0016](../decisions/0016-pharos-registration-and-bridging.md). Frames:
+clients, `access.rs` switches, admins and requests, `router.rs` bridge bot,
+`admin.rs` commands, `hub.rs` wiring). Decisions: [0014](../decisions/0014-bridges-sidecars.md),
+[0016](../decisions/0016-pharos-registration-and-bridging.md),
+[0021](../decisions/0021-pharos-access-v2.md). Frames:
 [frame-format.md](frame-format.md).
 
 ## 1. On air
@@ -24,7 +26,7 @@ after the first contact, so impersonation is limited to the first discovery.
 
 1. Client: `Discover` (4 bytes, counter = random query id), most robust lane
    (Js8Slow).
-2. Each Pharos that hears it, and has not announced in the last 10 minutes,
+2. Each Pharos that hears it, is not in stealth, and has not announced in the last 10 minutes,
    waits a random 0–2 frame slots, picks a random audio offset and sends
    `Announce` to the querier's short id with the same query id, on the lane
    of the `Discover`.
@@ -33,75 +35,108 @@ after the first contact, so impersonation is limited to the first discovery.
 
 ### Access
 
-Decision [0019](../decisions/0019-pharos-access.md). `[access] mode`:
+Decision [0021](../decisions/0021-pharos-access-v2.md). Five switches, kept
+in the state file (they survive restarts; `base.toml` only seeds them on the
+first run) and changed by admin command or `pharos set` over SSH:
 
-| Mode | Who registers | `Announce` flag |
+| Switch | On | Default |
 |---|---|---|
-| `open` | anyone | — |
-| `code` | whoever proves the access code | `CODE_REQUIRED` |
-| `closed` (default) | the allow list; others wait for an admin | `CLOSED` |
+| `open` | anyone may use the Pharos; off: registered users and accepted contacts only | off |
+| `requests` | while closed, unknown radio users and bridged contacts may ask to join | on |
+| `login` | the admin password works | on |
+| `emergency` | encrypted only (below); stays on until an admin turns it off | off |
+| `stealth` | no `Discover` answers, no automatic messages of any kind | off |
 
-`discoverable = false` makes the Pharos ignore `Discover`; clients then need
-its QR.
+`Announce` flags: `CLOSED` when closed, plus `REQUESTS` if it takes requests
+and `CODE_REQUIRED` if it has an access code.
 
-The access code never goes on air. `Register` carries
+The access code (`[access] code_file`) is a shortcut: proving it admits at
+once. It never goes on air: `Register` carries
 `proof = HMAC-SHA256(K, "keryx-v1/access" ‖ client key ‖ Pharos key)[0..8]`
 with `K = Argon2id(code, salt = SHA-256("keryx-v1/access-salt" ‖ Pharos
 key)[0..16])` (19 MiB, 2 passes), or 8 zero bytes without a code. A recorded
 proof lets an attacker guess the code offline: use four or more random words.
 
-### Registration
+### Registration and access requests
 
 1. Client: `Register` (its public key, the proof, its alias), tagged with the
-   pair key.
-2. Pharos ACKs it, then decides: allow list → registered; otherwise by mode
-   (open → registered; code → registered if the proof verifies; closed →
-   pending, and every admin gets "¿Aceptar a @mama (4F2A 9C11 …)?").
+   pair key. In the app: "Request access" (or "I have a code").
+2. Pharos ACKs it, then decides: open or a valid proof → registered; closed
+   with requests on → an **access request** (pending); otherwise refused, or
+   "access code needed" if it has one.
 3. Result as a `Notice` (1 registered, 2 pending, 3 refused, 4 alias taken,
    5 access code needed), sent at once if the client is listening, else
-   queued. After 4 or 5 the client may register again.
+   queued. After 3, 4 or 5 the client may register again.
+
+Access requests, from the radio and the bridges alike:
+
+- Numbered 0–255, counting up and wrapping, skipping numbers in use; at most
+  20 pending; each expires after 72 h (`pharos set --state … request-ttl-hours`).
+- Admins list them (`requests`) and decide (`accept n` / `refuse n`); the
+  reply names who it was. A number only acts while its request is pending.
+- Admins get a notice without personal data ("new WhatsApp request", an
+  `AdminReply` of 3 bytes on air), at most once an hour each, merged; none in
+  stealth.
+- MeshCore contacts get in only through a request. A MeshCore direct message
+  carries only one byte of the sender's key, so it only arrives from nodes
+  whose advert reached the companion; the advert name is therefore known, and
+  is shown with the first 4 key bytes (names are self-chosen).
 
 Clients added at home on both sides (QR both ways) are registered without
 sending `Register`. Blocked clients get nothing, not even ACKs.
 
+### Emergency mode
+
+While `emergency` is on, signed-plaintext frames are ACKed (so they are not
+retried) but dropped, except SOS, pings, `Register` (requests carry no
+secret) and the `emergency` switch itself. A client that wrote in plain gets
+one `Notice` 6 (encrypted only), sent encrypted; none in stealth. Turning
+emergency off re-arms that notice. Replies keep mirroring the client's mode.
+
 ### Remote management
 
-Decision [0020](../decisions/0020-remote-management.md). Admins are those in
-the config (`[bot] admins`, `[[clients]] admin = true`; set over SSH) and
-whoever proves the admin password (`[access] admin_password_file`; without it,
-config admins only).
+Decisions [0020](../decisions/0020-remote-management.md) and
+[0021](../decisions/0021-pharos-access-v2.md). Admins live in the state file:
+added over SSH (`pharos admin add`), by another admin (`grant`), or with the
+admin password (`[access] admin_password_file`) while `login` is on. Any admin
+may remove any other, SSH ones included; the last admin cannot be removed
+while password login is unavailable (off or no password). Admin and switch
+changes are announced to the other admins (not in stealth).
 
-| Channel | Config admins | Others, with the admin password |
+| Channel | Admins | Others, with the admin password |
 |---|---|---|
-| Radio, signed plaintext | yes | no: the password would be broadcast; it is refused even if right, and the admins are told to change it |
-| Radio, encrypted | yes | `login <password>` once, then admin for good |
+| Radio, signed plaintext | yes | refused even if right; the admins are told to change it |
+| Radio, encrypted | yes | `login` once, then admin for good |
 | Signal, WhatsApp, MeshCore | yes | `/admin …` → the bot asks for the password → admin for good; "DELETE THE MESSAGE WITH THE PASSWORD NOW" |
 
-Commands and their replies are English only. They start with `/admin` on the
-bridges; on the radio the prefix is optional (every text to the Pharos is a
-command).
+On air, commands are `Admin` messages (one opcode byte, compact arguments; a
+switch change is one byte) and replies are structured `AdminReply`s that the
+app shows in its language ([frame-format.md](frame-format.md#admin-and-adminreply)).
+On the bridges they are English text after `/admin`, with English replies:
 
 | Command | Effect |
 |---|---|
 | `help`, or `/admin` alone | list the commands (bridges only; the app has its own) |
-| `status` | registered, pending, listening, queued, authorised contacts |
+| `status` | switches, registered, requests, listening, queued, authorised contacts |
+| `requests` | pending access requests, numbered |
+| `accept n\|@alias` / `refuse n\|@alias` | decide a request |
 | `clients` | each field user, status and when it was last heard |
-| `admins` | who administers, and how (config or password) |
-| `accept @alias` / `refuse @alias` | decide a pending registration |
-| `allow number` | authorise a bridged contact |
+| `allow number` | let a Signal or WhatsApp contact write (MeshCore: by request only) |
 | `block @alias\|number` / `unblock …` | ignore a field user or a bridged contact |
-| `revoke @alias\|number` | drop admin rights granted by password |
+| `admins` | who administers, and how (SSH, by an admin, password) |
+| `grant @alias\|number` / `revoke @alias\|number` | add or remove an admin |
+| `set open\|requests\|login\|emergency\|stealth on\|off` | flip a switch |
 | `login password` | become admin |
 
 A number is a phone with country code (on the admin's own network unless
-`signal`/`whatsapp`/`meshcore` comes first), a Signal username or a MeshCore
-key. Admins on the radio always name the network. Replies over the radio and
-MeshCore are short. Five wrong passwords an hour: no answers for an hour.
-Every new admin is announced to the other admins on the bridges.
+`signal`/`whatsapp` comes first), a Signal username, or the first 8 hex digits
+of a MeshCore key the Pharos knows (an ambiguous prefix matches nothing).
+Five wrong passwords an hour: no answers for an hour. The app warns before
+sending in plain a command whose request or reply puts a name or number on
+air.
 
-SSH only: access mode, access code, admin password, discoverability, bridges
-and their accounts, callsign, frequencies, config admins, SOS contacts,
-restarts and updates.
+SSH only: the access code, the admin password, bridges and their accounts,
+callsign, frequencies, SOS contacts, restarts and updates.
 
 ### Ping and the "Pharos heard" indicator
 
@@ -154,20 +189,22 @@ any contact; the bot routes by alias. All bot texts are Spanish.
 
 - One-to-one chats only, on every network: group and channel messages are
   ignored (and the Pharos leaves groups where the network allows it).
-- Authorised contacts may write: listed in the config (`[[clients]]
-  contacts`), written to first by a field user, allowed by an admin, or
-  admitted with the access code. Blocked contacts are ignored silently.
-- `inbound = "code"` (default): an unauthorised contact is asked for the
-  access code; its first message is held meanwhile. The right code
-  authorises the account for good and the bot asks to delete the message with
-  the code (bots cannot delete other people's messages). Five wrong codes in
-  an hour: no answers for an hour.
-- `inbound = "contacts"`: no code; one "only authorised contacts" note per
-  hour. `inbound = "anyone"`: no check.
+- Open Pharos: anyone. Closed: authorised contacts (written to first by a
+  field user, accepted, allowed by an admin, admins, or admitted with the
+  access code). Blocked contacts are ignored silently.
+- Closed, someone else writes:
+  - The access code admits at once; the bot asks, in capitals, to delete the
+    message with it (bots cannot delete other people's messages).
+  - `requests` on: the first message becomes an access request and is held
+    (up to 3); the bot says so and that a code also works. Further messages
+    are held, with one "still pending" note an hour. Accepted: "Tu solicitud
+    ha sido aceptada" and the held messages wait for an alias. Refused: one
+    note, then silence until an admin allows them.
+  - `requests` off: asked for the access code if there is one (five wrong
+    codes an hour: silence), else one "only authorised contacts" note an
+    hour.
 - An unknown alias gets "No puedo hacer llegar mensajes a @x", whether or not
   it exists.
-- The code (and the admin password) are answered with "⚠️ BORRA TU MENSAJE
-  CON EL CÓDIGO. YO NO PUEDO HACERLO.", in capitals so it is not missed.
 
 ### Welcome and help
 
@@ -225,17 +262,21 @@ note.
 
 ## 3. Configuration (sketch)
 
-See `core/crates/pharos/base.example.toml`:
+See `core/crates/pharos/base.example.toml`. Files are read on every start;
+the switches, admins, allow list and authorised contacts only on the first
+run (then they live in the state file).
 
 ```toml
 [access]
-mode = "code"                          # "open", "code" or "closed"
-code_file = "/etc/pharos/access-code"  # 0600
-discoverable = true
+code_file = "/etc/pharos/access-code"               # 0600, optional
 admin_password_file = "/etc/pharos/admin-password"  # 0600, optional
+open = false             # first run only, like the four below
+requests = true
+login = true
+stealth = false
+request_ttl_hours = 72
 
 [bot]
-inbound = "code"                       # "code", "contacts" or "anyone"
 admins = ["+34600000000"]
 
 [[clients]]
@@ -244,3 +285,7 @@ admin = true
 contacts = ["+34611111111"]            # authorised bridged contacts
 sos = ["+34611111111"]
 ```
+
+Over SSH, with the service stopped: `pharos status --state …`,
+`pharos set --state … <switch> on|off`, `pharos set --state …
+request-ttl-hours 48`, `pharos admin --state … add|remove <who>`.

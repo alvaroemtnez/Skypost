@@ -1,7 +1,8 @@
 # 0020. Remote management: config admins, admin password, `/admin`
 
 Status: accepted (2026-10-20). Refines the admin commands of
-[0019](0019-pharos-access.md).
+[0019](0019-pharos-access.md). Admins, switches and the binary on-air commands
+revised by [0021](0021-pharos-access-v2.md).
 
 ## Context
 

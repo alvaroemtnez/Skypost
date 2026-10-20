@@ -5,22 +5,26 @@
 callsign = "EA5XXX"                      # your callsign, sent in clear
 state_path = "/var/lib/pharos/base.json" # from: pharos init --alias casa ...
 
-[access]                 # who may use this Pharos (docs/spec/pharos.md, "Access")
-mode = "closed"          # "open", "code" (needs code_file) or "closed" (allow list + admin approval)
-# code_file = "/etc/pharos/access-code"   # 0600; four or more random words
-discoverable = true      # answer "Buscar Pharos cercanos"
+[access]   # docs/spec/pharos.md "Access", decision 0021
+# code_file = "/etc/pharos/access-code"               # 0600; four or more random words; admits at once
 # admin_password_file = "/etc/pharos/admin-password"  # 0600; lets others become admin
-#                          (bridges: "/admin", radio: encrypted only). Without it,
-#                          only the admins listed here manage the Pharos remotely.
+#                          (bridges: "/admin login", radio: encrypted only)
+# First run only: afterwards these live in the state file and change with
+# admin commands or `pharos set` (stop the service first).
+open = false             # anyone may use it; false = closed
+requests = true          # while closed, unknown users and contacts may ask to join
+login = true             # the admin password works
+stealth = false          # no discovery answers, no automatic messages
+request_ttl_hours = 72
 
 [bot]
-inbound = "code"         # bridged contacts: "code", "contacts" (authorised only) or "anyone"
-# admins = ["+34600000000"]               # may send admin commands ("/admin help")
+# admins = ["+34600000000"]               # first run only; may send "/admin help"
 
-# Field users on the allow list. Their URI comes from the app's "Mi código QR".
+# Field users on the allow list (first run only). Their URI comes from the
+# app's "My QR code".
 # [[clients]]
 # key = "skypost:id/5P2V...?n=mama"
-# admin = true                  # may send admin commands over the radio
+# admin = true                  # an admin, over the radio
 # contacts = ["+34611111111"]   # authorised bridged contacts
 # sos = ["+34611111111"]        # get this user's SOS
 

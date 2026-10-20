@@ -13,7 +13,9 @@
   (frames and ticks in, `Effect`s out: registration, store and forward,
   handles) and is where behaviour gets tested; `registry.rs` and `outbox.rs`
   are its persisted state; `main.rs` is the async shell (`pharos init`,
-  `identity`, `run`). `router.rs` is the bridge bot (pure logic). Radio
+  `identity`, `run`). `router.rs` is the bridge bot (pure logic); `access.rs` holds the switches,
+  admins and access requests; `hub.rs` wires station, bot and admin executor
+  the way the daemon will, and is where whole flows are tested. Radio
   side and bridge sidecars are TODO.
 
 Before finishing a change: `cargo fmt --all && cargo clippy --workspace --all-targets && cargo test --workspace`.

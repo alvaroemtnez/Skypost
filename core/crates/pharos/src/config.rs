@@ -1,6 +1,5 @@
 //! `base.toml` configuration. See `core/crates/pharos/base.example.toml`.
 
-use crate::router::Inbound;
 use serde::Deserialize;
 use std::path::PathBuf;
 
@@ -21,44 +20,39 @@ pub struct Config {
     pub bridges: BridgesCfg,
 }
 
-#[derive(Debug, Default, Deserialize, Clone, Copy, PartialEq, Eq)]
-#[serde(rename_all = "lowercase")]
-pub enum AccessMode {
-    /// Anyone may register.
-    Open,
-    /// Field users and bridged contacts need the access code.
-    Code,
-    /// Allow list only; others wait for an admin.
-    #[default]
-    Closed,
-}
-
-/// Who may use this Pharos (docs/spec/pharos.md, "Access").
-#[derive(Debug, Deserialize)]
+/// Access files (read on every start) and the first-run seeds of the access
+/// switches (decision 0021): after the first run the switches live in the
+/// state file and change by admin command or `pharos set`; these keys are
+/// then ignored with a warning.
+#[derive(Debug, Default, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct AccessCfg {
-    #[serde(default)]
-    pub mode: AccessMode,
-    /// File holding the access code (mode "code"); keep it 0600. A
-    /// passphrase of four or more random words: it can be guessed offline.
+    /// File holding the access code (0600). A passphrase of four or more
+    /// random words: it can be guessed offline. Proving it admits at once.
     pub code_file: Option<PathBuf>,
-    /// Answer discovery requests. Off: only clients with the QR find it.
-    #[serde(default = "yes")]
-    pub discoverable: bool,
-    /// File holding the admin password (0600). Without it only the admins in
-    /// the config may manage the Pharos remotely. Accepted from the bridges,
-    /// and over the radio only in an encrypted frame (decision 0020).
+    /// File holding the admin password (0600). Without it, only admins in
+    /// the state manage the Pharos remotely. Accepted from the bridges, and
+    /// over the radio only in an encrypted frame.
     pub admin_password_file: Option<PathBuf>,
+    /// First run only: anyone may use it (default false: closed).
+    pub open: Option<bool>,
+    /// First run only: take access requests while closed (default true).
+    pub requests: Option<bool>,
+    /// First run only: the admin password works (default true).
+    pub login: Option<bool>,
+    /// First run only: no discovery answers, no automatic messages (default false).
+    pub stealth: Option<bool>,
+    /// First run only: how long access requests stay pending (default 72).
+    pub request_ttl_hours: Option<u64>,
 }
 
-impl Default for AccessCfg {
-    fn default() -> Self {
-        Self {
-            mode: AccessMode::default(),
-            code_file: None,
-            discoverable: true,
-            admin_password_file: None,
-        }
+impl AccessCfg {
+    pub fn has_seeds(&self) -> bool {
+        self.open.is_some()
+            || self.requests.is_some()
+            || self.login.is_some()
+            || self.stealth.is_some()
+            || self.request_ttl_hours.is_some()
     }
 }
 
@@ -66,10 +60,8 @@ impl Default for AccessCfg {
 #[derive(Debug, Default, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct BotCfg {
-    /// Who on Signal/WhatsApp/MeshCore may use the bot.
-    #[serde(default)]
-    pub inbound: Inbound,
-    /// Admin accounts on the bridges ("+34600000000", "signal:user.01").
+    /// First run only: admin accounts on the bridges ("+34600000000",
+    /// "signal:user.01", "whatsapp:+34600000000").
     #[serde(default)]
     pub admins: Vec<String>,
 }
@@ -77,9 +69,10 @@ pub struct BotCfg {
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ClientCfg {
-    /// The field user's `skypost:id/...` URI.
+    /// The field user's `skypost:id/...` URI (first run only, like `admin`
+    /// and `contacts`: afterwards the allow list lives in the state).
     pub key: String,
-    /// May send admin commands over the radio.
+    /// An admin, over the radio.
     #[serde(default)]
     pub admin: bool,
     /// Bridged contacts authorised to write first (phone numbers, usernames).
@@ -191,6 +184,7 @@ mod tests {
         let s = include_str!("../base.example.toml");
         let c: Config = toml::from_str(s).unwrap();
         assert_eq!(c.radio.kind, RadioKind::Loopback);
+        assert_eq!(c.access.open, Some(false));
         assert!(c.bridges.log);
     }
 

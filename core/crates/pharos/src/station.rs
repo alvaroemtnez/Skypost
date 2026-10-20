@@ -5,10 +5,13 @@
 //! carries out the returned effects in order (transmit, hand to bridges). It
 //! must persist [`Station::state`] after every call, before transmitting.
 
+use crate::access::{AccessState, Who};
 use crate::outbox::{Outbox, Queued};
 use crate::registry::{Client, Registry, Status};
+use crate::router::RouterState;
 use keryx::access::{AccessKey, PROOF_LEN};
 use keryx::ack::ACK_LEN;
+use keryx::admin::{Command as AdminCommand, Reply as AdminReply, Switch};
 use keryx::arq::{ArqAction, ArqConfig, ArqSender};
 use keryx::bridge::{Address, notice};
 use keryx::header::{MsgType, peek_type};
@@ -55,20 +58,22 @@ pub enum Effect {
         alias: String,
         message: Message,
     },
-    /// A message addressed to the Pharos itself. Text goes to
-    /// [`crate::admin::RadioGate`]: admin commands, or the admin password in
-    /// an `encrypted` frame. Anything else is logged.
+    /// Any other message addressed to the Pharos itself: logged.
     Inbox {
         from: PublicKey,
         alias: String,
-        admin: bool,
-        encrypted: bool,
         message: Message,
     },
-    /// Someone asked to register and the operator must decide.
-    ApprovalNeeded {
-        key: PublicKey,
-        alias: String,
+    /// An admin command from a field user: run it with [`crate::admin::Admin`].
+    Admin {
+        from: PublicKey,
+        encrypted: bool,
+        command: AdminCommand,
+    },
+    /// Text for a bridged contact or admin (request answers, admin notices).
+    BridgeText {
+        to: Address,
+        text: String,
     },
     /// A queued message reached the field user's station.
     Delivered {
@@ -83,32 +88,10 @@ pub enum Effect {
     Log(String),
 }
 
-/// Result of taking back someone's admin rights.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Revoked {
-    Done,
-    /// Admin by configuration: only SSH can change that.
-    InConfig,
-    NotAdmin,
-}
-
-/// Who may register (see `docs/spec/pharos.md`, "Access").
-#[derive(Clone, Default)]
-pub enum Access {
-    /// Anyone.
-    Open,
-    /// Whoever proves the access code.
-    Code(Arc<AccessKey>),
-    /// The allow list; others wait for the operator.
-    #[default]
-    Closed,
-}
-
 #[derive(Clone)]
 pub struct StationCfg {
-    pub access: Access,
-    /// Answer `Discover`. Off: only clients that scanned the QR find it.
-    pub discoverable: bool,
+    /// The access code, if one is set: a valid proof admits at once.
+    pub code: Option<Arc<AccessKey>>,
     /// `Announce` flags for the bridges available (access bits are added).
     pub announce_flags: u8,
     /// Listen window assumed after a frame that is not a Poll, minutes.
@@ -123,8 +106,7 @@ pub struct StationCfg {
 impl Default for StationCfg {
     fn default() -> Self {
         Self {
-            access: Access::Closed,
-            discoverable: true,
+            code: None,
             announce_flags: flags::PHAROS,
             default_listen_min: 10,
             announce_every_secs: 10 * 60,
@@ -144,6 +126,28 @@ pub struct State {
     pub registry: Registry,
     #[serde(default)]
     pub outbox: Outbox,
+    /// Switches, admins and access requests (decision 0021).
+    #[serde(default)]
+    pub access: AccessState,
+    /// The bridge bot's persisted part, kept here so one file holds it all.
+    #[serde(default)]
+    pub bot: RouterState,
+    /// `base.toml` access settings were imported (first run only).
+    #[serde(default)]
+    pub imported: bool,
+}
+
+impl State {
+    pub fn new(keyring: Keyring) -> Self {
+        Self {
+            keyring,
+            registry: Registry::default(),
+            outbox: Outbox::default(),
+            access: AccessState::default(),
+            bot: RouterState::default(),
+            imported: false,
+        }
+    }
 }
 
 pub struct Station {
@@ -176,7 +180,7 @@ impl Station {
     }
 
     /// Put a field user on the allow list (from config, or a QR scanned at home).
-    pub fn allow(&mut self, card: Card, admin: bool) -> Result<(), Error> {
+    pub fn allow(&mut self, card: Card) -> Result<(), Error> {
         let key = card.key;
         let alias = card.alias.clone();
         self.state.keyring.add_peer(card, true)?;
@@ -191,7 +195,7 @@ impl Station {
         };
         c.status = Status::Registered;
         c.alias = alias;
-        c.admin = admin;
+        self.state.access.drop_request(&Who::Radio(key));
         Ok(())
     }
 
@@ -206,29 +210,78 @@ impl Station {
         Ok(())
     }
 
-    /// The client sent the admin password in an encrypted frame.
-    pub fn grant_admin(&mut self, key: &PublicKey) -> Result<(), Error> {
-        self.state
-            .registry
-            .get_mut(key)
-            .ok_or(Error::UnknownLink)?
-            .admin_granted = true;
-        Ok(())
+    pub fn state_mut(&mut self) -> &mut State {
+        &mut self.state
     }
 
-    /// Take back admin rights granted by password. Admins from the config
-    /// keep theirs (they are removed over SSH).
-    pub fn revoke_admin(&mut self, key: &PublicKey) -> Result<Revoked, Error> {
-        let c = self.state.registry.get_mut(key).ok_or(Error::UnknownLink)?;
-        let was = c.admin_granted;
-        c.admin_granted = false;
-        Ok(if c.admin {
-            Revoked::InConfig
-        } else if was {
-            Revoked::Done
-        } else {
-            Revoked::NotAdmin
-        })
+    pub fn access(&self) -> &AccessState {
+        &self.state.access
+    }
+
+    pub fn access_mut(&mut self) -> &mut AccessState {
+        &mut self.state.access
+    }
+
+    /// Flip a switch. Turning emergency off lets the next emergency tell
+    /// plain senders again.
+    pub fn set_switch(&mut self, s: Switch, on: bool) {
+        self.state.access.switches.set(s, on);
+        if s == Switch::Emergency && !on {
+            let keys: Vec<PublicKey> = self.state.registry.iter().map(|(k, _)| *k).collect();
+            for k in keys {
+                if let Some(c) = self.state.registry.get_mut(&k) {
+                    c.told_encrypted_only = false;
+                }
+            }
+        }
+    }
+
+    pub fn has_code(&self) -> bool {
+        self.cfg.code.is_some()
+    }
+
+    /// A bridged contact asks for access (closed, requests on). The answer
+    /// for them, in Spanish, goes out as [`Effect::BridgeText`].
+    pub fn request_contact(&mut self, from: &Address, name: &str, now: u64) -> Vec<Effect> {
+        let terse = matches!(from, Address::MeshcoreContact(_));
+        let text = match self.state.access.add_request(
+            Who::Contact(from.clone()),
+            name.to_owned(),
+            now,
+        ) {
+            Some(_) if terse => "Solicitud enviada a los administradores.",
+            Some(_) => {
+                "Este Pharos es privado. He enviado tu solicitud a sus administradores; te aviso cuando la acepten. Si tienes su código de acceso, envíamelo."
+            }
+            None => "Este Pharos no admite más solicitudes ahora. Prueba más tarde.",
+        };
+        let mut out = vec![Effect::BridgeText {
+            to: from.clone(),
+            text: text.into(),
+        }];
+        out.extend(self.notices(now));
+        out
+    }
+
+    /// Hourly "new requests" notices to admins that are due.
+    fn notices(&mut self, now: u64) -> Vec<Effect> {
+        let pending = self.state.access.requests.len().min(255) as u8;
+        let mut out = Vec::new();
+        for (who, networks) in self.state.access.due_notices(now) {
+            match who {
+                Who::Radio(k) => {
+                    let m = Message::AdminReply(AdminReply::NewRequests { networks, pending });
+                    out.extend(self.queue(&k, m, None, now).unwrap_or_default());
+                }
+                Who::Contact(to) => out.push(Effect::BridgeText {
+                    to,
+                    text: format!(
+                        "New access request ({pending} pending). Reply /admin requests to see them."
+                    ),
+                }),
+            }
+        }
+        out
     }
 
     /// Admin: lift a block; the user is registered again.
@@ -250,6 +303,7 @@ impl Station {
             self.state.registry.get_mut(key).unwrap().status = Status::Registered;
             notice::REGISTERED
         };
+        self.state.access.drop_request(&Who::Radio(*key));
         self.notice(key, code, None, now)
     }
 
@@ -259,6 +313,7 @@ impl Station {
             .get_mut(key)
             .ok_or(Error::UnknownLink)?
             .status = Status::Refused;
+        self.state.access.drop_request(&Who::Radio(*key));
         self.notice(key, notice::REGISTRATION_REFUSED, None, now)
     }
 
@@ -367,6 +422,16 @@ impl Station {
         for (to, q) in self.state.outbox.expire(cutoff) {
             out.push(Effect::Expired { to, token: q.token });
         }
+        for r in self.state.access.expire(now) {
+            if let Who::Radio(k) = r.who
+                && let Some(c) = self.state.registry.get_mut(&k)
+                && c.status == Status::Pending
+            {
+                c.status = Status::Unregistered;
+            }
+            out.push(Effect::Log(format!("access request #{} expired", r.num)));
+        }
+        out.extend(self.notices(now));
         out
     }
 
@@ -491,19 +556,22 @@ impl Station {
                         "discover ignored: announced recently".into(),
                     )]);
                 }
-                if !self.cfg.discoverable {
-                    return Ok(vec![Effect::Log(
-                        "discover ignored: not discoverable".into(),
-                    )]);
+                let a = &self.state.access;
+                if a.on(Switch::Stealth) {
+                    return Ok(vec![Effect::Log("discover ignored: stealth".into())]);
+                }
+                let closed = !a.on(Switch::Open);
+                let mut fl = self.cfg.announce_flags | flags::PHAROS;
+                if closed {
+                    fl |= flags::CLOSED;
+                    if a.on(Switch::Requests) {
+                        fl |= flags::REQUESTS;
+                    }
+                    if self.cfg.code.is_some() {
+                        fl |= flags::CODE_REQUIRED;
+                    }
                 }
                 self.last_announce = Some(f.now);
-                let fl = self.cfg.announce_flags
-                    | flags::PHAROS
-                    | match self.cfg.access {
-                        Access::Open => 0,
-                        Access::Code(_) => flags::CODE_REQUIRED,
-                        Access::Closed => flags::CLOSED,
-                    };
                 let wire = message::encode_announce(&self.state.keyring, fl, src, query)?;
                 Ok(vec![Effect::Transmit {
                     wire,
@@ -559,14 +627,37 @@ impl Station {
         client.encrypts = d.header.encrypted;
         let registered = client.status == Status::Registered;
         let alias = client.alias.clone();
-        let admin = client.is_admin();
         let encrypted = d.header.encrypted;
         let listen = match d.message {
             Message::Poll { listen_min } => Some(listen_min),
             _ => None,
         };
         self.heard(&key, f.now, listen);
+        // ACKed even when dropped below: no ACK means four retries on air.
         let mut out = vec![self.ack(&d.link, &key, d.header.counter, f)?];
+        if self.state.access.on(Switch::Emergency) && !encrypted && !allowed_in_clear(&d.message) {
+            out.push(Effect::Log(format!(
+                "@{alias}: plain message dropped (emergency)"
+            )));
+            let c = self.state.registry.get_mut(&key).unwrap();
+            if !c.told_encrypted_only && !self.state.access.on(Switch::Stealth) {
+                c.told_encrypted_only = true;
+                c.encrypts = true;
+                out.extend(self.notice(&key, notice::ENCRYPTED_ONLY, None, f.now)?);
+            }
+            return Ok(out);
+        }
+        if let Message::Admin(command) = d.message {
+            // Admin commands also come from users who are not registered (a
+            // pending admin can still log in); [`crate::admin`] decides.
+            out.push(Effect::Admin {
+                from: key,
+                encrypted,
+                command,
+            });
+            out.extend(self.send_next(&key, f.now));
+            return Ok(out);
+        }
         if !registered {
             out.push(Effect::Log(format!(
                 "@{alias} is not registered; nothing delivered"
@@ -613,8 +704,6 @@ impl Station {
             m => out.push(Effect::Inbox {
                 from: key,
                 alias,
-                admin,
-                encrypted,
                 message: m,
             }),
         }
@@ -652,20 +741,32 @@ impl Station {
             Some(Status::Blocked) => unreachable!("blocked clients are filtered earlier"),
             None | Some(Status::Unregistered) => {
                 let pharos = self.state.keyring.public();
-                let (status, code) = match (taken, &self.cfg.access) {
-                    (true, _) => (Status::Unregistered, notice::ALIAS_TAKEN),
-                    (false, Access::Open) => (Status::Registered, notice::REGISTERED),
-                    (false, Access::Code(k)) if k.verify(&key, &pharos, proof) => {
-                        (Status::Registered, notice::REGISTERED)
+                let a = &self.state.access;
+                let code_ok = self
+                    .cfg
+                    .code
+                    .as_ref()
+                    .is_some_and(|k| k.verify(&key, &pharos, proof));
+                let (status, code) = if taken {
+                    (Status::Unregistered, notice::ALIAS_TAKEN)
+                } else if a.on(Switch::Open) || code_ok {
+                    (Status::Registered, notice::REGISTERED)
+                } else if a.on(Switch::Requests) {
+                    match self
+                        .state
+                        .access
+                        .add_request(Who::Radio(key), alias.clone(), f.now)
+                    {
+                        Some(_) => {
+                            out.extend(self.notices(f.now));
+                            (Status::Pending, notice::REGISTRATION_PENDING)
+                        }
+                        None => (Status::Unregistered, notice::REGISTRATION_REFUSED),
                     }
-                    (false, Access::Code(_)) => (Status::Unregistered, notice::ACCESS_CODE_NEEDED),
-                    (false, Access::Closed) => {
-                        out.push(Effect::ApprovalNeeded {
-                            key,
-                            alias: alias.clone(),
-                        });
-                        (Status::Pending, notice::REGISTRATION_PENDING)
-                    }
+                } else if self.cfg.code.is_some() {
+                    (Status::Unregistered, notice::ACCESS_CODE_NEEDED)
+                } else {
+                    (Status::Unregistered, notice::REGISTRATION_REFUSED)
                 };
                 let c = Client::new(&alias, status);
                 match self.state.registry.get_mut(&key) {
@@ -686,10 +787,21 @@ impl Station {
     }
 }
 
+/// What a Pharos in emergency mode still takes in signed plaintext: SOS,
+/// pings, access requests and the emergency switch itself.
+fn allowed_in_clear(m: &Message) -> bool {
+    matches!(
+        m,
+        Message::Sos(_)
+            | Message::Poll { .. }
+            | Message::Register { .. }
+            | Message::Admin(AdminCommand::Set(Switch::Emergency, _))
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::router::Action;
     use keryx::JS8_FRAME_PAYLOAD_BYTES as MTU;
     use keryx::bridge::Address;
     use keryx::position::Position;
@@ -708,6 +820,13 @@ mod tests {
         }
     }
 
+    #[derive(Clone, Copy)]
+    enum Access {
+        Open,
+        /// Closed, taking requests (the default).
+        Closed,
+    }
+
     fn pharos(access: Access) -> Station {
         let k = Keyring::new(
             Identity::from_secret([9; 32]),
@@ -715,18 +834,11 @@ mod tests {
             Some("EA5YYY"),
             PeerKind::Pharos,
         );
-        let cfg = StationCfg {
-            access,
-            ..StationCfg::default()
-        };
-        Station::new(
-            State {
-                keyring: k,
-                registry: Registry::default(),
-                outbox: Outbox::default(),
-            },
-            cfg,
-        )
+        let mut st = State::new(k);
+        st.access
+            .switches
+            .set(Switch::Open, matches!(access, Access::Open));
+        Station::new(st, StationCfg::default())
     }
 
     fn field(seed: u8, alias: &str, p: &Station) -> Keyring {
@@ -779,7 +891,7 @@ mod tests {
     fn allowlisted_client_bridges_and_gets_acks() {
         let mut p = pharos(Access::Closed);
         let mut ana = field(1, "ana", &p);
-        p.allow(ana.card().clone(), false).unwrap();
+        p.allow(ana.card().clone()).unwrap();
         let wa = Address::WhatsappPhone("34600123456".into());
         let open_chat = send(
             &mut ana,
@@ -817,60 +929,102 @@ mod tests {
     }
 
     #[test]
-    fn admin_password_over_the_radio_counts_only_encrypted() {
-        use crate::admin::RadioGate;
-        use crate::router::{Router, RouterCfg, RouterState};
+    fn emergency_drops_plain_messages_but_acks_and_tells_once() {
         let mut p = pharos(Access::Closed);
-        let mut bea = field(3, "bea", &p);
-        p.allow(bea.card().clone(), false).unwrap();
-        let op = Address::SignalPhone("34600000000".into());
-        let mut router = Router::new(
-            RouterCfg {
-                admins: vec![op.clone()],
-                ..RouterCfg::default()
-            },
-            RouterState::default(),
+        let mut ana = field(1, "ana", &p);
+        p.allow(ana.card().clone()).unwrap();
+        p.set_switch(Switch::Emergency, true);
+        let hi = send(&mut ana, &p, Message::Text("hola".into()), false);
+        let fx = p.on_rx(&rx(&hi, T0));
+        let tx = transmits(&fx);
+        assert_eq!(tx.len(), 2, "ACK, then the notice: {fx:?}");
+        let d = message::decode(&mut ana, &tx[1]).unwrap();
+        let Received::Message(d) = d else { panic!() };
+        assert!(d.header.encrypted, "the notice goes encrypted");
+        assert_eq!(
+            d.message,
+            Message::Notice {
+                code: notice::ENCRYPTED_ONLY,
+                handle: None
+            }
         );
-        let mut gate = RadioGate::new(Some("faro viejo de la costa".into()));
-        let mut said = |p: &mut Station, k: &mut Keyring, text: &str, enc: bool, now: u64| {
-            let wire = send(k, p, Message::Text(text.into()), enc);
-            let fx = p.on_rx(&rx(&wire, now));
-            let encrypted = fx
-                .iter()
-                .find_map(|e| match e {
-                    Effect::Inbox { encrypted, .. } => Some(*encrypted),
-                    _ => None,
-                })
-                .expect("text to the Pharos is an Inbox effect");
-            assert_eq!(encrypted, enc);
-            gate.on_text(p, &mut router, k.public(), text, encrypted, now)
-        };
-        let o = said(&mut p, &mut bea, "status", false, T0);
-        assert!(o.actions.is_empty());
-        assert!(!p.registry().get(&bea.public()).unwrap().is_admin());
-        // In clear: refused even though it is right, and the operator is told.
-        let o = said(
-            &mut p,
-            &mut bea,
-            "login faro viejo de la costa",
-            false,
-            T0 + 60,
-        );
-        assert!(!p.registry().get(&bea.public()).unwrap().is_admin());
+        // Second plain message: ACK only. SOS still passes.
+        let hi = send(&mut ana, &p, Message::Text("hola".into()), false);
+        assert_eq!(transmits(&p.on_rx(&rx(&hi, T0 + 60))).len(), 1);
+        let sos = send(&mut ana, &p, Message::Sos(None), false);
         assert!(
-            matches!(&o.actions[..], [Action::Reply { to, text }] if *to == op && text.contains("UNENCRYPTED"))
+            p.on_rx(&rx(&sos, T0 + 90))
+                .iter()
+                .any(|e| matches!(e, Effect::Sos { .. }))
         );
-        // Encrypted: granted.
-        said(
-            &mut p,
-            &mut bea,
-            "login faro viejo de la costa",
-            true,
-            T0 + 120,
+        let enc = send(&mut ana, &p, Message::Text("hola".into()), true);
+        assert!(
+            p.on_rx(&rx(&enc, T0 + 120))
+                .iter()
+                .any(|e| matches!(e, Effect::Inbox { .. }))
         );
-        assert!(p.registry().get(&bea.public()).unwrap().is_admin());
-        assert_eq!(p.revoke_admin(&bea.public()).unwrap(), Revoked::Done);
-        assert!(!p.registry().get(&bea.public()).unwrap().is_admin());
+    }
+
+    #[test]
+    fn requests_from_the_radio_notify_admins_and_expire() {
+        let mut p = pharos(Access::Closed);
+        let mut ana = field(1, "ana", &p);
+        p.allow(ana.card().clone()).unwrap();
+        p.access_mut()
+            .add_admin(Who::Radio(ana.public()), keryx::admin::how::SSH);
+        let poll = send(&mut ana, &p, Message::Poll { listen_min: 30 }, false);
+        p.on_rx(&rx(&poll, T0));
+        let mut bea = field(3, "bea", &p);
+        let fx = p.on_rx(&rx(&send_register(&mut bea, &p), T0 + 10));
+        assert_eq!(p.access().requests.len(), 1);
+        assert_eq!(p.access().requests[0].name, "bea");
+        // The ACK to bea and bea's notice, plus one notice for ana.
+        let to_ana: Vec<Message> = transmits(&fx)
+            .iter()
+            .filter_map(|w| match message::decode(&mut ana, w) {
+                Ok(Received::Message(d)) => Some(d.message),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(
+            to_ana,
+            vec![Message::AdminReply(AdminReply::NewRequests {
+                networks: keryx::admin::network_bit(keryx::admin::who::RADIO),
+                pending: 1
+            })]
+        );
+        p.access_mut().request_ttl_secs = 3600;
+        p.on_tick(T0 + 4000);
+        assert!(p.access().requests.is_empty());
+        assert_eq!(
+            p.registry().get(&bea.public()).unwrap().status,
+            Status::Unregistered
+        );
+    }
+
+    #[test]
+    fn stealth_answers_no_discovery() {
+        let mut p = pharos(Access::Closed);
+        p.set_switch(Switch::Stealth, true);
+        let ana = field(1, "ana", &p);
+        let q = message::encode_discover(&ana, 77).unwrap();
+        assert!(transmits(&p.on_rx(&rx(&q, T0))).is_empty());
+    }
+
+    #[test]
+    fn requests_off_and_no_code_refuse_registration() {
+        let mut p = pharos(Access::Closed);
+        p.set_switch(Switch::Requests, false);
+        let mut eve = field(2, "eve", &p);
+        let tx = transmits(&p.on_rx(&rx(&send_register(&mut eve, &p), T0)));
+        assert_eq!(
+            open(&mut eve, &tx[1]),
+            Message::Notice {
+                code: notice::REGISTRATION_REFUSED,
+                handle: None
+            }
+        );
+        assert!(p.access().requests.is_empty());
     }
 
     #[test]
@@ -882,14 +1036,12 @@ mod tests {
             PeerKind::Pharos,
         );
         let code = Arc::new(AccessKey::derive("caballo pila grapa", &k.public()).unwrap());
+        let mut st = State::new(k);
+        st.access.switches.set(Switch::Requests, false);
         let mut p = Station::new(
-            State {
-                keyring: k,
-                registry: Registry::default(),
-                outbox: Outbox::default(),
-            },
+            st,
             StationCfg {
-                access: Access::Code(code.clone()),
+                code: Some(code.clone()),
                 ..StationCfg::default()
             },
         );
@@ -931,7 +1083,7 @@ mod tests {
     fn blocked_clients_get_nothing() {
         let mut p = pharos(Access::Open);
         let mut ana = field(1, "ana", &p);
-        p.allow(ana.card().clone(), false).unwrap();
+        p.allow(ana.card().clone()).unwrap();
         p.block(&ana.public()).unwrap();
         let hi = send(&mut ana, &p, Message::Text("hola".into()), false);
         assert!(transmits(&p.on_rx(&rx(&hi, T0))).is_empty());
@@ -944,14 +1096,11 @@ mod tests {
     fn approval_flow_and_alias_clash() {
         let mut p = pharos(Access::Closed);
         let ana = field(1, "ana", &p);
-        p.allow(ana.card().clone(), false).unwrap();
+        p.allow(ana.card().clone()).unwrap();
         let mut bea = field(3, "bea", &p);
         let reg = send_register(&mut bea, &p);
         let fx = p.on_rx(&rx(&reg, T0));
-        assert!(
-            fx.iter()
-                .any(|e| matches!(e, Effect::ApprovalNeeded { alias, .. } if alias == "bea"))
-        );
+        assert!(p.access().request_of(&Who::Radio(bea.public())).is_some());
         let tx = transmits(&fx);
         assert_eq!(
             open(&mut bea, &tx[1]),
@@ -980,6 +1129,7 @@ mod tests {
                 handle: None
             }
         );
+        assert!(p.access().requests.is_empty(), "approving ends the request");
 
         let mut clash = field(4, "Ana", &p);
         let reg = send_register(&mut clash, &p);
@@ -997,7 +1147,7 @@ mod tests {
     fn store_and_forward_follows_the_listen_window() {
         let mut p = pharos(Access::Closed);
         let mut ana = field(1, "ana", &p);
-        p.allow(ana.card().clone(), false).unwrap();
+        p.allow(ana.card().clone()).unwrap();
         let mama = Address::SignalPhone("34611111111".into());
         // Not heard yet: everything waits.
         let fx = p
@@ -1044,7 +1194,7 @@ mod tests {
     fn retries_then_holds_and_expires() {
         let mut p = pharos(Access::Closed);
         let mut ana = field(1, "ana", &p);
-        p.allow(ana.card().clone(), false).unwrap();
+        p.allow(ana.card().clone()).unwrap();
         let ping = send(&mut ana, &p, Message::Poll { listen_min: 60 }, false);
         p.on_rx(&rx(&ping, T0));
         let fx = p
@@ -1077,7 +1227,7 @@ mod tests {
     fn sos_unknown_handle_and_mirrored_mode() {
         let mut p = pharos(Access::Closed);
         let mut ana = field(1, "ana", &p);
-        p.allow(ana.card().clone(), false).unwrap();
+        p.allow(ana.card().clone()).unwrap();
         let sos = send(
             &mut ana,
             &p,
@@ -1138,6 +1288,8 @@ mod tests {
         };
         assert_eq!(card.alias, "casa");
         assert_ne!(f & flags::CLOSED, 0);
+        assert_ne!(f & flags::REQUESTS, 0);
+        assert_eq!(f & flags::CODE_REQUIRED, 0);
         assert!(transmits(&p.on_rx(&rx(&q, T0 + 60))).is_empty());
         assert_eq!(transmits(&p.on_rx(&rx(&q, T0 + 601))).len(), 1);
     }

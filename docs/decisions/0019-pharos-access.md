@@ -2,7 +2,8 @@
 
 Status: accepted (2026-10-19). Refines the registration and inbound rules of
 [0016](0016-pharos-registration-and-bridging.md). Admin commands refined by
-[0020](0020-remote-management.md) (`/admin` prefix, English commands, admin password).
+[0020](0020-remote-management.md) (`/admin` prefix, English commands, admin password). Access modes replaced by the
+switches and requests of [0021](0021-pharos-access-v2.md).
 
 ## Context
 
