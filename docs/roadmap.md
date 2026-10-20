@@ -67,6 +67,7 @@ Design: decisions [0015](decisions/0015-identities.md), [0016](decisions/0016-ph
 - [ ] Material 3 Expressive once material3 1.5 is stable
 - [x] Try the debug APK on a phone
 - [ ] `keryx-ffi` crate (UniFFI) + cargo-ndk build into `jniLibs`
+- [ ] **Important:** once backups go through the core, verify they are really encrypted (`keryx::backup`): open an exported `.skb` and check no alias, key, contact or setting is readable; a wrong passphrase must fail. Until then the stand-in backup is NOT encrypted, although Settings says it is
 - [ ] Radio foreground service: USB permission, CAT (usb-serial-for-android), USB audio routing; drive the top-bar radio indicator (grey / orange audio only / green audio + CAT)
 - [ ] Audio-only radios (no CAT): make setting the frequency by hand easy (show band and dial frequency, check it, remind on band changes)
 - [x] GNSS position for Estoy bien, positions and SOS (`location/Locator.kt`, platform LocationManager, no Google services)
