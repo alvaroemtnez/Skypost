@@ -26,7 +26,8 @@ data class DemoSnapshot(
     val messages: Map<String, List<ChatMessage>>,
     val recents: List<Recent> = emptyList(),
     val blocked: List<Blocked> = emptyList(),
-    val adminLog: List<AdminEntry> = emptyList(),
+    /** Structured since decision 0021; the older text log (`adminLog`) is ignored. */
+    val adminEntries: List<AdminEntry> = emptyList(),
 )
 
 interface DemoStore {

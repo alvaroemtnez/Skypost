@@ -58,6 +58,9 @@ class PharosViewModel(private val repo: Repository) : ViewModel() {
 
     fun register(key: String, code: String) = repo.register(key, code.trim())
 
+    /** Register without a code: an access request for the admins. */
+    fun requestAccess(key: String) = repo.register(key, null)
+
     fun setActive(key: String) = repo.setActivePharos(key)
 
     fun setVerified(key: String, on: Boolean) = repo.setPharosVerified(key, on)

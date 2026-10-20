@@ -12,7 +12,11 @@ import io.alvaroedo.skypost.model.VerifyResult
 import io.alvaroedo.skypost.ui.chat.ChatViewModel
 import io.alvaroedo.skypost.ui.chats.ChatListViewModel
 import io.alvaroedo.skypost.ui.newchat.NewChatViewModel
-import io.alvaroedo.skypost.ui.pharos.AdminTarget
+import io.alvaroedo.skypost.model.AdminCommand
+import io.alvaroedo.skypost.model.AdminOutcome
+import io.alvaroedo.skypost.model.AdminReply
+import io.alvaroedo.skypost.model.AdminTarget
+import io.alvaroedo.skypost.model.PharosSwitch
 import io.alvaroedo.skypost.ui.pharos.PharosAdminViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
@@ -166,26 +170,42 @@ class ViewModelsTest {
     }
 
     @Test
-    fun `pharos admin builds command texts and signs in only encrypted`() = runTest {
+    fun `pharos admin parses targets, tracks switches and requests, signs in only encrypted`() = runTest {
         val r = repo()
         val key = r.pharos.value.first().card.key
         val vm = PharosAdminViewModel(r, key)
         backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { vm.ui.collect {} }
-        assertEquals("@bea", vm.text(AdminTarget.FieldUser("@bea")))
-        assertEquals("whatsapp +34600123456", vm.text(AdminTarget.Bridged(ChatKind.WHATSAPP, "+34 600 12 34 56")))
-        assertEquals("signal mama.01", vm.text(AdminTarget.Bridged(ChatKind.SIGNAL, "mama.01")))
-        assertEquals("meshcore " + "ab".repeat(32), vm.text(AdminTarget.Bridged(ChatKind.MESHCORE, "AB".repeat(32))))
-        assertNull(vm.text(AdminTarget.Bridged(ChatKind.MESHCORE, "abc")))
-        assertFalse(vm.decide("no spaces allowed", true))
-        assertTrue(vm.decide("tio", true))
-        assertEquals("accept @tio", vm.ui.value.log.first().command)
-        testScheduler.advanceTimeBy(100)
-        testScheduler.runCurrent()
-        assertEquals("@tio accepted.", vm.ui.value.log.first().reply)
+        val settle = { testScheduler.advanceTimeBy(100); testScheduler.runCurrent() }
+        assertEquals(AdminTarget.FieldUser("bea"), vm.target(null, "@bea"))
+        assertEquals(AdminTarget.Contact(ChatKind.WHATSAPP, "34600123456"), vm.target(ChatKind.WHATSAPP, "+34 600 12 34 56"))
+        assertEquals(AdminTarget.Contact(ChatKind.SIGNAL, "mama.01"), vm.target(ChatKind.SIGNAL, "mama.01"))
+        assertEquals(AdminTarget.MeshCore("abababab"), vm.target(ChatKind.MESHCORE, "AB".repeat(32)))
+        assertNull(vm.target(ChatKind.MESHCORE, "abc"))
+        assertNull(vm.target(null, "no spaces allowed"))
+
+        assertNull(vm.ui.value.switches)
+        vm.send(AdminCommand.Status)
+        settle()
+        assertEquals(setOf(PharosSwitch.REQUESTS, PharosSwitch.LOGIN), vm.ui.value.switches)
+        vm.send(AdminCommand.Set(PharosSwitch.OPEN, true))
+        assertTrue("shown at once", PharosSwitch.OPEN in vm.ui.value.switches!!)
+
+        assertTrue("lists go out in plain: warn", vm.needsWarning(AdminCommand.Requests))
+        assertFalse(vm.needsWarning(AdminCommand.Set(PharosSwitch.OPEN, false)))
+        vm.send(AdminCommand.Requests)
+        assertTrue(vm.ui.value.requestsLoading)
+        settle()
+        assertEquals(listOf(3, 4, 5), vm.ui.value.requests!!.map { it.num })
+        vm.send(AdminCommand.Accept(4))
+        assertEquals("decided ones leave the list", listOf(3, 5), vm.ui.value.requests!!.map { it.num })
+        settle()
+        assertEquals(AdminReply.Done(AdminOutcome.OK, "Tía Carmen +34633333333"), vm.ui.value.log.first().reply)
+
         assertFalse("never in signed plaintext", vm.login("faro viejo de la costa"))
         r.setEncryptAll(true)
+        assertFalse("encrypted: no warning", vm.needsWarning(AdminCommand.Requests))
         assertTrue(vm.login("faro viejo de la costa"))
-        assertFalse("the password is not kept", vm.ui.value.log.first().command.contains("faro"))
+        assertEquals(AdminCommand.Login, vm.ui.value.log.first().command)
     }
 
     @Test

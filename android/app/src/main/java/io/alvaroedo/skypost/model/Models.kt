@@ -95,8 +95,19 @@ data class Group(
 @Serializable
 enum class Registration { REGISTERED, PENDING, REFUSED, NEEDS_CODE, NOT_REGISTERED }
 
-/** Who may use a Pharos, as its announce says. */
-enum class PharosAccess { OPEN, CODE, CLOSED }
+/** Who may use a Pharos, as its announce says (decision 0021). */
+@Serializable
+data class PharosAccess(
+    val open: Boolean,
+    /** Closed but taking access requests. */
+    val requests: Boolean = false,
+    /** It accepts an access code (admits at once). */
+    val code: Boolean = false,
+) {
+    companion object {
+        val OPEN = PharosAccess(open = true)
+    }
+}
 
 @Serializable
 data class Pharos(
@@ -111,20 +122,6 @@ data class Pharos(
     val blocked: Boolean = false,
     /** We may manage it remotely: listed as admin in its config, or signed in with its admin password. */
     val admin: Boolean = false,
-)
-
-/**
- * An admin command sent to a Pharos (plain text to the Pharos itself, decision
- * 0020) and its reply once it arrives.
- */
-@Serializable
-data class AdminEntry(
-    val id: Long,
-    val pharosKey: String,
-    /** What went on air, e.g. "accept @bea". The password is never kept. */
-    val command: String,
-    val atMillis: Long,
-    val reply: String? = null,
 )
 
 /** Scanning someone's QR to verify them. */

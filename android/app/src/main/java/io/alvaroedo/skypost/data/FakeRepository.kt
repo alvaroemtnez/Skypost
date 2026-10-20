@@ -3,7 +3,17 @@ package io.alvaroedo.skypost.data
 import io.alvaroedo.skypost.core.Card
 import io.alvaroedo.skypost.core.KeryxCore
 import io.alvaroedo.skypost.core.ParsedUri
+import io.alvaroedo.skypost.model.AdminCommand
 import io.alvaroedo.skypost.model.AdminEntry
+import io.alvaroedo.skypost.model.AdminEntryRow
+import io.alvaroedo.skypost.model.AdminHow
+import io.alvaroedo.skypost.model.AdminOutcome
+import io.alvaroedo.skypost.model.AdminReply
+import io.alvaroedo.skypost.model.AdminTarget
+import io.alvaroedo.skypost.model.ClientEntry
+import io.alvaroedo.skypost.model.PharosSwitch
+import io.alvaroedo.skypost.model.RequestEntry
+import io.alvaroedo.skypost.model.Who
 import io.alvaroedo.skypost.model.Auth
 import io.alvaroedo.skypost.model.Recent
 import io.alvaroedo.skypost.model.DeletedChats
@@ -93,7 +103,7 @@ class FakeRepository(
         messages = messages.value,
         recents = _recents.value,
         blocked = _blocked.value,
-        adminLog = _adminLog.value,
+        adminEntries = _adminLog.value,
     )
 
     /** Messages still waiting for an ACK when the app stopped are lost. */
@@ -108,9 +118,9 @@ class FakeRepository(
         messages.value = s.messages.mapValues { (_, l) -> l.map(pending) }
         _recents.value = s.recents
         _blocked.value = s.blocked
-        _adminLog.value = s.adminLog
+        _adminLog.value = s.adminEntries
         // Messages and admin log entries share the counter.
-        nextId = maxOf(s.messages.values.flatten().maxOfOrNull { it.id } ?: 0, s.adminLog.maxOfOrNull { it.id } ?: 0) + 1
+        nextId = maxOf(s.messages.values.flatten().maxOfOrNull { it.id } ?: 0, s.adminEntries.maxOfOrNull { it.id } ?: 0) + 1
     }
 
     override val identity: StateFlow<Identity?> = _identity.asStateFlow()
@@ -485,6 +495,7 @@ class FakeRepository(
         val known = _pharos.value.map { it.card.key }.toSet()
         val casa = Card("H7KDQ2AZ4M3WLN5RCX6T7YB2EV4GJ5PS3U2O6DKF7Q2NZA5HM4BA", "casa", "EA5YYY", isPharos = true)
         val club = Card("Q6M3T2ZL7VX4NK5RB2C6D7YE3HW4JA5PS2U6O7FK3G2MZQ4LN5TA", "radioclub", "EA5RCV", isPharos = true)
+        val refugio = Card("R3FUG10BACH1MANA2Z4M3WLN5RCX6T7YB2EV4GJ5PS3U2O6DKF7Q", "refugio", "EA2RFG", isPharos = true)
         return listOf(
             Discovered(casa, snrDb = -14, trusted = casa.key in known, bridges = setOf(ChatKind.SIGNAL, ChatKind.WHATSAPP)),
             Discovered(
@@ -492,7 +503,14 @@ class FakeRepository(
                 snrDb = -21,
                 trusted = club.key in known,
                 bridges = setOf(ChatKind.MESHCORE),
-                access = PharosAccess.CODE,
+                access = PharosAccess(open = false, code = true),
+            ),
+            Discovered(
+                refugio,
+                snrDb = -19,
+                trusted = refugio.key in known,
+                bridges = setOf(ChatKind.MESHCORE),
+                access = PharosAccess(open = false, requests = true),
             ),
         )
     }
@@ -521,10 +539,12 @@ class FakeRepository(
     }
 
     // The real one sends Register (with the access-code proof) and waits for the Notice.
-    private fun registrationFor(access: PharosAccess, code: String?) = when (access) {
-        PharosAccess.OPEN -> Registration.REGISTERED
-        PharosAccess.CODE -> if (code.isNullOrBlank()) Registration.NEEDS_CODE else Registration.REGISTERED
-        PharosAccess.CLOSED -> Registration.PENDING
+    private fun registrationFor(access: PharosAccess, code: String?) = when {
+        access.open -> Registration.REGISTERED
+        access.code && !code.isNullOrBlank() -> Registration.REGISTERED
+        access.requests -> Registration.PENDING
+        access.code -> Registration.NEEDS_CODE
+        else -> Registration.REFUSED
     }
 
     override fun trust(found: Discovered, code: String?) = addPharos(
@@ -537,7 +557,13 @@ class FakeRepository(
 
     override fun register(key: String, code: String?) {
         _pharos.update { list ->
-            list.map { if (it.card.key == key) it.copy(registration = registrationFor(PharosAccess.CODE, code)) else it }
+            list.map {
+                if (it.card.key == key) {
+                    it.copy(registration = if (code.isNullOrBlank()) Registration.PENDING else Registration.REGISTERED)
+                } else {
+                    it
+                }
+            }
         }
     }
 
@@ -561,45 +587,88 @@ class FakeRepository(
 
     private fun isAdmin(pharosKey: String) = _pharos.value.any { it.card.key == pharosKey && it.admin }
 
-    /** Logs [shown] and fills in the Pharos's [reply] after the ACK delay. */
-    private fun adminRoundTrip(pharosKey: String, shown: String, reply: () -> String) {
+    /** What the demo Pharos knows, to answer admin commands like `pharos::admin` would. */
+    private val fakeSwitches = mutableMapOf<String, Set<PharosSwitch>>()
+    private val fakeRequests = mutableMapOf<String, MutableList<RequestEntry>>()
+
+    private fun requestsOf(key: String) = fakeRequests.getOrPut(key) {
+        mutableListOf(
+            RequestEntry(3, Who.RADIO, "@tio"),
+            RequestEntry(4, Who.WHATSAPP, "Tía Carmen +34633333333"),
+            RequestEntry(5, Who.MESHCORE, "Refugio Bachimaña 9f3c2a1b"),
+        )
+    }
+
+    private fun switchesOf(key: String) =
+        fakeSwitches.getOrPut(key) { setOf(PharosSwitch.REQUESTS, PharosSwitch.LOGIN) }
+
+    /** Logs [command] and fills in the Pharos's reply after the ACK delay. */
+    private fun adminRoundTrip(pharosKey: String, command: AdminCommand, reply: () -> AdminReply) {
         if (_pharos.value.none { it.card.key == pharosKey && !it.blocked }) return
-        val entry = AdminEntry(nextId++, pharosKey, shown, now())
+        val entry = AdminEntry(nextId++, pharosKey, command, now())
         _adminLog.update { (it + entry).takeLast(ADMIN_LOG_MAX) }
         scope.launch {
             delay(ackDelayMs)
-            val text = reply()
-            _adminLog.update { log -> log.map { if (it.id == entry.id) it.copy(reply = text) else it } }
+            val r = reply()
+            _adminLog.update { log -> log.map { if (it.id == entry.id) it.copy(reply = r) else it } }
         }
     }
 
-    // The real one sends Message::Text to the Pharos; these replies imitate `pharos::admin`.
-    override fun sendAdmin(pharosKey: String, command: String) = adminRoundTrip(pharosKey, command) {
-        val words = command.trim().split(Regex("\\s+"))
-        val arg = words.drop(1).joinToString(" ")
-        when {
-            !isAdmin(pharosKey) -> "You are not an admin."
-            words[0] == "status" -> "Registered: 3. Pending: 1. Listening: 1. Queued messages: 2. Authorised contacts: 4."
-            words[0] == "clients" -> "@bea — registered — heard 41 min ago\n@tio — pending — heard 12 min ago\n@${_identity.value?.card?.alias} — registered — heard 0 min ago"
-            words[0] == "admins" -> "Admins: @${_identity.value?.card?.alias} (config), +34600000000 (config)."
-            words[0] == "accept" -> "$arg accepted."
-            words[0] == "refuse" -> "$arg refused."
-            words[0] == "block" -> "$arg blocked."
-            words[0] == "unblock" -> "$arg unblocked."
-            words[0] == "allow" -> "$arg allowed."
-            words[0] == "revoke" -> "$arg is no longer an admin."
-            else -> "status · clients · admins · accept/refuse @alias · allow nº · block/unblock @alias|nº · revoke @alias|nº"
+    override fun revealsPersonalData(command: AdminCommand) = core.revealsPersonalData(command)
+
+    // The real one sends Message::Admin and decodes Message::AdminReply.
+    override fun sendAdmin(pharosKey: String, command: AdminCommand) = adminRoundTrip(pharosKey, command) {
+        val ok = AdminReply.Done(AdminOutcome.OK)
+        val me = "@" + _identity.value?.card?.alias.orEmpty()
+        if (!isAdmin(pharosKey)) return@adminRoundTrip AdminReply.Done(AdminOutcome.NOT_ADMIN)
+        when (command) {
+            AdminCommand.Status -> AdminReply.Status(switchesOf(pharosKey), 3, requestsOf(pharosKey).size, 1, 2, 4)
+            AdminCommand.Requests -> AdminReply.Requests(requestsOf(pharosKey).toList())
+            is AdminCommand.Accept, is AdminCommand.Refuse -> {
+                val num = (command as? AdminCommand.Accept)?.num ?: (command as AdminCommand.Refuse).num
+                val r = requestsOf(pharosKey).firstOrNull { it.num == num }
+                if (r == null) {
+                    AdminReply.Done(AdminOutcome.UNKNOWN, "#$num")
+                } else {
+                    requestsOf(pharosKey).remove(r)
+                    AdminReply.Done(AdminOutcome.OK, r.name)
+                }
+            }
+            AdminCommand.Clients -> AdminReply.Clients(
+                listOf(
+                    ClientEntry(Registration.REGISTERED, 41, "bea"),
+                    ClientEntry(Registration.PENDING, 12, "tio"),
+                    ClientEntry(Registration.REGISTERED, 0, me.drop(1)),
+                ),
+            )
+            AdminCommand.Admins -> AdminReply.Admins(
+                listOf(AdminEntryRow(Who.RADIO, AdminHow.SSH, me), AdminEntryRow(Who.SIGNAL, AdminHow.SSH, "+34600000000")),
+            )
+            is AdminCommand.Set -> {
+                val s = switchesOf(pharosKey)
+                fakeSwitches[pharosKey] = if (command.on) s + command.switch else s - command.switch
+                ok
+            }
+            is AdminCommand.RemoveAdmin ->
+                if ((command.target as? AdminTarget.FieldUser)?.alias == me.drop(1) &&
+                    PharosSwitch.LOGIN !in switchesOf(pharosKey)
+                ) {
+                    AdminReply.Done(AdminOutcome.LAST_ADMIN, me)
+                } else {
+                    ok
+                }
+            else -> ok
         }
     }
 
     override fun adminLogin(pharosKey: String, password: String): Boolean {
         if (!_settings.value.encryptAll || password.isBlank()) return false
-        adminRoundTrip(pharosKey, "login ••••••") {
+        adminRoundTrip(pharosKey, AdminCommand.Login) {
             if (password.length < 8) {
-                "Wrong password."
+                AdminReply.Done(AdminOutcome.WRONG_PASSWORD)
             } else {
                 _pharos.update { list -> list.map { if (it.card.key == pharosKey) it.copy(admin = true) else it } }
-                "You are an admin now."
+                AdminReply.Done(AdminOutcome.OK)
             }
         }
         return true

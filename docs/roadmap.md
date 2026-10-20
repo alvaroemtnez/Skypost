@@ -34,6 +34,8 @@ Design: decisions [0015](decisions/0015-identities.md), [0016](decisions/0016-ph
 - [x] Android: chat UI on fakes (onboarding, chat list, chat, new chat, Pharos, settings, my QR, `skypost:` deep links)
 - [x] Pharos access: modes, access-code proof, admin commands, bot feedback ([0019](decisions/0019-pharos-access.md))
 - [x] Remote management: `/admin`, admin password (encrypted only on air), `admins`/`revocar`, welcome and `/ayuda` on Signal/WhatsApp, short MeshCore replies ([0020](decisions/0020-remote-management.md))
+- [x] Pharos access v2: switches (open, requests, login, emergency, stealth) in the state file, access requests from radio and bridges, binary `Admin`/`AdminReply` on air, any admin removable ([0021](decisions/0021-pharos-access-v2.md))
+- [ ] Revisit the emergency-mode reminder and how chatty automatic notices are (decision 0021 keeps them minimal)
 - [ ] Revisit forward secrecy for encrypted mode (ephemeral rekey, ~32 B each way) and the whole key model
 
 ## Phase 1 — real PHY and base daemon
@@ -47,6 +49,8 @@ Design: decisions [0015](decisions/0015-identities.md), [0016](decisions/0016-ph
 - [ ] WhatsApp bridge: `wacli`; verify `sync --follow --events` carries message content (else a `whatsmeow` sidecar)
 - [ ] MeshCore bridge: `sidecars/meshcore/` on `meshcore_py`, JSON lines over stdio
 - [ ] systemd units for pharos and the sidecars; update routine for signal-cli
+- [ ] Pharos clock without internet: GNSS receiver (also for JS8 timing) or a clock-sync command like MeshCore's; queue expiry, lockouts and request expiry depend on it
+- [ ] `pharos` control socket so `pharos set`/`pharos admin` work while the service runs (today: stop it first)
 - [ ] Remote reboot admin command: decide what it restarts (the `pharos` service, the sidecars, or the whole Pi via a narrow sudoers/polkit rule) and how the station is sure to come back (hardware watchdog, radio and bridges re-attached on boot)
 - [ ] Channel-simulator tests (codec2 `ch`, Watterson fading) in CI
 - [x] Decide tag length (8 vs 16): 8, decision 0015
@@ -69,6 +73,8 @@ Design: decisions [0015](decisions/0015-identities.md), [0016](decisions/0016-ph
 - [x] Try the chat UI on a phone (first round of feedback applied: in-app QR scanner, slide-back, SOS button and contacts, global encryption, signal colours, English/Spanish/Valencian)
 - [x] Second feedback round: message bar, archive/pin/unread/select/swipe, blocking (core + app), contact pings, translated stock phrases, MeshCore links
 - [x] Third feedback round: restore from the welcome screen fixed, contact QR, verified contacts (in-app scan = verified, pasted/linked = not), Pharos management screen, SOS held 3 s
+- [x] Pharos management v2: switches, pending-requests popup, add/remove admins, replies in the app's language, personal-data warning in plain, "Request access" / "I have a code" in discovery
+- [ ] Android notification for admins when a Pharos reports new access requests
 - [ ] Screenshot tests
 
 ## Releases

@@ -4,7 +4,7 @@ import io.alvaroedo.skypost.core.FakeKeryxCore
 import io.alvaroedo.skypost.model.Auth
 import io.alvaroedo.skypost.model.ChatKind
 import io.alvaroedo.skypost.model.Delivery
-import io.alvaroedo.skypost.model.PharosAccess
+import io.alvaroedo.skypost.model.AdminCommand
 import io.alvaroedo.skypost.model.Registration
 import io.alvaroedo.skypost.model.Scanned
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -73,13 +73,17 @@ class FakeRepositoryTest {
     }
 
     @Test
-    fun `a pharos that needs a code waits for it`() = runTest {
+    fun `a private pharos takes a code or an access request`() = runTest {
         val r = repo()
-        val found = r.discover().first { it.access == PharosAccess.CODE }
-        r.trust(found, null)
+        val found = r.discover()
+        val coded = found.first { it.access.code && !it.access.requests }
+        r.trust(coded, null)
         assertEquals(Registration.NEEDS_CODE, r.pharos.value.single().registration)
-        r.register(found.card.key, "caballo pila grapa")
+        r.register(coded.card.key, "caballo pila grapa")
         assertEquals(Registration.REGISTERED, r.pharos.value.single().registration)
+        val asking = found.first { it.access.requests }
+        r.trust(asking, null)
+        assertEquals(Registration.PENDING, r.pharos.value.first { it.card.key == asking.card.key }.registration)
     }
 
     @Test
@@ -91,12 +95,12 @@ class FakeRepositoryTest {
         first.createIdentity("ana", "EA5AAA")
         first.setEncryptAll(true)
         val pharos = first.pharos.value.first().card.key
-        first.sendAdmin(pharos, "status")
+        first.sendAdmin(pharos, AdminCommand.Status)
         air.advanceUntilIdle()
         val again = FakeRepository(FakeKeryxCore(), air, demo = true, store = store)
         assertEquals("ana", again.identity.value?.card?.alias)
         // Ids stay unique across restarts (they key the lists in the UI).
-        again.sendAdmin(pharos, "clients")
+        again.sendAdmin(pharos, AdminCommand.Clients)
         assertEquals(2, again.adminLog(pharos).first().map { it.id }.distinct().size)
         assertEquals(first.chats.value.map { it.id }.toSet(), again.chats.value.map { it.id }.toSet())
         assertTrue(again.settings.value.encryptAll)

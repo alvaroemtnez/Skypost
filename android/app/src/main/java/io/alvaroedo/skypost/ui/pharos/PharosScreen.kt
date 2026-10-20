@@ -153,10 +153,17 @@ fun PharosScreen(
                         trailingContent = {
                             if (d.trusted) {
                                 Text(stringResource(R.string.pharos_already_trusted), style = MaterialTheme.typography.labelLarge)
+                            } else if (d.access.open) {
+                                TextButton(onClick = { vm.trust(d, null) }) { Text(stringResource(R.string.trust)) }
                             } else {
-                                TextButton(onClick = {
-                                    if (d.access == PharosAccess.CODE) codeFor = d to d.card.key else vm.trust(d, null)
-                                }) { Text(stringResource(R.string.trust)) }
+                                Column(horizontalAlignment = Alignment.End) {
+                                    if (d.access.requests) {
+                                        TextButton(onClick = { vm.trust(d, null) }) { Text(stringResource(R.string.request_access)) }
+                                    }
+                                    if (d.access.code) {
+                                        TextButton(onClick = { codeFor = d to d.card.key }) { Text(stringResource(R.string.have_code)) }
+                                    }
+                                }
                             }
                         },
                     )
@@ -181,6 +188,7 @@ fun PharosScreen(
             onVerify = { vm.setVerified(p.card.key, it) },
             onScan = { details = null; onScanVerify(p.card.key) },
             onEnterCode = { codeFor = null to p.card.key; details = null },
+            onRequestAccess = { vm.requestAccess(p.card.key); details = null },
             onRemove = { vm.remove(p.card.key); details = null },
             onBlock = { vm.block(p.card.key); details = null },
             onShowCode = { details = null; onShowCode(p.card.key) },
@@ -220,10 +228,12 @@ private fun AccessCodeDialog(onDismiss: () -> Unit, onConfirm: (String) -> Unit)
     )
 }
 
-private fun PharosAccess.label(): Int = when (this) {
-    PharosAccess.OPEN -> R.string.pharos_access_open
-    PharosAccess.CODE -> R.string.pharos_access_code
-    PharosAccess.CLOSED -> R.string.pharos_access_closed
+private fun PharosAccess.label(): Int = when {
+    open -> R.string.pharos_access_open
+    requests && code -> R.string.pharos_access_requests_code
+    requests -> R.string.pharos_access_requests
+    code -> R.string.pharos_access_code
+    else -> R.string.pharos_access_closed
 }
 
 @Composable
@@ -295,6 +305,7 @@ private fun PharosDetails(
     onVerify: (Boolean) -> Unit,
     onScan: () -> Unit,
     onEnterCode: () -> Unit,
+    onRequestAccess: () -> Unit,
     onRemove: () -> Unit,
     onBlock: () -> Unit,
     onShowCode: () -> Unit,
@@ -310,6 +321,9 @@ private fun PharosDetails(
                 Text(stringResource(p.registration.label()), style = MaterialTheme.typography.bodyMedium)
                 if (p.registration == Registration.NEEDS_CODE) {
                     OutlinedButton(onClick = onEnterCode) { Text(stringResource(R.string.access_code_enter)) }
+                }
+                if (p.registration in setOf(Registration.NEEDS_CODE, Registration.REFUSED, Registration.NOT_REGISTERED)) {
+                    OutlinedButton(onClick = onRequestAccess) { Text(stringResource(R.string.request_access)) }
                 }
                 VerifyControls(p.verified, onScan, onVerify)
                 if (!p.active) OutlinedButton(onClick = onActivate) { Text(stringResource(R.string.use_this_pharos)) }

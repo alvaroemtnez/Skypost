@@ -1,5 +1,7 @@
 package io.alvaroedo.skypost.core
 
+import io.alvaroedo.skypost.model.AdminCommand
+import io.alvaroedo.skypost.model.AdminTarget
 import kotlinx.serialization.Serializable
 import java.net.URLDecoder
 
@@ -55,6 +57,9 @@ interface KeryxCore {
 
     /** Stock phrases in Spanish, id = index (`keryx::canned::PHRASES`). The app shows its own translations. */
     fun phrases(): List<String>
+
+    /** `keryx::admin::Command::reveals_personal_data`. */
+    fun revealsPersonalData(command: AdminCommand): Boolean
 }
 
 /**
@@ -120,6 +125,18 @@ class FakeKeryxCore : KeryxCore {
     override fun framesForPhrase(bridged: Boolean): Int = (4 + 1 + 8 + (if (bridged) 2 else 0) + 8) / 9
 
     override fun phrases(): List<String> = PHRASES
+
+    // Mirrors keryx until the bindings exist: lists, accept/refuse (the reply
+    // names who) and anything naming a bridged contact.
+    override fun revealsPersonalData(command: AdminCommand): Boolean = when (command) {
+        AdminCommand.Requests, AdminCommand.Clients, AdminCommand.Admins,
+        is AdminCommand.Allow, is AdminCommand.Accept, is AdminCommand.Refuse,
+        -> true
+        is AdminCommand.Block -> command.target !is AdminTarget.FieldUser
+        is AdminCommand.AddAdmin -> command.target !is AdminTarget.FieldUser
+        is AdminCommand.RemoveAdmin -> command.target !is AdminTarget.FieldUser
+        else -> false
+    }
 
     private fun fakeKey(s: String): String {
         val alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567"

@@ -1,6 +1,7 @@
 package io.alvaroedo.skypost.data
 
 import io.alvaroedo.skypost.core.Card
+import io.alvaroedo.skypost.model.AdminCommand
 import io.alvaroedo.skypost.model.AdminEntry
 import io.alvaroedo.skypost.model.Blocked
 import io.alvaroedo.skypost.model.Chat
@@ -167,7 +168,10 @@ interface Repository {
     /** Trust a discovered Pharos and register with it, with its access code if it needs one. */
     fun trust(found: Discovered, code: String?)
 
-    /** Register again with a trusted Pharos, e.g. after it asked for its access code. */
+    /**
+     * Register again with a trusted Pharos: with its access code, or without
+     * one to ask for access (an access request the admins decide).
+     */
     fun register(key: String, code: String?)
 
     fun setActivePharos(key: String)
@@ -179,8 +183,14 @@ interface Repository {
     /** Admin commands sent to this Pharos and its replies, oldest first. */
     fun adminLog(pharosKey: String): Flow<List<AdminEntry>>
 
-    /** Sends an admin command (`status`, `accept @bea`, …) as text to the Pharos. */
-    fun sendAdmin(pharosKey: String, command: String)
+    /** Sends an admin command to the Pharos (an `Admin` message on air). */
+    fun sendAdmin(pharosKey: String, command: AdminCommand)
+
+    /**
+     * The command, or its reply, may put a name or phone number on air
+     * (`keryx::admin::Command::reveals_personal_data`): warn first in plain.
+     */
+    fun revealsPersonalData(command: AdminCommand): Boolean
 
     /**
      * Sends the admin password (`login …`). Only while emergency encryption is
