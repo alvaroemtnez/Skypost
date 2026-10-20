@@ -118,9 +118,13 @@ opcode byte, then arguments. Opcodes are append only.
 Switches: 0 open, 1 requests, 2 login, 3 emergency, 4 stealth. A switch byte
 holds them as bits (bit = switch number).
 
-Target: `0x00` ‖ alias (text codec, to the end); or network (1) ‖ address as
-in `BridgeOpen`; or `0x10` ‖ the first 4 bytes of a MeshCore key the Pharos
-knows.
+Target, never an alias (anyone can claim one): `0x00` ‖ a field user's id;
+`0x10` ‖ a MeshCore contact's id; or network (1) ‖ address as in `BridgeOpen`
+for Signal and WhatsApp (the number is the identity). An **id** is 8 bytes:
+for a field user the first 8 bytes of its key fingerprint (the start of its
+safety code, "4F2A 9C11 …"), for a MeshCore contact the first 8 bytes of its
+key. Forging a key with a given id takes about 2⁶⁴ tries; an id that matches
+two keys resolves to nothing.
 
 Body of `AdminReply`: a kind byte, then:
 
@@ -128,14 +132,15 @@ Body of `AdminReply`: a kind byte, then:
 |---|---|---|
 | 0 | done | opcode (1) ‖ outcome (1) ‖ [subject, text codec] |
 | 1 | status | switches (1) ‖ registered (1) ‖ requests (1) ‖ listening (1) ‖ queued (u16) ‖ authorised contacts (u16) |
-| 2 | requests | per request: number (1) ‖ who (1) ‖ name |
-| 3 | clients | per user: status (1) ‖ minutes since heard (u16, `0xFFFF` never) ‖ alias |
-| 4 | admins | per admin: who (1) ‖ how (1: 0 SSH, 1 by an admin, 2 password) ‖ name |
+| 2 | requests | per request: number (1) ‖ who (1) ‖ [id (8)] ‖ name |
+| 3 | clients | per user: status (1) ‖ minutes since heard (u16, `0xFFFF` never) ‖ id (8) ‖ alias |
+| 4 | admins | per admin: who (1) ‖ how (1: 0 SSH, 1 by an admin, 2 password) ‖ [id (8)] ‖ name |
 | 5 | new requests (to admins) | networks mask (1, bit = who) ‖ pending (1) |
 | 6 | switches changed (to admins) | switches (1) |
-| 7 | admin changed (to admins) | added (1) ‖ who (1) ‖ name (text codec) |
+| 7 | admin changed (to admins) | added (1) ‖ who (1) ‖ [id (8)] ‖ name (text codec) |
 
-Names in lists are a length byte ‖ text codec. Who: 0 radio, 1 Signal, 2
+`[id (8)]` is present for radio users and MeshCore contacts only. Names in
+lists are a length byte ‖ text codec. Who: 0 radio, 1 Signal, 2
 WhatsApp, 3 MeshCore. Outcomes: 0 ok, 1 not admin, 2 unknown, 3 wrong
 password, 4 password in clear (refused), 5 last admin, 6 login off, 7 locked
 (too many wrong passwords), 8 refused. Client status: 0 registered, 1 pending,

@@ -5,6 +5,7 @@
 
 use crate::Error;
 use crate::bridge::{Address, network};
+use crate::crypto::PublicKey;
 use crate::textcodec;
 use serde::{Deserialize, Serialize};
 
@@ -59,49 +60,69 @@ impl Switches {
     }
 }
 
+/// Short id of a person or node on air: 8 bytes, too many to forge a match
+/// (2^64 tries), few enough to keep commands short. Never an alias: aliases
+/// are chosen by their owners, so anyone can claim one.
+pub type Id = [u8; 8];
+
+/// A field user's id: the first 8 bytes of its key fingerprint, i.e. the
+/// start of its safety code ("4F2A 9C11 …").
+pub fn user_id(key: &PublicKey) -> Id {
+    key.fingerprint()[..8].try_into().unwrap()
+}
+
+/// A MeshCore contact's id: the first 8 bytes of its public key.
+pub fn meshcore_id(key: &[u8; 32]) -> Id {
+    key[..8].try_into().unwrap()
+}
+
 /// Who a command is about.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Target {
-    /// A field user.
-    Alias(String),
-    /// A bridged contact, in full.
+    /// A field user, by [`user_id`].
+    User(Id),
+    /// A Signal or WhatsApp contact, in full (the number is the identity).
     Contact(Address),
-    /// A MeshCore contact the Pharos already knows, by the first 4 key bytes
-    /// (a full key is 32 bytes on air).
-    MeshcorePrefix([u8; 4]),
+    /// A MeshCore contact the Pharos knows, by [`meshcore_id`] (a full key
+    /// is 32 bytes on air).
+    Meshcore(Id),
 }
 
-const TARGET_ALIAS: u8 = 0x00;
-const TARGET_MESHCORE_PREFIX: u8 = 0x10;
+const TARGET_USER: u8 = 0x00;
+const TARGET_MESHCORE: u8 = 0x10;
 
 impl Target {
-    /// Last argument of a command: an alias runs to the end of the body.
     fn encode(&self, out: &mut Vec<u8>) -> Result<(), Error> {
         match self {
-            Self::Alias(a) => {
-                out.push(TARGET_ALIAS);
-                out.extend(textcodec::encode(a));
+            Self::User(id) => {
+                out.push(TARGET_USER);
+                out.extend_from_slice(id);
+            }
+            Self::Contact(Address::MeshcoreContact(k)) => {
+                out.push(TARGET_MESHCORE);
+                out.extend_from_slice(&meshcore_id(k));
             }
             Self::Contact(c) => c.encode(out)?,
-            Self::MeshcorePrefix(p) => {
-                out.push(TARGET_MESHCORE_PREFIX);
-                out.extend_from_slice(p);
+            Self::Meshcore(id) => {
+                out.push(TARGET_MESHCORE);
+                out.extend_from_slice(id);
             }
         }
         Ok(())
     }
 
     fn decode(b: &[u8]) -> Result<Self, Error> {
+        let id = |rest: &[u8]| -> Result<Id, Error> {
+            rest.try_into()
+                .map_err(|_| Error::Malformed("an id is 8 bytes"))
+        };
         match b.split_first().ok_or(Error::TooShort)? {
-            (&TARGET_ALIAS, rest) => Ok(Self::Alias(textcodec::decode(rest)?)),
-            (&TARGET_MESHCORE_PREFIX, rest) => Ok(Self::MeshcorePrefix(
-                rest.try_into()
-                    .map_err(|_| Error::Malformed("key prefix is 4 bytes"))?,
-            )),
+            (&TARGET_USER, rest) => Ok(Self::User(id(rest)?)),
+            (&TARGET_MESHCORE, rest) => Ok(Self::Meshcore(id(rest)?)),
             _ => {
                 let (c, n) = Address::decode(b)?;
-                if n != b.len() {
-                    return Err(Error::Malformed("bytes after the address"));
+                if n != b.len() || matches!(c, Address::MeshcoreContact(_)) {
+                    return Err(Error::Malformed("one Signal or WhatsApp address"));
                 }
                 Ok(Self::Contact(c))
             }
@@ -179,7 +200,7 @@ impl Command {
             | Self::Accept(_)
             | Self::Refuse(_) => true,
             Self::Block(t) | Self::Unblock(t) | Self::AddAdmin(t) | Self::RemoveAdmin(t) => {
-                !matches!(t, Target::Alias(_))
+                matches!(t, Target::Contact(_))
             }
             _ => false,
         }
@@ -309,7 +330,9 @@ pub struct RequestEntry {
     pub num: u8,
     /// [`who`].
     pub who: u8,
-    /// Alias, profile name or number, or MeshCore name and key prefix.
+    /// [`user_id`] or [`meshcore_id`]; on air only for radio and MeshCore.
+    pub id: Option<Id>,
+    /// Alias, profile name or number, or MeshCore advert name.
     pub name: String,
 }
 
@@ -319,6 +342,8 @@ pub struct ClientEntry {
     pub status: u8,
     /// Minutes since last heard; `None` never (0xFFFF on air, capped below).
     pub heard_min: Option<u16>,
+    /// [`user_id`].
+    pub id: Id,
     pub alias: String,
 }
 
@@ -335,6 +360,8 @@ pub struct AdminEntry {
     pub who: u8,
     /// [`how`].
     pub how: u8,
+    /// As in [`RequestEntry::id`].
+    pub id: Option<Id>,
     pub name: String,
 }
 
@@ -376,6 +403,8 @@ pub enum Reply {
     AdminChanged {
         added: bool,
         who: u8,
+        /// As in [`RequestEntry::id`].
+        id: Option<Id>,
         name: String,
     },
 }
@@ -403,6 +432,28 @@ fn take_text(b: &[u8]) -> Result<(String, &[u8]), Error> {
     let (&n, rest) = b.split_first().ok_or(Error::TooShort)?;
     let t = rest.get(..usize::from(n)).ok_or(Error::TooShort)?;
     Ok((textcodec::decode(t)?, &rest[usize::from(n)..]))
+}
+
+/// Radio users and MeshCore contacts carry an [`Id`] on air.
+fn has_id(who: u8) -> bool {
+    who == who::RADIO || who == who::MESHCORE
+}
+
+fn put_id(out: &mut Vec<u8>, who: u8, id: &Option<Id>) -> Result<(), Error> {
+    match (has_id(who), id) {
+        (true, Some(id)) => out.extend_from_slice(id),
+        (false, None) => {}
+        _ => return Err(Error::Range("id for radio and MeshCore entries only")),
+    }
+    Ok(())
+}
+
+fn take_id(b: &[u8], who: u8) -> Result<(Option<Id>, &[u8]), Error> {
+    if !has_id(who) {
+        return Ok((None, b));
+    }
+    let (id, r) = take::<8>(b)?;
+    Ok((Some(id), r))
 }
 
 fn take<const N: usize>(b: &[u8]) -> Result<([u8; N], &[u8]), Error> {
@@ -440,6 +491,7 @@ impl Reply {
                 b.push(kind::REQUESTS);
                 for e in l {
                     b.extend([e.num, e.who]);
+                    put_id(&mut b, e.who, &e.id)?;
                     put_text(&mut b, &e.name)?;
                 }
             }
@@ -452,6 +504,7 @@ impl Reply {
                             .map_or(u16::MAX, |m| m.min(u16::MAX - 1))
                             .to_be_bytes(),
                     );
+                    b.extend_from_slice(&e.id);
                     put_text(&mut b, &e.alias)?;
                 }
             }
@@ -459,6 +512,7 @@ impl Reply {
                 b.push(kind::ADMINS);
                 for e in l {
                     b.extend([e.who, e.how]);
+                    put_id(&mut b, e.who, &e.id)?;
                     put_text(&mut b, &e.name)?;
                 }
             }
@@ -466,8 +520,14 @@ impl Reply {
                 b.extend([kind::NEW_REQUESTS, *networks, *pending]);
             }
             Self::SwitchesChanged(s) => b.extend([kind::SWITCHES_CHANGED, s.0]),
-            Self::AdminChanged { added, who, name } => {
+            Self::AdminChanged {
+                added,
+                who,
+                id,
+                name,
+            } => {
                 b.extend([kind::ADMIN_CHANGED, u8::from(*added), *who]);
+                put_id(&mut b, *who, id)?;
                 b.extend(textcodec::encode(name));
             }
         }
@@ -511,8 +571,9 @@ impl Reply {
                 let mut l = Vec::new();
                 while !rest.is_empty() {
                     let ([num, who], r) = take::<2>(rest)?;
+                    let (id, r) = take_id(r, who)?;
                     let (name, r) = take_text(r)?;
-                    l.push(RequestEntry { num, who, name });
+                    l.push(RequestEntry { num, who, id, name });
                     rest = r;
                 }
                 Self::Requests(l)
@@ -521,11 +582,13 @@ impl Reply {
                 let mut l = Vec::new();
                 while !rest.is_empty() {
                     let ([status, h0, h1], r) = take::<3>(rest)?;
+                    let (id, r) = take::<8>(r)?;
                     let (alias, r) = take_text(r)?;
                     let h = u16::from_be_bytes([h0, h1]);
                     l.push(ClientEntry {
                         status,
                         heard_min: (h != u16::MAX).then_some(h),
+                        id,
                         alias,
                     });
                     rest = r;
@@ -536,8 +599,9 @@ impl Reply {
                 let mut l = Vec::new();
                 while !rest.is_empty() {
                     let ([who, how], r) = take::<2>(rest)?;
+                    let (id, r) = take_id(r, who)?;
                     let (name, r) = take_text(r)?;
-                    l.push(AdminEntry { who, how, name });
+                    l.push(AdminEntry { who, how, id, name });
                     rest = r;
                 }
                 Self::Admins(l)
@@ -555,21 +619,17 @@ impl Reply {
             },
             kind::ADMIN_CHANGED => {
                 let ([added, who], r) = take::<2>(rest)?;
+                let (id, r) = take_id(r, who)?;
                 Self::AdminChanged {
                     added: added != 0,
                     who,
+                    id,
                     name: textcodec::decode(r)?,
                 }
             }
             _ => return Err(Error::Malformed("unknown admin reply")),
         })
     }
-}
-
-/// The MeshCore key prefix used in [`Target::MeshcorePrefix`] and shown next to
-/// advert names.
-pub fn meshcore_prefix(key: &[u8; 32]) -> [u8; 4] {
-    key[..4].try_into().unwrap()
 }
 
 /// `network` codes cover Signal phones and usernames separately; replies use [`who`].
@@ -594,13 +654,13 @@ mod tests {
             Command::Refuse(255),
             Command::Clients,
             Command::Admins,
-            Command::Block(Target::Alias("bea".into())),
+            Command::Block(Target::User([7; 8])),
             Command::Unblock(Target::Contact(Address::WhatsappPhone(
                 "34600123456".into(),
             ))),
             Command::Allow(Address::SignalUsername("mama.01".into())),
-            Command::AddAdmin(Target::MeshcorePrefix([1, 2, 3, 4])),
-            Command::RemoveAdmin(Target::Alias("tio".into())),
+            Command::AddAdmin(Target::Meshcore([1, 2, 3, 4, 5, 6, 7, 8])),
+            Command::RemoveAdmin(Target::User([9; 8])),
             Command::Set(Switch::Emergency, true),
             Command::Set(Switch::Open, false),
             Command::Login("faro viejo".into()),
@@ -616,12 +676,19 @@ mod tests {
         assert_eq!(Command::Status.encode().unwrap().len(), 1);
         assert_eq!(Command::Accept(7).encode().unwrap().len(), 2);
         assert_eq!(
-            Command::Block(Target::MeshcorePrefix([0; 4]))
+            Command::Block(Target::Meshcore([0; 8]))
                 .encode()
                 .unwrap()
                 .len(),
-            6,
-            "a known MeshCore contact by prefix, not its 32-byte key"
+            10,
+            "a known MeshCore contact by its 8-byte id, not its 32-byte key"
+        );
+        assert_eq!(
+            Command::Block(Target::Contact(Address::MeshcoreContact([3; 32])))
+                .encode()
+                .unwrap(),
+            Command::Block(Target::Meshcore([3; 8])).encode().unwrap(),
+            "a full MeshCore key goes out as its id"
         );
         assert!(
             Command::Allow(Address::MeshcoreContact([0; 32]))
@@ -661,22 +728,32 @@ mod tests {
                 RequestEntry {
                     num: 4,
                     who: who::WHATSAPP,
+                    id: None,
                     name: "Papá".into(),
                 },
                 RequestEntry {
                     num: 5,
                     who: who::MESHCORE,
-                    name: "Refugio Góriz a1b2c3d4".into(),
+                    id: Some([0xA1; 8]),
+                    name: "Refugio Góriz".into(),
+                },
+                RequestEntry {
+                    num: 6,
+                    who: who::RADIO,
+                    id: Some([0x4F; 8]),
+                    name: "bea".into(),
                 },
             ]),
             Reply::Clients(vec![ClientEntry {
                 status: 0,
                 heard_min: None,
+                id: [0x4F; 8],
                 alias: "bea".into(),
             }]),
             Reply::Admins(vec![AdminEntry {
                 who: who::RADIO,
                 how: how::SSH,
+                id: Some([1; 8]),
                 name: "alvaro".into(),
             }]),
             Reply::NewRequests {
@@ -687,6 +764,7 @@ mod tests {
             Reply::AdminChanged {
                 added: true,
                 who: who::SIGNAL,
+                id: None,
                 name: "+34600000000".into(),
             },
         ];
@@ -707,13 +785,37 @@ mod tests {
         );
     }
 
+    fn data_encoding_free_hex(s: &str) -> Vec<u8> {
+        (0..s.len())
+            .step_by(2)
+            .map(|i| u8::from_str_radix(&s[i..i + 2], 16).unwrap())
+            .collect()
+    }
+
+    #[test]
+    fn ids_must_match_their_network() {
+        let bad = Reply::Requests(vec![RequestEntry {
+            num: 1,
+            who: who::RADIO,
+            id: None,
+            name: "x".into(),
+        }]);
+        assert!(bad.encode().is_err());
+    }
+
     #[test]
     fn personal_data_is_flagged() {
         assert!(Command::Requests.reveals_personal_data());
         assert!(
             Command::Allow(Address::WhatsappPhone("34600123456".into())).reveals_personal_data()
         );
-        assert!(!Command::Block(Target::Alias("bea".into())).reveals_personal_data());
+        assert!(!Command::Block(Target::User([1; 8])).reveals_personal_data());
+        let k = PublicKey([5; 32]);
+        assert_eq!(
+            user_id(&k)[..2],
+            data_encoding_free_hex(&k.safety_number()[..4]),
+            "the id is the start of the safety code"
+        );
         assert!(
             Command::Accept(3).reveals_personal_data(),
             "the reply names who"

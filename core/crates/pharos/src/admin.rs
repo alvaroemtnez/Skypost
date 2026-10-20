@@ -9,22 +9,24 @@
 //! /admin [help]                    list the commands
 //! /admin status                    switches and counters
 //! /admin requests                  pending access requests, numbered
-//! /admin accept <n|@alias>         admit a request
-//! /admin refuse <n|@alias>         refuse it
+//! /admin accept <n>               admit a request
+//! /admin refuse <n>               refuse it
 //! /admin clients                   field users and when they were heard
 //! /admin admins                    who manages this Pharos
 //! /admin allow <number>            let a Signal/WhatsApp contact write
-//! /admin block <@alias|number>     ignore a field user or contact
-//! /admin unblock <@alias|number>
-//! /admin grant <@alias|number>     make an admin
-//! /admin revoke <@alias|number>    remove an admin (SSH ones too)
+//! /admin block <who>              ignore a field user or contact
+//! /admin unblock <who>
+//! /admin grant <who>              make an admin
+//! /admin revoke <who>             remove an admin (SSH ones too)
 //! /admin set <switch> on|off       open, requests, login, emergency, stealth
 //! /admin login <password>          become admin
 //! ```
 //!
-//! A number is a phone with country code (on the admin's own network unless
-//! `signal`/`whatsapp` comes first), a Signal username, or the first 8 hex
-//! digits of a MeshCore key the Pharos knows.
+//! `who` is never an alias (anyone can claim one): a field user's 16-hex id
+//! (the start of its safety code, listed by `/admin clients`), `meshcore`
+//! and a MeshCore contact's 16-hex id, or a phone with country code (on the
+//! admin's own network unless `signal`/`whatsapp` comes first) or a Signal
+//! username.
 //!
 //! Who may run them: admins in the access state. Others may only `login`,
 //! with the admin password, while the `login` switch is on: on the bridges,
@@ -36,8 +38,8 @@ use crate::registry::Status;
 use crate::router::{Action, Router};
 use crate::station::{Effect, Station};
 use keryx::admin::{
-    AdminEntry, ClientEntry, Command, Outcome, Reply, RequestEntry, Switch, Switches, Target, how,
-    meshcore_prefix, who,
+    AdminEntry, ClientEntry, Command, Id, Outcome, Reply, RequestEntry, Switch, Switches, Target,
+    how, meshcore_id, user_id, who,
 };
 use keryx::bridge::{Address, network};
 use keryx::{Message, PublicKey};
@@ -50,25 +52,21 @@ pub const HELP: &str = "Admin commands (start each with /admin):
 • requests — pending access requests · accept n · refuse n
 • clients — field users and when they were last heard
 • allow number — let a Signal or WhatsApp contact write
-• block @alias|number · unblock @alias|number
-• admins · grant @alias|number · revoke @alias|number
+• block who · unblock who
+• admins · grant who · revoke who
+  who = a radio user's 16-character id from /admin clients, meshcore <id>, or a number
 • set open|requests|login|emergency|stealth on|off
 Everything else over SSH.";
 
 /// Help for MeshCore: every character counts.
 pub const HELP_SHORT: &str = "status · requests · accept/refuse n · clients · allow nº · \
-block/unblock @alias|nº · admins · grant/revoke @alias|nº · set <switch> on|off";
+block/unblock id|nº · admins · grant/revoke id|nº · set <switch> on|off";
 
 /// A bridge admin text: the help, or a command.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Text {
     Help,
     Command(Command),
-    /// `accept @alias` / `refuse @alias`: the request of that field user.
-    Decide {
-        alias: String,
-        accept: bool,
-    },
 }
 
 /// The text after a leading `/admin`, or `None` if it does not start so.
@@ -81,14 +79,30 @@ pub fn strip_prefix(text: &str) -> Option<&str> {
     .then(|| rest.trim())
 }
 
-/// A contact: phone, Signal username, or MeshCore key prefix (8 hex digits).
-/// `net` is the network to assume for phone numbers (the admin's own).
-fn contact(words: &[&str], net: Option<u8>) -> Option<Target> {
+/// 16 hex digits: an [`Id`].
+fn hex_id(s: &str) -> Option<Id> {
+    if s.len() != 16 || !s.chars().all(|c| c.is_ascii_hexdigit()) {
+        return None;
+    }
+    let mut id = [0u8; 8];
+    for (i, b) in id.iter_mut().enumerate() {
+        *b = u8::from_str_radix(&s[2 * i..2 * i + 2], 16).ok()?;
+    }
+    Some(id)
+}
+
+/// Who a bridge command is about. Never an alias: anyone can claim one.
+/// - a field user: the 16 hex digits of its id (`/admin clients` lists them);
+/// - `meshcore` and the 16 hex digits of a MeshCore contact's id;
+/// - a phone (on the admin's own network unless `signal`/`whatsapp` comes
+///   first) or a Signal username.
+fn target(words: &[&str], net: Option<u8>) -> Option<Target> {
     let (net, arg) = match words {
         [n, a] => (
             match n.to_lowercase().as_str() {
                 "signal" => Some(network::SIGNAL_PHONE),
                 "whatsapp" => Some(network::WHATSAPP_PHONE),
+                "meshcore" => return hex_id(a).map(Target::Meshcore),
                 _ => return None,
             },
             *a,
@@ -96,12 +110,8 @@ fn contact(words: &[&str], net: Option<u8>) -> Option<Target> {
         [a] => (net, *a),
         _ => return None,
     };
-    if arg.len() == 8 && arg.chars().all(|c| c.is_ascii_hexdigit()) {
-        let mut p = [0u8; 4];
-        for (i, b) in p.iter_mut().enumerate() {
-            *b = u8::from_str_radix(&arg[2 * i..2 * i + 2], 16).ok()?;
-        }
-        return Some(Target::MeshcorePrefix(p));
+    if let Some(id) = hex_id(arg) {
+        return Some(Target::User(id));
     }
     let phone_like =
         arg.starts_with('+') || (!arg.is_empty() && arg.chars().all(|c| c.is_ascii_digit()));
@@ -117,13 +127,6 @@ fn contact(words: &[&str], net: Option<u8>) -> Option<Target> {
     }
     (arg.contains('.') && matches!(net, Some(network::SIGNAL_PHONE | network::SIGNAL_USERNAME)))
         .then(|| Target::Contact(Address::SignalUsername(arg.to_owned())))
-}
-
-fn target(words: &[&str], net: Option<u8>) -> Option<Target> {
-    match words {
-        [a] if a.starts_with('@') => Some(Target::Alias(a[1..].to_owned())),
-        _ => contact(words, net),
-    }
 }
 
 fn switch(word: &str) -> Option<Switch> {
@@ -144,10 +147,6 @@ pub fn parse(body: &str, net: Option<u8>) -> Text {
         return Text::Help;
     };
     let decide = |accept: bool| match args {
-        [a] if a.starts_with('@') => Some(Text::Decide {
-            alias: a[1..].to_owned(),
-            accept,
-        }),
         [n] => n.trim_start_matches('#').parse().ok().map(|n| {
             Text::Command(if accept {
                 Command::Accept(n)
@@ -166,7 +165,7 @@ pub fn parse(body: &str, net: Option<u8>) -> Text {
         "refuse" => decide(false),
         "clients" => cmd(Some(Command::Clients)),
         "admins" => cmd(Some(Command::Admins)),
-        "allow" => cmd(match contact(args, net) {
+        "allow" => cmd(match target(args, net) {
             Some(Target::Contact(a)) => Some(Command::Allow(a)),
             _ => None,
         }),
@@ -268,7 +267,10 @@ pub fn render(r: &Reply) -> String {
         Reply::Requests(l) if l.is_empty() => "No pending requests.".into(),
         Reply::Requests(l) => l
             .iter()
-            .map(|e| format!("#{} {} — {}", e.num, network_name(e.who), e.name))
+            .map(|e| {
+                let id = e.id.map(|i| format!(" ({})", hex(&i))).unwrap_or_default();
+                format!("#{} {} — {}{id}", e.num, network_name(e.who), e.name)
+            })
             .collect::<Vec<_>>()
             .join("\n"),
         Reply::Clients(l) if l.is_empty() => "No clients.".into(),
@@ -287,7 +289,7 @@ pub fn render(r: &Reply) -> String {
                 let heard = e
                     .heard_min
                     .map_or("never heard".to_owned(), |m| format!("heard {m} min ago"));
-                format!("@{} — {status} — {heard}", e.alias)
+                format!("@{} {} — {status} — {heard}", e.alias, hex(&e.id))
             })
             .collect::<Vec<_>>()
             .join("\n"),
@@ -298,7 +300,8 @@ pub fn render(r: &Reply) -> String {
                     let how = ["SSH", "by an admin", "password"]
                         .get(usize::from(e.how))
                         .unwrap_or(&"?");
-                    format!("{} ({}, {how})", e.name, network_name(e.who))
+                    let id = e.id.map(|i| format!(" {}", hex(&i))).unwrap_or_default();
+                    format!("{}{id} ({}, {how})", e.name, network_name(e.who))
                 })
                 .collect::<Vec<_>>()
                 .join(", ")
@@ -307,8 +310,14 @@ pub fn render(r: &Reply) -> String {
             format!("New access request ({pending} pending). /admin requests to see them.")
         }
         Reply::SwitchesChanged(s) => format!("Switches changed: {}.", switch_names(*s)),
-        Reply::AdminChanged { added, who, name } => format!(
-            "{name} ({}) {} an admin.",
+        Reply::AdminChanged {
+            added,
+            who,
+            id,
+            name,
+        } => format!(
+            "{name}{} ({}) {} an admin.",
+            id.map(|i| format!(" {}", hex(&i))).unwrap_or_default(),
             network_name(*who),
             if *added { "is now" } else { "is no longer" }
         ),
@@ -341,17 +350,32 @@ fn switch_names(s: Switches) -> String {
         .join(", ")
 }
 
-/// How a bridged contact is named in replies and requests.
+/// An id as 16 hex digits, to copy into a bridge command.
+pub fn hex(id: &Id) -> String {
+    id.iter().map(|b| format!("{b:02X}")).collect()
+}
+
+/// The start of an id as the safety code shows it: "4F2A 9C11".
+pub fn short(id: &Id) -> String {
+    let h = hex(id);
+    format!("{} {}", &h[..4], &h[4..8])
+}
+
+/// How a bridged contact is named in requests: its profile name and
+/// number, or a MeshCore advert name (its id travels apart).
 pub fn contact_name(a: &Address, profile: Option<&str>) -> String {
     match a {
-        Address::MeshcoreContact(k) => {
-            let p: String = meshcore_prefix(k)
-                .iter()
-                .map(|b| format!("{b:02x}"))
-                .collect();
-            format!("{} {p}", profile.unwrap_or("MeshCore"))
-        }
+        Address::MeshcoreContact(_) => profile.unwrap_or("MeshCore").to_owned(),
         _ => profile.map_or_else(|| a.display(), |n| format!("{n} {}", a.display())),
+    }
+}
+
+/// The id a list shows next to someone: field users and MeshCore contacts.
+pub fn id_of(w: &Who) -> Option<Id> {
+    match w {
+        Who::Radio(k) => Some(user_id(k)),
+        Who::Contact(Address::MeshcoreContact(k)) => Some(meshcore_id(k)),
+        Who::Contact(_) => None,
     }
 }
 
@@ -370,13 +394,29 @@ impl Admin {
         self.password.is_some() && station.access().on(Switch::Login)
     }
 
+    /// An ambiguous id (two keys sharing it) resolves to nothing rather
+    /// than to the wrong one.
     fn resolve(station: &Station, router: &Router, t: &Target) -> Option<Who> {
+        fn one<T: Ord + Clone>(mut v: Vec<T>) -> Option<T> {
+            v.sort();
+            v.dedup();
+            match v.as_slice() {
+                [x] => Some(x.clone()),
+                _ => None,
+            }
+        }
         match t {
-            Target::Alias(a) => station.registry().find(a).map(Who::Radio),
+            Target::User(id) => one(station
+                .registry()
+                .iter()
+                .map(|(k, _)| *k)
+                .filter(|k| user_id(k) == *id)
+                .collect())
+            .map(Who::Radio),
             Target::Contact(c) => Some(Who::Contact(c.clone())),
-            Target::MeshcorePrefix(p) => {
+            Target::Meshcore(id) => {
                 let a = station.access();
-                let mut found: Vec<Address> = a
+                let found: Vec<Address> = a
                     .admins
                     .iter()
                     .map(|x| &x.who)
@@ -386,18 +426,19 @@ impl Admin {
                         _ => None,
                     })
                     .chain(router.known_contacts())
-                    .filter(
-                        |a| matches!(a, Address::MeshcoreContact(k) if meshcore_prefix(k) == *p),
-                    )
+                    .filter(|a| matches!(a, Address::MeshcoreContact(k) if meshcore_id(k) == *id))
                     .collect();
-                found.sort();
-                found.dedup();
-                // An ambiguous prefix resolves to nothing rather than the wrong node.
-                match found.as_slice() {
-                    [one] => Some(Who::Contact(one.clone())),
-                    _ => None,
-                }
+                one(found).map(Who::Contact)
             }
+        }
+    }
+
+    /// Name and id together, for replies that say who was acted on.
+    fn subject(station: &Station, router: &Router, w: &Who) -> String {
+        let name = Self::name_of(station, router, w);
+        match id_of(w) {
+            Some(id) => format!("{name} · {}", short(&id)),
+            None => name,
         }
     }
 
@@ -503,6 +544,7 @@ impl Admin {
         }
         wrong.clear();
         let name = Self::name_of(station, router, &me);
+        let subject = Self::subject(station, router, &me);
         if matches!(
             caller,
             Caller::Radio {
@@ -513,7 +555,7 @@ impl Admin {
             let alert = Reply::Done {
                 opcode: Command::Login(String::new()).opcode(),
                 outcome: Outcome::PasswordInClear,
-                subject: Some(name),
+                subject: Some(subject),
             };
             ran.effects.extend(announce(station, &me, alert, now, true));
             return Some(Outcome::PasswordInClear);
@@ -522,6 +564,7 @@ impl Admin {
         let changed = Reply::AdminChanged {
             added: true,
             who: me.network(),
+            id: id_of(&me),
             name,
         };
         ran.effects
@@ -570,6 +613,7 @@ impl Admin {
                     .map(|r| RequestEntry {
                         num: r.num,
                         who: r.who.network(),
+                        id: id_of(&r.who),
                         name: r.name.clone(),
                     })
                     .collect(),
@@ -590,13 +634,17 @@ impl Admin {
                     }
                     Who::Contact(a) => ran.actions.extend(router.on_request_decided(a, accept)),
                 }
-                done(Outcome::Ok, Some(r.name))
+                let subject = match id_of(&r.who) {
+                    Some(id) => format!("{} · {}", r.name, short(&id)),
+                    None => r.name,
+                };
+                done(Outcome::Ok, Some(subject))
             }
             Command::Clients => Reply::Clients(
                 station
                     .registry()
                     .iter()
-                    .map(|(_, c)| ClientEntry {
+                    .map(|(k, c)| ClientEntry {
                         status: match c.status {
                             Status::Registered => 0,
                             Status::Pending => 1,
@@ -606,6 +654,7 @@ impl Admin {
                         },
                         heard_min: (c.last_heard != 0)
                             .then(|| (now.saturating_sub(c.last_heard) / 60).min(65534) as u16),
+                        id: user_id(k),
                         alias: c.alias.clone(),
                     })
                     .collect(),
@@ -618,6 +667,7 @@ impl Admin {
                     .map(|a| AdminEntry {
                         who: a.who.network(),
                         how: a.how,
+                        id: id_of(&a.who),
                         name: Self::name_of(station, router, &a.who),
                     })
                     .collect(),
@@ -632,7 +682,7 @@ impl Admin {
                 let Some(w) = Self::resolve(station, router, &t) else {
                     return done(Outcome::Unknown, None);
                 };
-                let name = Self::name_of(station, router, &w);
+                let name = Self::subject(station, router, &w);
                 match &w {
                     Who::Radio(k) => {
                         let _ = if on {
@@ -656,12 +706,13 @@ impl Admin {
                 if let Who::Contact(a) = &w {
                     router.authorize(a);
                 }
-                let name = Self::name_of(station, router, &w);
+                let name = Self::subject(station, router, &w);
                 if station.access_mut().add_admin(w.clone(), how::BY_ADMIN) {
                     let changed = Reply::AdminChanged {
                         added: true,
                         who: w.network(),
-                        name: name.clone(),
+                        id: id_of(&w),
+                        name: Self::name_of(station, router, &w),
                     };
                     ran.effects
                         .extend(announce(station, me, changed, now, false));
@@ -672,7 +723,8 @@ impl Admin {
                 let Some(w) = Self::resolve(station, router, &t) else {
                     return done(Outcome::Unknown, None);
                 };
-                let name = Self::name_of(station, router, &w);
+                let name = Self::subject(station, router, &w);
+                let plain = Self::name_of(station, router, &w);
                 let keep_one = !self.login_available(station);
                 match station.access_mut().remove_admin(&w, keep_one) {
                     Err(true) => done(Outcome::LastAdmin, Some(name)),
@@ -681,7 +733,8 @@ impl Admin {
                         let changed = Reply::AdminChanged {
                             added: false,
                             who: w.network(),
-                            name: name.clone(),
+                            id: id_of(&w),
+                            name: plain,
                         };
                         ran.effects
                             .extend(announce(station, me, changed, now, false));
@@ -769,13 +822,7 @@ mod tests {
         assert_eq!(parse("Status", sig), Text::Command(Command::Status));
         assert_eq!(parse("accept 3", sig), Text::Command(Command::Accept(3)));
         assert_eq!(parse("refuse #4", sig), Text::Command(Command::Refuse(4)));
-        assert_eq!(
-            parse("accept @bea", sig),
-            Text::Decide {
-                alias: "bea".into(),
-                accept: true
-            }
-        );
+        assert_eq!(parse("accept @bea", sig), Text::Help, "no aliases");
         assert_eq!(
             parse("allow +34600123456", sig),
             Text::Command(Command::Allow(Address::SignalPhone("34600123456".into())))
@@ -786,19 +833,22 @@ mod tests {
         );
         assert_eq!(parse("allow +34 600 123 456", sig), Text::Help);
         assert_eq!(
-            parse("allow a1b2c3d4", sig),
+            parse("allow meshcore a1b2c3d4e5f60718", sig),
             Text::Help,
             "MeshCore only by request"
         );
         assert_eq!(
-            parse("block a1b2c3d4", sig),
-            Text::Command(Command::Block(Target::MeshcorePrefix([
-                0xa1, 0xb2, 0xc3, 0xd4
+            parse("block meshcore a1b2c3d4e5f60718", sig),
+            Text::Command(Command::Block(Target::Meshcore([
+                0xa1, 0xb2, 0xc3, 0xd4, 0xe5, 0xf6, 0x07, 0x18
             ])))
         );
+        assert_eq!(parse("revoke @tio", sig), Text::Help, "no aliases");
         assert_eq!(
-            parse("revoke @tio", sig),
-            Text::Command(Command::RemoveAdmin(Target::Alias("tio".into())))
+            parse("revoke 4F2A9C11D3E5B7A0", sig),
+            Text::Command(Command::RemoveAdmin(Target::User([
+                0x4f, 0x2a, 0x9c, 0x11, 0xd3, 0xe5, 0xb7, 0xa0
+            ])))
         );
         assert_eq!(
             parse("grant mama.01", sig),

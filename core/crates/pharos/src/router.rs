@@ -1253,13 +1253,10 @@ mod tests {
         };
         let mut r = router();
         assert_eq!(
-            r.on_incoming(&d, msg("/admin accept @bea", T)),
+            r.on_incoming(&d, msg("/admin accept 3", T)),
             vec![Action::Admin {
                 from: mama(),
-                text: Text::Decide {
-                    alias: "bea".into(),
-                    accept: true
-                }
+                text: Text::Command(Command::Accept(3))
             }]
         );
         assert_eq!(

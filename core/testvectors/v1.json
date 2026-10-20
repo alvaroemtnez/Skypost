@@ -221,6 +221,30 @@
       },
       "name": "admin_login_encrypted",
       "wire_hex": "6FE0000C09A84373273C98A3D5C928285909353487F64183E7A2"
+    },
+    {
+      "encrypted": false,
+      "link": {
+        "Peer": "B6VGQTWSRBT3S72KNIW64XPYZ2LU45VXAGHD6IVBYTHSM6CXB4QA"
+      },
+      "message": {
+        "Admin": {
+          "Block": {
+            "User": [
+              150,
+              13,
+              133,
+              64,
+              38,
+              139,
+              249,
+              178
+            ]
+          }
+        }
+      },
+      "name": "admin_block_user_by_id",
+      "wire_hex": "4FE0000D0600960D8540268BF9B240D392B9DFD048A8"
     }
   ],
   "group_key_hex": "4242424242424242424242424242424242424242424242424242424242424242",
@@ -244,6 +268,7 @@
         "AdminReply": {
           "Requests": [
             {
+              "id": null,
               "name": "Papá",
               "num": 3,
               "who": 2

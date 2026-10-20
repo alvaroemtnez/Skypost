@@ -146,6 +146,14 @@ fn generate() -> Value {
             to_pharos,
             true,
         ),
+        (
+            "admin_block_user_by_id",
+            Message::Admin(admin::Command::Block(admin::Target::User(admin::user_id(
+                &pharos.public(),
+            )))),
+            to_pharos,
+            false,
+        ),
     ];
     let frames: Vec<Value> = cases
         .into_iter()
@@ -168,6 +176,7 @@ fn generate() -> Value {
             Message::AdminReply(admin::Reply::Requests(vec![admin::RequestEntry {
                 num: 3,
                 who: admin::who::WHATSAPP,
+                id: None,
                 name: "Papá".into(),
             }])),
         ),

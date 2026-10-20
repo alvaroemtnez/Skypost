@@ -119,18 +119,23 @@ On the bridges they are English text after `/admin`, with English replies:
 | `help`, or `/admin` alone | list the commands (bridges only; the app has its own) |
 | `status` | switches, registered, requests, listening, queued, authorised contacts |
 | `requests` | pending access requests, numbered |
-| `accept n\|@alias` / `refuse n\|@alias` | decide a request |
+| `accept n` / `refuse n` | decide a request |
 | `clients` | each field user, status and when it was last heard |
 | `allow number` | let a Signal or WhatsApp contact write (MeshCore: by request only) |
-| `block @alias\|number` / `unblock …` | ignore a field user or a bridged contact |
+| `block who` / `unblock who` | ignore a field user or a bridged contact |
 | `admins` | who administers, and how (SSH, by an admin, password) |
-| `grant @alias\|number` / `revoke @alias\|number` | add or remove an admin |
+| `grant who` / `revoke who` | add or remove an admin |
 | `set open\|requests\|login\|emergency\|stealth on\|off` | flip a switch |
 | `login password` | become admin |
 
-A number is a phone with country code (on the admin's own network unless
-`signal`/`whatsapp` comes first), a Signal username, or the first 8 hex digits
-of a MeshCore key the Pharos knows (an ambiguous prefix matches nothing).
+`who` is never an alias: aliases are chosen by their owners, so anyone can
+claim one. It is a field user's id (16 hex digits, the start of its safety
+code; `clients` lists them), `meshcore` and a MeshCore contact's id, or a
+phone with country code (on the admin's own network unless
+`signal`/`whatsapp` comes first) or a Signal username. An id that matches two
+keys matches nothing. In the app nobody types ids: people are picked from
+the user's contacts or the Pharos's lists, shown as `@bea · 4F2A 9C11` with
+the verified badge when they are a verified contact.
 Five wrong passwords an hour: no answers for an hour. The app warns before
 sending in plain a command whose request or reply puts a name or number on
 air.

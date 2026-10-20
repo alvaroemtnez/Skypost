@@ -64,6 +64,15 @@ name or number on air, the app warns.
 `Register`, discovery and the `emergency` switch itself. A plain sender gets
 one encrypted `ENCRYPTED_ONLY` notice (none in stealth).
 
+**People are named by key, never by alias** (added the same day). An alias
+is whatever its owner chose, so `@bea` names whoever claimed "bea" first,
+not the person meant. Admin commands and lists carry an 8-byte id instead:
+the start of a field user's key fingerprint (the first two groups of its
+safety code) or of a MeshCore key. The app picks people from its contacts or
+the Pharos's lists and shows `@bea · 4F2A 9C11`, with the verified badge for
+verified contacts and a warning when the alias matches a contact but the key
+does not. Bridge admins copy the 16-hex id from `/admin clients`.
+
 ## Consequences
 
 - Wire format: `MsgType` 15 `Admin`, 16 `AdminReply`; `Notice` 6

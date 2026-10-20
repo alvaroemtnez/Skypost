@@ -9,7 +9,7 @@ use crate::access::Who;
 use crate::admin::{self, Admin, Caller, Text};
 use crate::router::{Action, Directory, Incoming, Router, Undelivered};
 use crate::station::{Effect, RxFrame, Station};
-use keryx::admin::{Command, Outcome, Reply, Switch, Switches};
+use keryx::admin::{Command, Switch, Switches};
 use keryx::bridge::Address;
 use keryx::{Message, PublicKey};
 
@@ -230,7 +230,7 @@ impl Hub {
         out
     }
 
-    /// A bridge admin's text: the help, a command, or accept/refuse by alias.
+    /// A bridge admin's text: the help or a command.
     fn admin_text(&mut self, from: Address, text: Text, now: u64) -> Vec<Out> {
         let cmd = match text {
             Text::Help => {
@@ -245,29 +245,6 @@ impl Hub {
                 })];
             }
             Text::Command(c) => c,
-            Text::Decide { alias, accept } => {
-                let num = self.station.registry().find(&alias).and_then(|k| {
-                    self.station
-                        .access()
-                        .request_of(&Who::Radio(k))
-                        .map(|r| r.num)
-                });
-                match num {
-                    Some(n) if accept => Command::Accept(n),
-                    Some(n) => Command::Refuse(n),
-                    None => {
-                        let r = Reply::Done {
-                            opcode: Command::Accept(0).opcode(),
-                            outcome: Outcome::Unknown,
-                            subject: Some(format!("@{alias}")),
-                        };
-                        return vec![Out::Bridge(Action::Reply {
-                            to: from,
-                            text: admin::render(&r),
-                        })];
-                    }
-                }
-            }
         };
         let caller = Caller::Bridge(from);
         let ran = self
@@ -286,10 +263,11 @@ impl Hub {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::admin::hex;
     use crate::router::RouterCfg;
     use crate::station::{State, StationCfg};
     use keryx::JS8_FRAME_PAYLOAD_BYTES as MTU;
-    use keryx::admin::{Reply, RequestEntry, how, who};
+    use keryx::admin::{Outcome, Reply, RequestEntry, how, user_id, who};
     use keryx::lane::Lane;
     use keryx::segment::{reassemble, segment};
     use keryx::{Identity, Keyring, LinkRef, PeerKind, Received, message};
@@ -423,6 +401,7 @@ mod tests {
             vec![Message::AdminReply(Reply::Requests(vec![RequestEntry {
                 num: 0,
                 who: who::WHATSAPP,
+                id: None,
                 name: "Papá +34622222222".into()
             }]))]
         );
@@ -535,11 +514,19 @@ mod tests {
         );
         // Password login off: the last admin cannot go.
         h.on_bridge(bridge(op(), "/admin set login off", T + 20));
-        h.on_bridge(bridge(op(), &format!("/admin revoke @{}", "ana"), T + 30));
+        h.on_bridge(bridge(
+            op(),
+            &format!("/admin revoke {}", hex(&user_id(&ana.public()))),
+            T + 30,
+        ));
         let out = h.on_bridge(bridge(op(), "/admin revoke +34600000000", T + 40));
         assert!(texts_to(&out, &op()).contains("last admin"), "{out:?}");
         // Stealth: no announcements.
-        h.on_bridge(bridge(op(), "/admin grant @ana", T + 50));
+        h.on_bridge(bridge(
+            op(),
+            &format!("/admin grant {}", hex(&user_id(&ana.public()))),
+            T + 50,
+        ));
         h.on_bridge(bridge(op(), "/admin set stealth on", T + 60));
         let out = h.on_bridge(bridge(op(), "/admin set requests off", T + 70));
         assert!(heard(&mut h, &mut ana, &out, T + 70).is_empty());
@@ -576,16 +563,42 @@ mod tests {
         let mut m = bridge(node.clone(), "hola", T + 40);
         m.name = Some("Refugio".into());
         h.on_bridge(m);
-        assert_eq!(h.station.access().requests[0].name, "Refugio a1a1a1a1");
-        let out = h.on_bridge(bridge(op(), "/admin block a1a1a1a1", T + 50));
+        assert_eq!(h.station.access().requests[0].name, "Refugio");
+        let out = h.on_bridge(bridge(
+            op(),
+            "/admin block meshcore a1a1a1a1a1a1a1a1",
+            T + 50,
+        ));
         assert!(
-            texts_to(&out, &op()).contains("Refugio a1a1a1a1"),
+            texts_to(&out, &op()).contains("Refugio · A1A1 A1A1"),
             "{out:?}"
         );
         assert!(h.router.state().blocked.contains(&node));
         assert!(
             h.station.access().requests.is_empty(),
             "blocking ends the request"
+        );
+    }
+
+    #[test]
+    fn radio_users_are_named_by_id_not_alias() {
+        let (mut h, ana) = hub();
+        let out = h.on_bridge(bridge(op(), "/admin clients", T + 10));
+        let id = hex(&user_id(&ana.public()));
+        assert!(
+            texts_to(&out, &op()).contains(&format!("@ana {id}")),
+            "{out:?}"
+        );
+        let out = h.on_bridge(bridge(op(), "/admin block @ana", T + 20));
+        assert!(
+            texts_to(&out, &op()).starts_with("Admin commands"),
+            "aliases give the help"
+        );
+        let out = h.on_bridge(bridge(op(), &format!("/admin block {id}"), T + 30));
+        assert!(texts_to(&out, &op()).contains("@ana · "), "{out:?}");
+        assert_eq!(
+            h.station.registry().get(&ana.public()).unwrap().status,
+            crate::registry::Status::Blocked
         );
     }
 }
