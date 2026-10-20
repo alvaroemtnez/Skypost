@@ -280,11 +280,14 @@ fun SettingsScreen(
             title = stringResource(R.string.backup_export),
             confirm = stringResource(R.string.go_ahead),
             body = stringResource(R.string.backup_passphrase_body),
+            repeat = true,
             onDismiss = { askExportPass = false },
             onConfirm = { pass ->
                 askExportPass = false
                 exportPass = pass
-                createDoc.launch("skypost-copia.skb")
+                // skypost-20261021003512.skb: sorts by date, year to seconds.
+                val stamp = java.time.LocalDateTime.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMddHHmmss"))
+                createDoc.launch("skypost-$stamp.skb")
             },
         )
     }

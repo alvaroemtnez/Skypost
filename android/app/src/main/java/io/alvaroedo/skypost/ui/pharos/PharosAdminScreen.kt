@@ -41,6 +41,8 @@ import io.alvaroedo.skypost.ui.components.VerifiedBadge
 import androidx.compose.foundation.layout.height
 import androidx.compose.material3.SwitchDefaults
 import io.alvaroedo.skypost.ui.components.SettingRow
+import androidx.compose.animation.animateContentSize
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -652,11 +654,12 @@ private fun ReplyDialog(
         onDismissRequest = onDismiss,
         title = { Text(entry?.command.shown()) },
         text = {
-            // One height while waiting and once answered: no jump.
-            Column(Modifier.heightIn(min = 120.dp, max = LIST_HEIGHT).verticalScroll(rememberScrollState())) {
+            // Grows smoothly when the answer comes, instead of jumping.
+            Column(Modifier.animateContentSize().heightIn(max = LIST_HEIGHT).verticalScroll(rememberScrollState())) {
                 val reply = entry?.reply
                 when {
                     reply is AdminReply.Status -> StatusBody(reply)
+                    reply is AdminReply.Done -> DoneBody(reply)
                     reply != null -> Text(reply.shown())
                     late -> Text(stringResource(R.string.admin_timeout))
                     else -> Waiting()
@@ -665,6 +668,26 @@ private fun ReplyDialog(
         },
         confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.close)) } },
     )
+}
+
+/** A command's result: a big check when done, the reason when refused. */
+@Composable
+private fun DoneBody(r: AdminReply.Done) {
+    val ok = r.outcome == AdminOutcome.OK
+    Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Icon(
+            painterResource(if (ok) R.drawable.ic_check_circle else R.drawable.ic_error),
+            null,
+            tint = if (ok) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
+            modifier = Modifier.size(56.dp),
+        )
+        Text(
+            stringResource(if (ok) R.string.admin_confirmed else r.outcome.text()),
+            style = MaterialTheme.typography.titleMedium,
+            textAlign = TextAlign.Center,
+        )
+        r.subject?.let { Text(it, style = MaterialTheme.typography.bodyMedium, textAlign = TextAlign.Center) }
+    }
 }
 
 @Composable

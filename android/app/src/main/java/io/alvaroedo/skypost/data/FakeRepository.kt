@@ -746,21 +746,38 @@ class FakeRepository(
 
     override fun setPingInterval(minutes: Int) = _settings.update { it.copy(pingIntervalMin = minutes) }
 
+    // Stand-in for keryx::backup (phase 2: sealed with the passphrase, keys
+    // included). This one is NOT encrypted: it only checks the passphrase,
+    // so restores behave like the real thing for testing. No message history,
+    // as the restore warning says.
     override suspend fun exportBackup(passphrase: String): ByteArray {
         delay(300)
-        // TODO(phase 2): keryx::backup::seal over the keyring export + settings.
-        return "SKYPOSTB1 fake backup".toByteArray()
+        val snap = snapshot().copy(
+            messages = emptyMap(),
+            chats = _chats.value.map { it.copy(last = null, unread = 0) },
+            adminEntries = emptyList(),
+        )
+        val file = FakeBackup(FAKE_BACKUP_FORMAT, passwordCheck(passphrase), snap)
+        return backupJson.encodeToString(FakeBackup.serializer(), file).toByteArray()
     }
 
     override suspend fun restoreBackup(data: ByteArray, passphrase: String): Boolean {
         delay(300)
-        if (!data.decodeToString().startsWith("SKYPOSTB1") || passphrase.length < 8) return false
-        createIdentity("restaurado", null)
+        val file = runCatching { backupJson.decodeFromString(FakeBackup.serializer(), data.decodeToString()) }.getOrNull()
+        if (file == null || file.format != FAKE_BACKUP_FORMAT || file.check != passwordCheck(passphrase)) return false
+        restore(file.snapshot)
         return true
     }
 
+    private fun passwordCheck(passphrase: String): String =
+        java.security.MessageDigest.getInstance("SHA-256")
+            .digest(("skypost-fake-backup/" + passphrase).toByteArray())
+            .joinToString("") { "%02x".format(it) }
+
     private companion object {
         const val ADMIN_LOG_MAX = 50
+        const val FAKE_BACKUP_FORMAT = "SKYPOSTB1-FAKE"
+        val backupJson = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
     }
 
     private fun seedDemo() {
@@ -798,3 +815,7 @@ class FakeRepository(
         rx(mama, "Me alegro. Avisad al llegar", 12)
     }
 }
+
+/** The stand-in backup file: a passphrase check and the demo state, in clear. */
+@kotlinx.serialization.Serializable
+private data class FakeBackup(val format: String, val check: String, val snapshot: DemoSnapshot)

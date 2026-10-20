@@ -147,10 +147,22 @@ private fun CreateIdentityForm(repo: Repository, onCancel: () -> Unit) {
     }
 }
 
-/** Asks for a backup passphrase (at least 8 characters). */
+/**
+ * Asks for a backup passphrase (at least 8 characters). [repeat]: a second
+ * field must match (when choosing one, for an export).
+ */
 @Composable
-fun PassphraseDialog(title: String, confirm: String, onDismiss: () -> Unit, onConfirm: (String) -> Unit, body: String? = null) {
+fun PassphraseDialog(
+    title: String,
+    confirm: String,
+    onDismiss: () -> Unit,
+    onConfirm: (String) -> Unit,
+    body: String? = null,
+    repeat: Boolean = false,
+) {
     var pass by remember { mutableStateOf("") }
+    var again by remember { mutableStateOf("") }
+    val mismatch = repeat && again.isNotEmpty() && again != pass
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(title) },
@@ -165,9 +177,25 @@ fun PassphraseDialog(title: String, confirm: String, onDismiss: () -> Unit, onCo
                     visualTransformation = PasswordVisualTransformation(),
                     singleLine = true,
                 )
+                if (repeat) {
+                    OutlinedTextField(
+                        value = again,
+                        onValueChange = { again = it },
+                        label = { Text(stringResource(R.string.passphrase_repeat)) },
+                        supportingText = { if (mismatch) Text(stringResource(R.string.passphrase_mismatch)) },
+                        isError = mismatch,
+                        visualTransformation = PasswordVisualTransformation(),
+                        singleLine = true,
+                    )
+                }
             }
         },
-        confirmButton = { TextButton(onClick = { onConfirm(pass) }, enabled = pass.length >= 8) { Text(confirm) } },
+        confirmButton = {
+            TextButton(
+                onClick = { onConfirm(pass) },
+                enabled = pass.length >= 8 && (!repeat || again == pass),
+            ) { Text(confirm) }
+        },
         dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } },
     )
 }

@@ -227,6 +227,9 @@
     <string name="admin_phone_label">Teléfono (+34…)</string>
     <string name="admin_signal_label">Teléfono (+34…) o usuario</string>
     <string name="admin_target_invalid">Revisa lo que has escrito</string>
+    <string name="passphrase_repeat">Repite la contraseña</string>
+    <string name="passphrase_mismatch">No coinciden</string>
+    <string name="admin_confirmed">El Pharos lo ha confirmado</string>
     <string name="switch_off">Apagado</string>
     <string name="switch_on">Activado</string>
     <string name="status_contacts">Contactos autorizados</string>

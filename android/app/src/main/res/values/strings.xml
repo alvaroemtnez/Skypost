@@ -228,6 +228,9 @@
     <string name="admin_phone_label">Phone (+34…)</string>
     <string name="admin_signal_label">Phone (+34…) or username</string>
     <string name="admin_target_invalid">Check what you typed</string>
+    <string name="passphrase_repeat">Repeat the passphrase</string>
+    <string name="passphrase_mismatch">They do not match</string>
+    <string name="admin_confirmed">The Pharos confirmed it</string>
     <string name="switch_off">Off</string>
     <string name="switch_on">On</string>
     <string name="status_contacts">Authorised contacts</string>

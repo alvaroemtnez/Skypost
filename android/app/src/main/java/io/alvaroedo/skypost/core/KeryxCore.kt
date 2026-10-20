@@ -72,8 +72,13 @@ interface KeryxCore {
 class FakeKeryxCore : KeryxCore {
     private var seed = 0
 
-    override fun createIdentity(alias: String, callsign: String?): Card =
-        Card(key = fakeKey(alias), alias = alias, callsign = callsign, isPharos = false)
+    // Random, like a real key: two identities never share one.
+    override fun createIdentity(alias: String, callsign: String?): Card {
+        val alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567"
+        val rnd = java.security.SecureRandom()
+        val key = (1..52).map { alphabet[rnd.nextInt(32)] }.joinToString("")
+        return Card(key = key, alias = alias, callsign = callsign, isPharos = false)
+    }
 
     override fun identityUri(card: Card): String = buildString {
         append("skypost:id/").append(card.key).append("?n=").append(card.alias)

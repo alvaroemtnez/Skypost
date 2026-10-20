@@ -14,6 +14,7 @@ import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -105,6 +106,24 @@ class FakeRepositoryTest {
         assertEquals(first.chats.value.map { it.id }.toSet(), again.chats.value.map { it.id }.toSet())
         assertTrue(again.settings.value.encryptAll)
         file.delete()
+    }
+
+    @Test
+    fun `a backup restores the same identity and refuses a wrong passphrase`() = runTest {
+        val first = repo(demo = true)
+        first.updateProfile("marta", "EA5AAA")
+        val key = first.identity.value!!.card.key
+        val backup = first.exportBackup("caballo pila grapa")
+        // A phone just installed: no identity yet.
+        val fresh = FakeRepository(FakeKeryxCore(), air, demo = false, ackDelayMs = 10, now = { 1_000_000L })
+        assertFalse(fresh.restoreBackup(backup, "otra contraseña"))
+        assertNull(fresh.identity.value)
+        assertFalse(fresh.restoreBackup("rubbish".toByteArray(), "caballo pila grapa"))
+        assertTrue(fresh.restoreBackup(backup, "caballo pila grapa"))
+        assertEquals("marta", fresh.identity.value?.card?.alias)
+        assertEquals(key, fresh.identity.value?.card?.key)
+        assertEquals(first.contacts.value.map { it.card.key }, fresh.contacts.value.map { it.card.key })
+        assertTrue("no message history", fresh.chats.value.all { it.last == null })
     }
 
     @Test
