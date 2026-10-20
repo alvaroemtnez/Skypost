@@ -54,6 +54,14 @@ sealed interface AdminCommand {
     @Serializable
     data class Block(val target: AdminTarget, val on: Boolean) : AdminCommand
 
+    /** List who is blocked. */
+    @Serializable
+    data object Blocked : AdminCommand
+
+    /** Take a user or contact off the Pharos without blocking: they may ask again. */
+    @Serializable
+    data class Remove(val target: AdminTarget) : AdminCommand
+
     /** Signal or WhatsApp only: MeshCore contacts join by request. */
     @Serializable
     data class Allow(val target: AdminTarget.Contact) : AdminCommand
@@ -81,11 +89,21 @@ data class RequestEntry(val num: Int, val who: Who, val name: String, val id: St
 @Serializable
 data class ClientEntry(val status: Registration, val heardMin: Int?, val alias: String, val id: String)
 
-/** How someone became admin. */
-enum class AdminHow { SSH, BY_ADMIN, PASSWORD }
-
+/** Someone in a list (admins, blocked) or a notice: the target to act on them, and a name. */
 @Serializable
-data class AdminEntryRow(val who: Who, val how: AdminHow, val name: String, val id: String? = null)
+data class Party(val target: AdminTarget, val name: String) {
+    val who: Who get() = when (target) {
+        is AdminTarget.User -> Who.RADIO
+        is AdminTarget.MeshCore -> Who.MESHCORE
+        is AdminTarget.Contact -> if (target.kind == ChatKind.WHATSAPP) Who.WHATSAPP else Who.SIGNAL
+    }
+
+    val id: String? get() = when (target) {
+        is AdminTarget.User -> target.id
+        is AdminTarget.MeshCore -> target.id
+        is AdminTarget.Contact -> null
+    }
+}
 
 @Serializable
 sealed interface AdminReply {
@@ -109,7 +127,10 @@ sealed interface AdminReply {
     data class Clients(val list: List<ClientEntry>) : AdminReply
 
     @Serializable
-    data class Admins(val list: List<AdminEntryRow>) : AdminReply
+    data class Admins(val list: List<Party>) : AdminReply
+
+    @Serializable
+    data class Blocked(val list: List<Party>) : AdminReply
 
     /** Unsolicited: new access requests (no personal data on air). */
     @Serializable
@@ -121,7 +142,7 @@ sealed interface AdminReply {
 
     /** Unsolicited: someone became admin or stopped being one. */
     @Serializable
-    data class AdminChanged(val added: Boolean, val who: Who, val name: String, val id: String? = null) : AdminReply
+    data class AdminChanged(val added: Boolean, val party: Party) : AdminReply
 }
 
 /**

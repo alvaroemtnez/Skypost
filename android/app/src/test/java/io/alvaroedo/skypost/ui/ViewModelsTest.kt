@@ -18,6 +18,7 @@ import io.alvaroedo.skypost.model.AdminReply
 import io.alvaroedo.skypost.model.AdminTarget
 import io.alvaroedo.skypost.model.PharosSwitch
 import io.alvaroedo.skypost.ui.pharos.PharosAdminViewModel
+import io.alvaroedo.skypost.ui.pharos.targetKey
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -214,6 +215,20 @@ class ViewModelsTest {
         assertEquals("gone once confirmed", listOf(3, 5, 6, 7), vm.ui.value.requests!!.map { it.num })
         assertEquals(AdminReply.Done(AdminOutcome.OK, "Tía Carmen +34633333333"), vm.ui.value.log.first().reply)
 
+        vm.send(AdminCommand.Clients)
+        settle()
+        val tio = vm.ui.value.users!!.items.first { it.alias == "tio" }
+        val target = AdminTarget.User(tio.id, "@tio")
+        vm.send(AdminCommand.Remove(target))
+        assertTrue("busy until the Pharos confirms", target.targetKey() in vm.ui.value.users!!.busy)
+        settle()
+        assertTrue(vm.ui.value.users!!.items.none { it.alias == "tio" })
+        vm.send(AdminCommand.Blocked)
+        settle()
+        val spam = vm.ui.value.blocked!!.items.first()
+        vm.send(AdminCommand.Block(spam.target, false))
+        settle()
+        assertTrue("unblocked leaves the list", vm.ui.value.blocked!!.items.none { it == spam })
         assertFalse("never in signed plaintext", vm.login("faro viejo de la costa"))
         r.setEncryptAll(true)
         assertFalse("encrypted: no warning", vm.needsWarning(AdminCommand.Requests))

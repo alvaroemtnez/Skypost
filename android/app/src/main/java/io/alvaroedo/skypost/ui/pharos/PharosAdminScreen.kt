@@ -38,6 +38,9 @@ import androidx.compose.material3.RadioButton
 import androidx.compose.foundation.layout.size
 import androidx.compose.ui.text.TextStyle
 import io.alvaroedo.skypost.ui.components.VerifiedBadge
+import androidx.compose.foundation.layout.height
+import androidx.compose.material3.SwitchDefaults
+import io.alvaroedo.skypost.ui.components.SettingRow
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -57,7 +60,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.alvaroedo.skypost.R
 import io.alvaroedo.skypost.model.AdminCommand
 import io.alvaroedo.skypost.model.AdminEntry
-import io.alvaroedo.skypost.model.AdminHow
+import io.alvaroedo.skypost.model.Party
 import io.alvaroedo.skypost.model.AdminOutcome
 import io.alvaroedo.skypost.model.AdminReply
 import io.alvaroedo.skypost.model.AdminTarget
@@ -99,6 +102,10 @@ fun PharosAdminScreen(vm: PharosAdminViewModel, onBack: () -> Unit) {
     var confirmSwitch by remember { mutableStateOf<Pair<PharosSwitch, Boolean>?>(null) }
     /** The command whose reply the popup is waiting for (log entry id). */
     var call by remember { mutableStateOf<Long?>(null) }
+    /** An open list popup: the Pharos's users, blocked or admins. */
+    var list by remember { mutableStateOf<AdminList?>(null) }
+    /** A removal waiting for confirmation: its title and command. */
+    var confirm by remember { mutableStateOf<Pair<String, AdminCommand>?>(null) }
     val sentEncrypted = stringResource(R.string.admin_sign_in_sent)
     val p = ui.pharos
     val bridged = listOf(ChatKind.SIGNAL, ChatKind.WHATSAPP, ChatKind.MESHCORE)
@@ -148,12 +155,18 @@ fun PharosAdminScreen(vm: PharosAdminViewModel, onBack: () -> Unit) {
                 }
                 item {
                     Header(R.string.admin_commands)
+                    val open: (AdminList) -> Unit = { l ->
+                        if (vm.needsWarning(l.command)) {
+                            warnFor = { list = l; vm.send(l.command) }
+                        } else {
+                            list = l
+                            vm.send(l.command)
+                        }
+                    }
                     Command(R.drawable.ic_info, R.string.admin_status, R.string.admin_status_body) {
                         run(AdminCommand.Status)
                     }
-                    Command(R.drawable.ic_group, R.string.admin_clients, R.string.admin_clients_body) {
-                        run(AdminCommand.Clients)
-                    }
+                    Command(R.drawable.ic_group, R.string.admin_clients, R.string.admin_clients_body) { open(AdminList.USERS) }
                     Command(R.drawable.ic_person_add, R.string.admin_requests, R.string.admin_requests_body) {
                         if (vm.needsWarning(AdminCommand.Requests)) {
                             warnFor = { showRequests = true; vm.send(AdminCommand.Requests) }
@@ -169,24 +182,13 @@ fun PharosAdminScreen(vm: PharosAdminViewModel, onBack: () -> Unit) {
                             listOf(R.string.admin_allow_action to { t -> (t as? AdminTarget.Contact)?.let { AdminCommand.Allow(it) } }),
                         )
                     }
-                    Command(R.drawable.ic_block, R.string.admin_block, R.string.admin_block_body) {
-                        ask = Ask(
-                            R.string.admin_block,
-                            anyone,
-                            listOf(
-                                R.string.unblock to { t -> AdminCommand.Block(t, false) },
-                                R.string.block to { t -> AdminCommand.Block(t, true) },
-                            ),
-                        )
+                    Command(R.drawable.ic_block, R.string.admin_blocked, R.string.admin_blocked_body) { open(AdminList.BLOCKED) }
+                    Command(R.drawable.ic_add_circle, R.string.admin_block, R.string.admin_block_body) {
+                        ask = Ask(R.string.admin_block, anyone, listOf(R.string.block to { t -> AdminCommand.Block(t, true) }))
                     }
-                    Command(R.drawable.ic_admin, R.string.admin_admins, R.string.admin_admins_body) {
-                        run(AdminCommand.Admins)
-                    }
-                    Command(R.drawable.ic_person_add, R.string.admin_add, R.string.admin_add_body) {
+                    Command(R.drawable.ic_admin, R.string.admin_admins, R.string.admin_admins_body) { open(AdminList.ADMINS) }
+                    Command(R.drawable.ic_add_moderator, R.string.admin_add, R.string.admin_add_body) {
                         ask = Ask(R.string.admin_add, anyone, listOf(R.string.admin_add_action to { t -> AdminCommand.AddAdmin(t) }))
-                    }
-                    Command(R.drawable.ic_remove_moderator, R.string.admin_revoke, R.string.admin_revoke_body) {
-                        ask = Ask(R.string.admin_revoke, anyone, listOf(R.string.admin_revoke_action to { t -> AdminCommand.RemoveAdmin(t) }))
                     }
                 }
             }
@@ -311,6 +313,64 @@ fun PharosAdminScreen(vm: PharosAdminViewModel, onBack: () -> Unit) {
         )
     }
 
+    list?.let { l ->
+        var late by remember(l) { mutableStateOf(false) }
+        val loading = when (l) {
+            AdminList.USERS -> ui.clientsLoading
+            AdminList.BLOCKED -> ui.blockedLoading
+            AdminList.ADMINS -> ui.adminsLoading
+        }
+        LaunchedEffect(l, loading) {
+            late = false
+            if (loading) {
+                delay(PharosAdminViewModel.REPLY_TIMEOUT_MS)
+                late = true
+            }
+        }
+        val removeUser = stringResource(R.string.remove_user_title)
+        val removeAdmin = stringResource(R.string.remove_admin_title)
+        ListDialog(
+            kind = l,
+            ui = ui,
+            loading = loading,
+            late = late,
+            look = look,
+            onRemoveUser = { t -> confirm = removeUser.format(t.name) to AdminCommand.Remove(t) },
+            onRemoveAdmin = { party -> confirm = removeAdmin.format(party.name) to AdminCommand.RemoveAdmin(party.target) },
+            onUnblock = { party -> vm.send(AdminCommand.Block(party.target, false)) },
+            onDismiss = { list = null },
+        )
+    }
+
+    confirm?.let { (title, command) ->
+        AlertDialog(
+            onDismissRequest = { confirm = null },
+            icon = {
+                Icon(
+                    painterResource(if (command is AdminCommand.Remove) R.drawable.ic_person_remove else R.drawable.ic_remove_moderator),
+                    null,
+                )
+            },
+            title = { Text(title) },
+            text = {
+                Text(stringResource(if (command is AdminCommand.Remove) R.string.remove_user_body else R.string.remove_admin_body))
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        confirm = null
+                        if (vm.needsWarning(command)) warnFor = { vm.send(command) } else vm.send(command)
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.error,
+                        contentColor = MaterialTheme.colorScheme.onError,
+                    ),
+                ) { Text(stringResource(R.string.remove)) }
+            },
+            dismissButton = { TextButton(onClick = { confirm = null }) { Text(stringResource(R.string.cancel)) } },
+        )
+    }
+
     call?.let { id ->
         val entry = ui.log.firstOrNull { it.id == id }
         var late by remember(id) { mutableStateOf(false) }
@@ -364,15 +424,26 @@ private fun Header(text: Int, modifier: Modifier = Modifier) {
     )
 }
 
+/** A command: the icon stays centred on the title and subtitle, however many lines. */
 @Composable
 private fun Command(icon: Int, title: Int, body: Int, onClick: () -> Unit) {
-    ListItem(
+    SettingRow(
         modifier = Modifier.clickable(onClick = onClick),
         leadingContent = { Icon(painterResource(icon), null) },
         headlineContent = { Text(stringResource(title)) },
         supportingContent = { Text(stringResource(body)) },
     )
 }
+
+/** The lists a popup shows, and the command that fetches each. */
+private enum class AdminList(val title: Int, val command: AdminCommand) {
+    USERS(R.string.admin_clients, AdminCommand.Clients),
+    BLOCKED(R.string.admin_blocked, AdminCommand.Blocked),
+    ADMINS(R.string.admin_admins, AdminCommand.Admins),
+}
+
+/** Popups that list things keep one height, so they do not jump when the answer comes. */
+private val LIST_HEIGHT = 380.dp
 
 private fun PharosSwitch.title(): Int = when (this) {
     PharosSwitch.OPEN -> R.string.switch_open
@@ -404,7 +475,21 @@ private fun Switches(known: Set<PharosSwitch>?, onFlip: (PharosSwitch, Boolean) 
                 modifier = Modifier.clickable { onFlip(s, !on) },
                 headlineContent = { Text(stringResource(s.title())) },
                 supportingContent = { Text(stringResource(s.body())) },
-                trailingContent = { Switch(checked = on, onCheckedChange = { onFlip(s, it) }) },
+                trailingContent = {
+                    Switch(
+                        checked = on,
+                        onCheckedChange = { onFlip(s, it) },
+                        colors = if (s == PharosSwitch.EMERGENCY) {
+                            SwitchDefaults.colors(
+                                checkedTrackColor = MaterialTheme.extraColors.emergency,
+                                checkedThumbColor = MaterialTheme.extraColors.onEmergency,
+                                checkedBorderColor = MaterialTheme.extraColors.emergency,
+                            )
+                        } else {
+                            SwitchDefaults.colors()
+                        },
+                    )
+                },
             )
         }
     }
@@ -469,6 +554,8 @@ private fun AdminCommand?.shown(): String = when (this) {
     is AdminCommand.Refuse -> stringResource(R.string.cmd_refuse, num)
     AdminCommand.Clients -> stringResource(R.string.admin_clients)
     AdminCommand.Admins -> stringResource(R.string.admin_admins)
+    AdminCommand.Blocked -> stringResource(R.string.admin_blocked)
+    is AdminCommand.Remove -> stringResource(R.string.cmd_remove, target.shown())
     is AdminCommand.Block -> stringResource(if (on) R.string.cmd_block else R.string.cmd_unblock, target.shown())
     is AdminCommand.Allow -> stringResource(R.string.cmd_allow, target.shown())
     is AdminCommand.AddAdmin -> stringResource(R.string.cmd_add_admin, target.shown())
@@ -496,11 +583,8 @@ private fun Registration.short(): Int = when (this) {
     Registration.NEEDS_CODE, Registration.NOT_REGISTERED -> R.string.client_unregistered
 }
 
-private fun AdminHow.text(): Int = when (this) {
-    AdminHow.SSH -> R.string.how_ssh
-    AdminHow.BY_ADMIN -> R.string.how_by_admin
-    AdminHow.PASSWORD -> R.string.how_password
-}
+/** A party's id as shown: like the safety code for radio users, lower case for MeshCore. */
+private fun Party.shownId(): String? = id?.let { if (who == Who.MESHCORE) shortMeshcore(it) else short(it) }
 
 /** A reply in the app's language. */
 @Composable
@@ -524,16 +608,22 @@ private fun AdminReply.shown(): String = when (this) {
         val heard = it.heardMin?.let { m -> stringResource(R.string.heard_min_ago, m) } ?: stringResource(R.string.heard_never)
         "@${it.alias} · ${short(it.id)} · ${stringResource(it.status.short())} · $heard"
     }.joinToString("\n")
-    is AdminReply.Admins -> list.map {
-        val id = it.id?.let { i -> if (it.who == Who.MESHCORE) shortMeshcore(i) else short(i) }
-        listOfNotNull(it.name, id, it.who.shown(), stringResource(it.how.text())).joinToString(" · ")
-    }.joinToString("\n")
+    is AdminReply.Admins -> list.map { listOfNotNull(it.name, it.shownId(), it.who.shown()).joinToString(" · ") }.joinToString("\n")
+    is AdminReply.Blocked ->
+        if (list.isEmpty()) {
+            stringResource(R.string.admin_blocked_none)
+        } else {
+            list.map { listOfNotNull(it.name, it.shownId(), it.who.shown()).joinToString(" · ") }.joinToString("\n")
+        }
     is AdminReply.NewRequests ->
         stringResource(R.string.reply_new_requests, networks.map { it.shown() }.joinToString(), pending)
     is AdminReply.SwitchesChanged ->
         stringResource(R.string.reply_switches_changed, switches.map { stringResource(it.title()) }.joinToString().ifEmpty { "—" })
     is AdminReply.AdminChanged ->
-        stringResource(if (added) R.string.reply_admin_added else R.string.reply_admin_removed, "$name (${who.shown()})")
+        stringResource(
+            if (added) R.string.reply_admin_added else R.string.reply_admin_removed,
+            listOfNotNull(party.name, party.shownId()).joinToString(" · ") + " (${party.who.shown()})",
+        )
 }
 
 @Composable
@@ -562,40 +652,169 @@ private fun ReplyDialog(
         onDismissRequest = onDismiss,
         title = { Text(entry?.command.shown()) },
         text = {
-            Column(Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState())) {
+            // One height while waiting and once answered: no jump.
+            Column(Modifier.heightIn(min = 120.dp, max = LIST_HEIGHT).verticalScroll(rememberScrollState())) {
                 val reply = entry?.reply
                 when {
-                    reply is AdminReply.Clients -> reply.list.forEach {
-                        val (verified, impostor) = look(Who.RADIO, it.id, "@" + it.alias)
-                        PersonLine("@" + it.alias, it.id, verified, impostor)
-                        val heard = it.heardMin?.let { m -> stringResource(R.string.heard_min_ago, m) }
-                            ?: stringResource(R.string.heard_never)
-                        Text(
-                            "${stringResource(it.status.short())} · $heard",
-                            style = MaterialTheme.typography.bodySmall,
-                            modifier = Modifier.padding(bottom = 8.dp),
-                        )
-                    }
-                    reply is AdminReply.Admins -> reply.list.forEach {
-                        val (verified, impostor) = look(it.who, it.id, it.name)
-                        PersonLine(it.name, it.id, verified, impostor, meshcore = it.who == Who.MESHCORE)
-                        Text(
-                            "${it.who.shown()} · ${stringResource(it.how.text())}",
-                            style = MaterialTheme.typography.bodySmall,
-                            modifier = Modifier.padding(bottom = 8.dp),
-                        )
-                    }
+                    reply is AdminReply.Status -> StatusBody(reply)
                     reply != null -> Text(reply.shown())
                     late -> Text(stringResource(R.string.admin_timeout))
-                    else -> {
-                        Text(stringResource(R.string.admin_waiting))
-                        LinearProgressIndicator(Modifier.fillMaxWidth().padding(vertical = 8.dp))
+                    else -> Waiting()
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.close)) } },
+    )
+}
+
+@Composable
+private fun Waiting() {
+    Text(stringResource(R.string.admin_waiting))
+    LinearProgressIndicator(Modifier.fillMaxWidth().padding(vertical = 8.dp))
+}
+
+/** The status as label and value rows, then each switch on or off. */
+@Composable
+private fun StatusBody(r: AdminReply.Status) {
+    val rows = listOf(
+        R.string.status_registered to r.registered,
+        R.string.status_requests to r.requests,
+        R.string.status_listening to r.listening,
+        R.string.status_queued to r.queued,
+        R.string.status_contacts to r.contacts,
+    )
+    rows.forEach { (label, value) ->
+        Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(stringResource(label), Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
+            Text(value.toString(), style = MaterialTheme.typography.titleMedium)
+        }
+    }
+    HorizontalDivider(Modifier.padding(vertical = 8.dp))
+    PharosSwitch.entries.forEach { s ->
+        val on = s in r.switches
+        Row(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(stringResource(s.title()), Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
+            Text(
+                stringResource(if (on) R.string.switch_on else R.string.switch_off),
+                style = MaterialTheme.typography.labelLarge,
+                color = when {
+                    on && s == PharosSwitch.EMERGENCY -> MaterialTheme.extraColors.emergency
+                    on -> MaterialTheme.colorScheme.primary
+                    else -> MaterialTheme.colorScheme.onSurfaceVariant
+                },
+            )
+        }
+    }
+}
+
+/**
+ * The Pharos's users, blocked or admins, each with its action on the right:
+ * remove a user (not blocked), unblock, remove an admin. A row whose action is
+ * out shows progress until the Pharos confirms; a refusal shows why.
+ */
+@Composable
+private fun ListDialog(
+    kind: AdminList,
+    ui: PharosAdminUi,
+    loading: Boolean,
+    late: Boolean,
+    look: (Who, String?, String) -> Pair<Boolean, Boolean>,
+    onRemoveUser: (AdminTarget.User) -> Unit,
+    onRemoveAdmin: (Party) -> Unit,
+    onUnblock: (Party) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(kind.title)) },
+        text = {
+            Column(Modifier.height(LIST_HEIGHT).verticalScroll(rememberScrollState())) {
+                if (loading && late) Text(stringResource(R.string.admin_timeout)) else if (loading) Waiting()
+                when (kind) {
+                    AdminList.USERS -> {
+                        val l = ui.users
+                        if (!loading && l?.items.isNullOrEmpty()) Text(stringResource(R.string.admin_users_none))
+                        l?.items?.forEachIndexed { i, u ->
+                            if (i > 0) HorizontalDivider()
+                            val target = AdminTarget.User(u.id, "@" + u.alias)
+                            val (verified, impostor) = look(Who.RADIO, u.id, "@" + u.alias)
+                            val heard = u.heardMin?.let { m -> stringResource(R.string.heard_min_ago, m) }
+                                ?: stringResource(R.string.heard_never)
+                            ListRow(
+                                busy = target.targetKey() in l.busy,
+                                failed = l.failed[target.targetKey()],
+                                content = {
+                                    PersonLine("@" + u.alias, u.id, verified, impostor)
+                                    Text("${stringResource(u.status.short())} · $heard", style = MaterialTheme.typography.bodySmall)
+                                },
+                                action = {
+                                    IconButton(onClick = { onRemoveUser(target) }) {
+                                        Icon(
+                                            painterResource(R.drawable.ic_person_remove),
+                                            stringResource(R.string.admin_remove_user),
+                                            tint = MaterialTheme.colorScheme.error,
+                                        )
+                                    }
+                                },
+                            )
+                        }
+                    }
+                    AdminList.BLOCKED, AdminList.ADMINS -> {
+                        val l = if (kind == AdminList.BLOCKED) ui.blocked else ui.admins
+                        if (!loading && l?.items.isNullOrEmpty()) {
+                            Text(stringResource(if (kind == AdminList.BLOCKED) R.string.admin_blocked_none else R.string.admin_admins_none))
+                        }
+                        l?.items?.forEachIndexed { i, party ->
+                            if (i > 0) HorizontalDivider()
+                            val (verified, impostor) = look(party.who, party.id, party.name)
+                            ListRow(
+                                busy = party.target.targetKey() in l.busy,
+                                failed = l.failed[party.target.targetKey()],
+                                content = {
+                                    PersonLine(party.name, party.id, verified, impostor, meshcore = party.who == Who.MESHCORE)
+                                    Text(party.who.shown(), style = MaterialTheme.typography.bodySmall)
+                                },
+                                action = {
+                                    if (kind == AdminList.BLOCKED) {
+                                        TextButton(onClick = { onUnblock(party) }) { Text(stringResource(R.string.unblock)) }
+                                    } else {
+                                        IconButton(onClick = { onRemoveAdmin(party) }) {
+                                            Icon(
+                                                painterResource(R.drawable.ic_remove_moderator),
+                                                stringResource(R.string.admin_revoke),
+                                                tint = MaterialTheme.colorScheme.error,
+                                            )
+                                        }
+                                    }
+                                },
+                            )
+                        }
                     }
                 }
             }
         },
         confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.close)) } },
     )
+}
+
+/** One entry of a list popup: who on the left, its action on the right, centred. */
+@Composable
+private fun ListRow(
+    busy: Boolean,
+    failed: AdminOutcome?,
+    content: @Composable () -> Unit,
+    action: @Composable () -> Unit,
+) {
+    Column(Modifier.padding(vertical = 10.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(Modifier.weight(1f)) { content() }
+            if (!busy) action()
+        }
+        failed?.let {
+            Text(stringResource(it.text()), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+        }
+        if (busy) LinearProgressIndicator(Modifier.fillMaxWidth().padding(top = 8.dp))
+    }
 }
 
 /** Pending requests: fetched from the Pharos, each accepted or refused here. */
@@ -614,7 +833,7 @@ private fun RequestsDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.admin_requests)) },
         text = {
-            Column(Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState())) {
+            Column(Modifier.height(LIST_HEIGHT).verticalScroll(rememberScrollState())) {
                 if (loading && late) {
                     Text(stringResource(R.string.admin_timeout))
                 } else if (loading) {

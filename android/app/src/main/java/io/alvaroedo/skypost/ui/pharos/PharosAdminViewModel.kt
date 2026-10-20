@@ -10,7 +10,9 @@ import io.alvaroedo.skypost.model.AdminReply
 import io.alvaroedo.skypost.model.AdminTarget
 import io.alvaroedo.skypost.model.Chat
 import io.alvaroedo.skypost.model.ChatKind
+import io.alvaroedo.skypost.model.ClientEntry
 import io.alvaroedo.skypost.model.Contact
+import io.alvaroedo.skypost.model.Party
 import io.alvaroedo.skypost.model.Who
 import io.alvaroedo.skypost.model.Pharos
 import io.alvaroedo.skypost.model.PharosSwitch
@@ -40,12 +42,36 @@ data class PharosAdminUi(
     val deciding: Set<Int> = emptySet(),
     /** The Pharos refused these decisions (e.g. the request expired). */
     val decisionFailed: Map<Int, AdminOutcome> = emptyMap(),
+    /** The Pharos's users, admins and blocked as last listed, minus confirmed removals. */
+    val users: LiveList<ClientEntry>? = null,
+    val admins: LiveList<Party>? = null,
+    val blocked: LiveList<Party>? = null,
+    val adminsLoading: Boolean = false,
+    val blockedLoading: Boolean = false,
     /** Who a command can name: our contacts and MeshCore chats, plus the Pharos's lists. */
     val people: List<Person> = emptyList(),
     /** Our contacts by radio id, and their aliases, to tell people apart. */
     val contactIds: Map<String, Contact> = emptyMap(),
     val contactAliases: Set<String> = emptySet(),
 )
+
+/**
+ * A list from the Pharos as it stands: entries still shown, those an action
+ * is waiting on ([busy], by [targetKey]) and those the Pharos refused to act
+ * on ([failed]).
+ */
+data class LiveList<T>(
+    val items: List<T>,
+    val busy: Set<String> = emptySet(),
+    val failed: Map<String, AdminOutcome> = emptyMap(),
+)
+
+/** A stable key for a target, to match list entries with commands. */
+fun AdminTarget.targetKey(): String = when (this) {
+    is AdminTarget.User -> "u:$id"
+    is AdminTarget.MeshCore -> "m:$id"
+    is AdminTarget.Contact -> "c:${kind.name}:$address"
+}
 
 /**
  * Someone a command can name. [verified]: one of our verified contacts.
@@ -85,6 +111,17 @@ class PharosAdminViewModel(private val repo: Repository, private val key: String
             requestsLoading = waiting(log, AdminCommand.Requests),
             statusLoading = waiting(log, AdminCommand.Status),
             clientsLoading = waiting(log, AdminCommand.Clients),
+            adminsLoading = waiting(log, AdminCommand.Admins),
+            blockedLoading = waiting(log, AdminCommand.Blocked),
+            users = live(log, { (it as? AdminReply.Clients)?.list }, { "u:${it.id}" }) {
+                ((it as? AdminCommand.Remove)?.target as? AdminTarget.User)?.targetKey()
+            },
+            admins = live(log, { (it as? AdminReply.Admins)?.list }, { it.target.targetKey() }) {
+                (it as? AdminCommand.RemoveAdmin)?.target?.targetKey()
+            },
+            blocked = live(log, { (it as? AdminReply.Blocked)?.list }, { it.target.targetKey() }) {
+                (it as? AdminCommand.Block)?.takeIf { b -> !b.on }?.target?.targetKey()
+            },
             deciding = decisions(log).filterValues { it.reply == null }.keys,
             decisionFailed = decisions(log).mapNotNull { (n, e) ->
                 ((e.reply as? AdminReply.Done)?.outcome)?.takeIf { it != AdminOutcome.OK }?.let { n to it }
@@ -151,6 +188,7 @@ class PharosAdminViewModel(private val repo: Repository, private val key: String
                 when (val r = e.reply) {
                     is AdminReply.Clients -> r.list.forEach { add(Who.RADIO, it.id, "@" + it.alias) }
                     is AdminReply.Admins -> r.list.forEach { a -> a.id?.let { add(a.who, it, a.name) } }
+                    is AdminReply.Blocked -> r.list.forEach { a -> a.id?.let { add(a.who, it, a.name) } }
                     is AdminReply.Requests -> r.list.forEach { q ->
                         q.id?.let { add(q.who, it, if (q.who == Who.RADIO) "@" + q.name else q.name) }
                     }
@@ -179,6 +217,34 @@ class PharosAdminViewModel(private val repo: Repository, private val key: String
                 }
             }
             return s
+        }
+
+        /**
+         * The last list a reply of this kind brought, with the removals since:
+         * waiting ones are busy, confirmed ones gone, refused ones failed.
+         */
+        fun <T> live(
+            log: List<AdminEntry>,
+            pick: (AdminReply) -> List<T>?,
+            keyOf: (T) -> String,
+            removes: (AdminCommand) -> String?,
+        ): LiveList<T>? {
+            val i = log.indexOfLast { e -> e.reply?.let(pick) != null }
+            if (i < 0) return null
+            val items = log[i].reply!!.let(pick)!!
+            val busy = mutableSetOf<String>()
+            val gone = mutableSetOf<String>()
+            val failed = mutableMapOf<String, AdminOutcome>()
+            for (e in log.drop(i + 1)) {
+                val k = e.command?.let(removes) ?: continue
+                when (val o = (e.reply as? AdminReply.Done)?.outcome) {
+                    null -> busy += k
+                    AdminOutcome.OK -> { gone += k; failed -= k }
+                    else -> failed[k] = o
+                }
+                if (e.reply != null) busy -= k
+            }
+            return LiveList(items.filterNot { keyOf(it) in gone }, busy, failed)
         }
 
         /** The last command of this kind is still waiting for its reply. */

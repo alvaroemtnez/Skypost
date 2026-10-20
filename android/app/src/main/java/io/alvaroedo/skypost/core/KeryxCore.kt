@@ -139,12 +139,13 @@ class FakeKeryxCore : KeryxCore {
     // Mirrors keryx until the bindings exist: lists, accept/refuse (the reply
     // names who) and anything naming a bridged contact.
     override fun revealsPersonalData(command: AdminCommand): Boolean = when (command) {
-        AdminCommand.Requests, AdminCommand.Clients, AdminCommand.Admins,
+        AdminCommand.Requests, AdminCommand.Clients, AdminCommand.Admins, AdminCommand.Blocked,
         is AdminCommand.Allow, is AdminCommand.Accept, is AdminCommand.Refuse,
         -> true
         is AdminCommand.Block -> command.target is AdminTarget.Contact
         is AdminCommand.AddAdmin -> command.target is AdminTarget.Contact
         is AdminCommand.RemoveAdmin -> command.target is AdminTarget.Contact
+        is AdminCommand.Remove -> command.target is AdminTarget.Contact
         else -> false
     }
 

@@ -5,8 +5,7 @@ import io.alvaroedo.skypost.core.KeryxCore
 import io.alvaroedo.skypost.core.ParsedUri
 import io.alvaroedo.skypost.model.AdminCommand
 import io.alvaroedo.skypost.model.AdminEntry
-import io.alvaroedo.skypost.model.AdminEntryRow
-import io.alvaroedo.skypost.model.AdminHow
+import io.alvaroedo.skypost.model.Party
 import io.alvaroedo.skypost.model.AdminOutcome
 import io.alvaroedo.skypost.model.AdminReply
 import io.alvaroedo.skypost.model.AdminTarget
@@ -610,6 +609,41 @@ class FakeRepository(
 
     override fun userId(key: String): String = core.userId(key)
 
+    private val fakeClients = mutableMapOf<String, MutableList<ClientEntry>>()
+    private val fakeAdmins = mutableMapOf<String, MutableList<Party>>()
+    private val fakeBlocked = mutableMapOf<String, MutableList<Party>>()
+
+    private fun me() = _identity.value?.card
+
+    private fun clientsOf(key: String) = fakeClients.getOrPut(key) {
+        val bea = _contacts.value.firstOrNull { it.card.alias == "bea" }?.card?.key?.let(core::userId) ?: core.userId("bea")
+        mutableListOf(
+            ClientEntry(Registration.REGISTERED, 41, "bea", bea),
+            ClientEntry(Registration.PENDING, 12, "tio", core.userId("TIO-DEMO-KEY")),
+            ClientEntry(Registration.REGISTERED, 0, me()?.alias.orEmpty(), me()?.key?.let(core::userId).orEmpty()),
+        )
+    }
+
+    private fun adminsOf(key: String) = fakeAdmins.getOrPut(key) {
+        mutableListOf(
+            Party(AdminTarget.User(me()?.key?.let(core::userId).orEmpty(), "@" + me()?.alias.orEmpty()), "@" + me()?.alias.orEmpty()),
+            Party(AdminTarget.Contact(ChatKind.SIGNAL, "34600000000"), "+34600000000"),
+        )
+    }
+
+    private fun blockedOf(key: String) = fakeBlocked.getOrPut(key) {
+        mutableListOf(
+            Party(AdminTarget.User(core.userId("SPAMMER"), "@ruido"), "@ruido"),
+            Party(AdminTarget.Contact(ChatKind.WHATSAPP, "34699999999"), "+34699999999"),
+        )
+    }
+
+    private fun AdminTarget.matches(other: AdminTarget) = when {
+        this is AdminTarget.User && other is AdminTarget.User -> id == other.id
+        this is AdminTarget.MeshCore && other is AdminTarget.MeshCore -> id == other.id
+        else -> this == other
+    }
+
     private fun switchesOf(key: String) =
         fakeSwitches.getOrPut(key) { setOf(PharosSwitch.REQUESTS, PharosSwitch.LOGIN) }
 
@@ -632,8 +666,6 @@ class FakeRepository(
     override fun sendAdmin(pharosKey: String, command: AdminCommand): Long? = adminRoundTrip(pharosKey, command) {
         val ok = AdminReply.Done(AdminOutcome.OK)
         val me = "@" + _identity.value?.card?.alias.orEmpty()
-        val myId = _identity.value?.card?.key?.let(core::userId).orEmpty()
-        val bea = _contacts.value.firstOrNull { it.card.alias == "bea" }?.card?.key?.let(core::userId) ?: core.userId("bea")
         if (!isAdmin(pharosKey)) return@adminRoundTrip AdminReply.Done(AdminOutcome.NOT_ADMIN)
         when (command) {
             AdminCommand.Status -> AdminReply.Status(switchesOf(pharosKey), 3, requestsOf(pharosKey).size, 1, 2, 4)
@@ -648,29 +680,44 @@ class FakeRepository(
                     AdminReply.Done(AdminOutcome.OK, listOfNotNull(r.name, r.id?.let { "${it.take(4)} ${it.substring(4, 8)}" }).joinToString(" · "))
                 }
             }
-            AdminCommand.Clients -> AdminReply.Clients(
-                listOf(
-                    ClientEntry(Registration.REGISTERED, 41, "bea", bea),
-                    ClientEntry(Registration.PENDING, 12, "tio", core.userId("TIO-DEMO-KEY")),
-                    ClientEntry(Registration.REGISTERED, 0, me.drop(1), myId),
-                ),
-            )
-            AdminCommand.Admins -> AdminReply.Admins(
-                listOf(AdminEntryRow(Who.RADIO, AdminHow.SSH, me, myId), AdminEntryRow(Who.SIGNAL, AdminHow.SSH, "+34600000000")),
-            )
+            AdminCommand.Clients -> AdminReply.Clients(clientsOf(pharosKey).toList())
+            AdminCommand.Admins -> AdminReply.Admins(adminsOf(pharosKey).toList())
+            AdminCommand.Blocked -> AdminReply.Blocked(blockedOf(pharosKey).toList())
+            is AdminCommand.Remove -> {
+                val t = command.target as? AdminTarget.User
+                val gone = clientsOf(pharosKey).removeAll { t != null && it.id == t.id }
+                if (gone || command.target is AdminTarget.Contact) ok else AdminReply.Done(AdminOutcome.UNKNOWN)
+            }
+            is AdminCommand.Block -> {
+                val list = blockedOf(pharosKey)
+                if (command.on) {
+                    if (list.none { it.target.matches(command.target) }) {
+                        list += Party(command.target, (command.target as? AdminTarget.User)?.name ?: "?")
+                    }
+                } else {
+                    list.removeAll { it.target.matches(command.target) }
+                }
+                ok
+            }
             is AdminCommand.Set -> {
                 val s = switchesOf(pharosKey)
                 fakeSwitches[pharosKey] = if (command.on) s + command.switch else s - command.switch
                 ok
             }
             is AdminCommand.RemoveAdmin ->
-                if ((command.target as? AdminTarget.User)?.id == myId &&
-                    PharosSwitch.LOGIN !in switchesOf(pharosKey)
-                ) {
+                if (adminsOf(pharosKey).size == 1 && PharosSwitch.LOGIN !in switchesOf(pharosKey)) {
                     AdminReply.Done(AdminOutcome.LAST_ADMIN, me)
                 } else {
+                    adminsOf(pharosKey).removeAll { it.target.matches(command.target) }
                     ok
                 }
+            is AdminCommand.AddAdmin -> {
+                val t = command.target
+                if (adminsOf(pharosKey).none { it.target.matches(t) }) {
+                    adminsOf(pharosKey) += Party(t, (t as? AdminTarget.User)?.name ?: (t as? AdminTarget.MeshCore)?.name ?: "?")
+                }
+                ok
+            }
             else -> ok
         }
     }
