@@ -53,6 +53,10 @@ Design: decisions [0015](decisions/0015-identities.md), [0016](decisions/0016-ph
 - [ ] `pharos` control socket so `pharos set`/`pharos admin` work while the service runs (today: stop it first)
 - [ ] Remote reboot admin command: decide what it restarts (the `pharos` service, the sidecars, or the whole Pi via a narrow sudoers/polkit rule) and how the station is sure to come back (hardware watchdog, radio and bridges re-attached on boot)
 - [ ] Channel-simulator tests (codec2 `ch`, Watterson fading) in CI
+- [ ] Channel access on the JS8 lanes: audio offset per station (derived from its key, a few sub-channels in the passband), listen before transmitting, random backoff on ARQ retries; verify with Phase 0 data that the Pharos decodes simultaneous clients at different offsets
+- [ ] Per-link mode choice, end to end: lane and speed already follow each peer's reported SNR; add each peer's OFDM capability (in its card/announce) so Mercury is only tried when both ends can do it, and keep per-link lane state across restarts
+- [ ] Mercury "highways": dedicated fast-lane dial frequencies, check the channel is free before using one, one OFDM session at a time per Pharos transmitter, fall back to JS8 when busy
+- [ ] Consider selective repeat for long multi-frame messages (today a lost frame resends the whole message)
 - [x] Decide tag length (8 vs 16): 8, decision 0015
 - [ ] Text codec v1: word dictionary, weights trained on Phase 0 messages
 - [ ] Band plan from measured data
