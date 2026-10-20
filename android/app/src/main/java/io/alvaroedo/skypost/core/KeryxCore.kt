@@ -38,6 +38,9 @@ interface KeryxCore {
     /** First fingerprint bytes as "4F2A 9C11 …", to compare by eye. */
     fun safetyNumber(key: String): String
 
+    /** `keryx::admin::user_id`: the first 8 fingerprint bytes as 16 hex digits (the start of [safetyNumber]). */
+    fun userId(key: String): String
+
     fun parseUri(text: String): ParsedUri?
 
     fun newGroupUri(name: String): String
@@ -78,8 +81,15 @@ class FakeKeryxCore : KeryxCore {
         if (card.isPharos) append("&k=pharos")
     }
 
-    override fun safetyNumber(key: String): String =
-        key.take(20).uppercase().chunked(4).joinToString(" ")
+    // Like keryx: a hash of the key, its first 10 bytes in groups of four.
+    override fun safetyNumber(key: String): String = fingerprintHex(key).take(20).chunked(4).joinToString(" ")
+
+    override fun userId(key: String): String = fingerprintHex(key).take(16)
+
+    private fun fingerprintHex(key: String): String =
+        java.security.MessageDigest.getInstance("SHA-256")
+            .digest(("keryx-v1/id" + key).toByteArray())
+            .joinToString("") { "%02X".format(it) }
 
     override fun parseUri(text: String): ParsedUri? {
         val t = text.trim()
@@ -132,9 +142,9 @@ class FakeKeryxCore : KeryxCore {
         AdminCommand.Requests, AdminCommand.Clients, AdminCommand.Admins,
         is AdminCommand.Allow, is AdminCommand.Accept, is AdminCommand.Refuse,
         -> true
-        is AdminCommand.Block -> command.target !is AdminTarget.FieldUser
-        is AdminCommand.AddAdmin -> command.target !is AdminTarget.FieldUser
-        is AdminCommand.RemoveAdmin -> command.target !is AdminTarget.FieldUser
+        is AdminCommand.Block -> command.target is AdminTarget.Contact
+        is AdminCommand.AddAdmin -> command.target is AdminTarget.Contact
+        is AdminCommand.RemoveAdmin -> command.target is AdminTarget.Contact
         else -> false
     }
 

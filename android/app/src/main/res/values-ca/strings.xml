@@ -67,7 +67,7 @@
     <string name="ping_pharos_menu">Està el Pharos a l\'escolta?</string>
     <string name="ping_contact_ok">%1$s ha respost: et sent a %2$d dB</string>
     <string name="ping_contact_silent">%1$s no respon</string>
-    <string name="ping_pharos_ok">El Pharos %1$s ha respost: et sent a %2$d dB. Això no diu si %3$s està connectat.</string>
+    <string name="ping_pharos_ok">El Pharos %1$s ha respost: et sent a %2$d dB</string>
     <string name="ping_pharos_silent">El Pharos %1$s no respon</string>
     <string name="radio_desc_none">Connecta la ràdio a l\'USB del telèfon</string>
     <string name="radio_desc_audio">Només àudio: posa la freqüència en la ràdio a mà</string>
@@ -226,11 +226,13 @@
     <string name="switch_confirm_off">Apagar «%1$s»?</string>
     <string name="admin_ssh_note">Cada ordre és un missatge curt per ràdio. El codi d\'accés, la contrasenya d\'administració, les passarel·les i les freqüències es canvien per SSH.</string>
     <string name="admin_target_field">Usuari de ràdio</string>
-    <string name="admin_alias_label">Nom (@àlies)</string>
     <string name="admin_phone_label">Telèfon amb prefix de país</string>
     <string name="admin_signal_label">Telèfon o nom d\'usuari</string>
-    <string name="admin_meshcore_label">Clau: els seus 8 primers caràcters hex</string>
     <string name="admin_target_invalid">Revisa el que has escrit</string>
+    <string name="admin_impostor">No és el teu contacte %1$s: mateix nom, una altra clau</string>
+    <string name="admin_pick_none_radio">Encara no hi ha a qui triar. Ací ixen els teus contactes, i els usuaris del Pharos quan els hi demanes.</string>
+    <string name="admin_pick_none_meshcore">Encara no hi ha contactes de MeshCore coneguts: obri un xat amb ells o mira les sol·licituds.</string>
+    <string name="admin_load_users">Demanar al Pharos els seus usuaris</string>
     <string name="how_password">amb la contrasenya</string>
     <string name="how_by_admin">per un administrador</string>
     <string name="how_ssh">SSH</string>

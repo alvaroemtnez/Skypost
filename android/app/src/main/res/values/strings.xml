@@ -68,7 +68,7 @@
     <string name="ping_pharos_menu">Is the Pharos listening?</string>
     <string name="ping_contact_ok">%1$s answered: hears you at %2$d dB</string>
     <string name="ping_contact_silent">%1$s does not answer</string>
-    <string name="ping_pharos_ok">The Pharos %1$s answered: hears you at %2$d dB. That does not tell whether %3$s is online.</string>
+    <string name="ping_pharos_ok">The Pharos %1$s answered: hears you at %2$d dB</string>
     <string name="ping_pharos_silent">The Pharos %1$s does not answer</string>
     <string name="radio_desc_none">Plug the radio into the phone\'s USB port</string>
     <string name="radio_desc_audio">Audio only: set the frequency on the radio by hand</string>
@@ -227,11 +227,13 @@
     <string name="switch_confirm_off">Turn off “%1$s”?</string>
     <string name="admin_ssh_note">Each command is a short message on air. Access code, admin password, bridges and frequencies are changed over SSH.</string>
     <string name="admin_target_field">Field user</string>
-    <string name="admin_alias_label">Name (@alias)</string>
     <string name="admin_phone_label">Phone number with country code</string>
     <string name="admin_signal_label">Phone number or username</string>
-    <string name="admin_meshcore_label">Key: its first 8 hex characters</string>
     <string name="admin_target_invalid">Check what you typed</string>
+    <string name="admin_impostor">Not your contact %1$s: same name, different key</string>
+    <string name="admin_pick_none_radio">No one to pick yet. Your contacts show here, and the Pharos\'s users once you ask it.</string>
+    <string name="admin_pick_none_meshcore">No MeshCore contacts known yet: open a chat with them, or list the requests.</string>
+    <string name="admin_load_users">Ask the Pharos for its users</string>
     <string name="how_password">with the password</string>
     <string name="how_by_admin">by an admin</string>
     <string name="how_ssh">SSH</string>

@@ -183,6 +183,9 @@ interface Repository {
     /** Admin commands sent to this Pharos and its replies, oldest first. */
     fun adminLog(pharosKey: String): Flow<List<AdminEntry>>
 
+    /** A radio user's id on air (`keryx::admin::user_id`), from its key. */
+    fun userId(key: String): String
+
     /**
      * Sends an admin command to the Pharos (an `Admin` message on air).
      * Returns its [AdminEntry] id, to follow its reply; null if not sent.

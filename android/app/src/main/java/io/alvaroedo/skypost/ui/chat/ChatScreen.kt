@@ -159,7 +159,7 @@ fun ChatScreen(
     val via = ui.via.orEmpty()
     val heard = (ping as? PingResult.Heard)?.let {
         if (bridged) {
-            stringResource(R.string.ping_pharos_ok, via, it.snrDb, title)
+            stringResource(R.string.ping_pharos_ok, via, it.snrDb)
         } else {
             stringResource(R.string.ping_contact_ok, title, it.snrDb)
         }

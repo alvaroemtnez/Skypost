@@ -176,12 +176,14 @@ class ViewModelsTest {
         val vm = PharosAdminViewModel(r, key)
         backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { vm.ui.collect {} }
         val settle = { testScheduler.advanceTimeBy(100); testScheduler.runCurrent() }
-        assertEquals(AdminTarget.FieldUser("bea"), vm.target(null, "@bea"))
+        assertNull("aliases are never typed", vm.target(null, "@bea"))
         assertEquals(AdminTarget.Contact(ChatKind.WHATSAPP, "34600123456"), vm.target(ChatKind.WHATSAPP, "+34 600 12 34 56"))
         assertEquals(AdminTarget.Contact(ChatKind.SIGNAL, "mama.01"), vm.target(ChatKind.SIGNAL, "mama.01"))
-        assertEquals(AdminTarget.MeshCore("abababab"), vm.target(ChatKind.MESHCORE, "AB".repeat(32)))
-        assertNull(vm.target(ChatKind.MESHCORE, "abc"))
-        assertNull(vm.target(null, "no spaces allowed"))
+        val bea = r.contacts.value.first { it.card.alias == "bea" }
+        val mine = vm.ui.value.people.first { it.name == "@bea" }
+        assertEquals(AdminTarget.User(r.userId(bea.card.key), "@bea"), mine.target)
+        assertTrue("a verified contact", mine.verified)
+        assertTrue("the id is the start of the safety code", bea.safetyNumber.replace(" ", "").startsWith(r.userId(bea.card.key)))
 
         assertNull(vm.ui.value.switches)
         vm.send(AdminCommand.Status)
@@ -195,9 +197,13 @@ class ViewModelsTest {
         vm.send(AdminCommand.Requests)
         assertTrue(vm.ui.value.requestsLoading)
         settle()
-        assertEquals(listOf(3, 4, 5), vm.ui.value.requests!!.map { it.num })
+        assertEquals(listOf(3, 4, 5, 6), vm.ui.value.requests!!.map { it.num })
+        val fake = vm.ui.value.requests!!.first { it.num == 6 }
+        val (verified, impostor) = PharosAdminViewModel.look(fake.who, fake.id, "@" + fake.name, vm.ui.value.contactIds, vm.ui.value.contactAliases)
+        assertFalse(verified)
+        assertTrue("another key calling itself bea", impostor)
         vm.send(AdminCommand.Accept(4))
-        assertEquals("decided ones leave the list", listOf(3, 5), vm.ui.value.requests!!.map { it.num })
+        assertEquals("decided ones leave the list", listOf(3, 5, 6), vm.ui.value.requests!!.map { it.num })
         settle()
         assertEquals(AdminReply.Done(AdminOutcome.OK, "Tía Carmen +34633333333"), vm.ui.value.log.first().reply)
 

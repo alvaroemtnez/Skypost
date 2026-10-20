@@ -109,11 +109,12 @@ class FakeRepository(
     /** Messages still waiting for an ACK when the app stopped are lost. */
     private fun restore(s: DemoSnapshot) {
         val pending = { m: ChatMessage -> if (m.delivery == Delivery.PENDING) m.copy(delivery = Delivery.FAILED) else m }
-        _identity.value = s.identity
+        _identity.value = s.identity?.let { it.copy(safetyNumber = core.safetyNumber(it.card.key)) }
         _chats.value = s.chats.map { c -> c.copy(last = c.last?.let(pending)) }
-        _contacts.value = s.contacts
+        // Safety codes come from the core: recompute (the fake's format changed once).
+        _contacts.value = s.contacts.map { it.copy(safetyNumber = core.safetyNumber(it.card.key)) }
         _groups.value = s.groups
-        _pharos.value = s.pharos
+        _pharos.value = s.pharos.map { it.copy(safetyNumber = core.safetyNumber(it.card.key)) }
         _settings.value = s.settings
         messages.value = s.messages.mapValues { (_, l) -> l.map(pending) }
         _recents.value = s.recents
@@ -591,13 +592,18 @@ class FakeRepository(
     private val fakeSwitches = mutableMapOf<String, Set<PharosSwitch>>()
     private val fakeRequests = mutableMapOf<String, MutableList<RequestEntry>>()
 
+    // The demo includes someone else calling themselves "bea": the app must
+    // tell them apart from the real Bea by key.
     private fun requestsOf(key: String) = fakeRequests.getOrPut(key) {
         mutableListOf(
-            RequestEntry(3, Who.RADIO, "@tio"),
+            RequestEntry(3, Who.RADIO, "tio", core.userId("TIO-DEMO-KEY")),
             RequestEntry(4, Who.WHATSAPP, "Tía Carmen +34633333333"),
-            RequestEntry(5, Who.MESHCORE, "Refugio Bachimaña 9f3c2a1b"),
+            RequestEntry(5, Who.MESHCORE, "Refugio Bachimaña", "9F3C2A1B7D604E58"),
+            RequestEntry(6, Who.RADIO, "bea", core.userId("NOT-THE-REAL-BEA")),
         )
     }
+
+    override fun userId(key: String): String = core.userId(key)
 
     private fun switchesOf(key: String) =
         fakeSwitches.getOrPut(key) { setOf(PharosSwitch.REQUESTS, PharosSwitch.LOGIN) }
@@ -621,6 +627,8 @@ class FakeRepository(
     override fun sendAdmin(pharosKey: String, command: AdminCommand): Long? = adminRoundTrip(pharosKey, command) {
         val ok = AdminReply.Done(AdminOutcome.OK)
         val me = "@" + _identity.value?.card?.alias.orEmpty()
+        val myId = _identity.value?.card?.key?.let(core::userId).orEmpty()
+        val bea = _contacts.value.firstOrNull { it.card.alias == "bea" }?.card?.key?.let(core::userId) ?: core.userId("bea")
         if (!isAdmin(pharosKey)) return@adminRoundTrip AdminReply.Done(AdminOutcome.NOT_ADMIN)
         when (command) {
             AdminCommand.Status -> AdminReply.Status(switchesOf(pharosKey), 3, requestsOf(pharosKey).size, 1, 2, 4)
@@ -632,18 +640,18 @@ class FakeRepository(
                     AdminReply.Done(AdminOutcome.UNKNOWN, "#$num")
                 } else {
                     requestsOf(pharosKey).remove(r)
-                    AdminReply.Done(AdminOutcome.OK, r.name)
+                    AdminReply.Done(AdminOutcome.OK, listOfNotNull(r.name, r.id?.let { "${it.take(4)} ${it.substring(4, 8)}" }).joinToString(" · "))
                 }
             }
             AdminCommand.Clients -> AdminReply.Clients(
                 listOf(
-                    ClientEntry(Registration.REGISTERED, 41, "bea"),
-                    ClientEntry(Registration.PENDING, 12, "tio"),
-                    ClientEntry(Registration.REGISTERED, 0, me.drop(1)),
+                    ClientEntry(Registration.REGISTERED, 41, "bea", bea),
+                    ClientEntry(Registration.PENDING, 12, "tio", core.userId("TIO-DEMO-KEY")),
+                    ClientEntry(Registration.REGISTERED, 0, me.drop(1), myId),
                 ),
             )
             AdminCommand.Admins -> AdminReply.Admins(
-                listOf(AdminEntryRow(Who.RADIO, AdminHow.SSH, me), AdminEntryRow(Who.SIGNAL, AdminHow.SSH, "+34600000000")),
+                listOf(AdminEntryRow(Who.RADIO, AdminHow.SSH, me, myId), AdminEntryRow(Who.SIGNAL, AdminHow.SSH, "+34600000000")),
             )
             is AdminCommand.Set -> {
                 val s = switchesOf(pharosKey)
@@ -651,7 +659,7 @@ class FakeRepository(
                 ok
             }
             is AdminCommand.RemoveAdmin ->
-                if ((command.target as? AdminTarget.FieldUser)?.alias == me.drop(1) &&
+                if ((command.target as? AdminTarget.User)?.id == myId &&
                     PharosSwitch.LOGIN !in switchesOf(pharosKey)
                 ) {
                     AdminReply.Done(AdminOutcome.LAST_ADMIN, me)

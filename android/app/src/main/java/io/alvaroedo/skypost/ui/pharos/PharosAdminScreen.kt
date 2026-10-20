@@ -34,6 +34,10 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.RadioButton
+import androidx.compose.foundation.layout.size
+import androidx.compose.ui.text.TextStyle
+import io.alvaroedo.skypost.ui.components.VerifiedBadge
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -99,6 +103,10 @@ fun PharosAdminScreen(vm: PharosAdminViewModel, onBack: () -> Unit) {
     val p = ui.pharos
     val bridged = listOf(ChatKind.SIGNAL, ChatKind.WHATSAPP, ChatKind.MESHCORE)
     val anyone = listOf<ChatKind?>(null) + bridged
+    val look: (Who, String?, String) -> Pair<Boolean, Boolean> = { who, id, name ->
+        PharosAdminViewModel.look(who, id, name, ui.contactIds, ui.contactAliases)
+    }
+
     /**
      * Send and open the popup that waits for the reply, after the warning if
      * it would put names or numbers on air in plain.
@@ -200,6 +208,10 @@ fun PharosAdminScreen(vm: PharosAdminViewModel, onBack: () -> Unit) {
         TargetDialog(
             a,
             vm::target,
+            people = ui.people,
+            onLoadUsers = {
+                if (vm.needsWarning(AdminCommand.Clients)) warnFor = { vm.send(AdminCommand.Clients) } else vm.send(AdminCommand.Clients)
+            },
             onSend = { c ->
                 ask = null
                 run(c)
@@ -221,6 +233,7 @@ fun PharosAdminScreen(vm: PharosAdminViewModel, onBack: () -> Unit) {
             requests = ui.requests,
             loading = ui.requestsLoading,
             late = late,
+            look = look,
             onDecide = { num, accept -> vm.send(if (accept) AdminCommand.Accept(num) else AdminCommand.Refuse(num)) },
             onDismiss = { showRequests = false },
         )
@@ -300,7 +313,7 @@ fun PharosAdminScreen(vm: PharosAdminViewModel, onBack: () -> Unit) {
             delay(PharosAdminViewModel.REPLY_TIMEOUT_MS)
             late = true
         }
-        ReplyDialog(entry, late, onDismiss = { call = null })
+        ReplyDialog(entry, late, look = look, onDismiss = { call = null })
     }
 
     if (login) {
@@ -400,11 +413,35 @@ private fun Who.shown(): String = when (this) {
     Who.MESHCORE -> stringResource(ChatKind.MESHCORE.label())
 }
 
+/** The first two groups of an id, as the safety code shows them: "4F2A 9C11". */
+private fun short(id: String): String = "${id.take(4)} ${id.substring(4, 8)}"
+
 @Composable
 private fun AdminTarget.shown(): String = when (this) {
-    is AdminTarget.FieldUser -> "@$alias"
+    is AdminTarget.User -> "$name · ${short(id)}"
     is AdminTarget.Contact -> "${stringResource(kind.label())} " + if (address.all { it.isDigit() }) "+$address" else address
-    is AdminTarget.MeshCore -> "${stringResource(ChatKind.MESHCORE.label())} $prefix"
+    is AdminTarget.MeshCore -> "${stringResource(ChatKind.MESHCORE.label())} $name · ${short(id)}"
+}
+
+/**
+ * Someone from a list: name and id, the verified badge if it is one of our
+ * verified contacts, a warning if it only borrows a contact's name.
+ */
+@Composable
+private fun PersonLine(name: String, id: String?, verified: Boolean, impostor: Boolean, style: TextStyle = MaterialTheme.typography.titleMedium) {
+    Column {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(listOfNotNull(name, id?.let(::short)).joinToString(" · "), style = style)
+            if (verified) VerifiedBadge(Modifier.padding(start = 6.dp).size(18.dp))
+        }
+        if (impostor) {
+            Text(
+                stringResource(R.string.admin_impostor, name),
+                color = MaterialTheme.colorScheme.error,
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
+    }
 }
 
 @Composable
@@ -462,13 +499,15 @@ private fun AdminReply.shown(): String = when (this) {
         if (list.isEmpty()) {
             stringResource(R.string.admin_requests_none)
         } else {
-            list.map { "#${it.num} · ${it.who.shown()} · ${it.name}" }.joinToString("\n")
+            list.map { listOfNotNull("#${it.num}", it.who.shown(), it.name, it.id?.let(::short)).joinToString(" · ") }.joinToString("\n")
         }
     is AdminReply.Clients -> list.map {
         val heard = it.heardMin?.let { m -> stringResource(R.string.heard_min_ago, m) } ?: stringResource(R.string.heard_never)
-        "@${it.alias} · ${stringResource(it.status.short())} · $heard"
+        "@${it.alias} · ${short(it.id)} · ${stringResource(it.status.short())} · $heard"
     }.joinToString("\n")
-    is AdminReply.Admins -> list.map { "${it.name} · ${it.who.shown()} · ${stringResource(it.how.text())}" }.joinToString("\n")
+    is AdminReply.Admins -> list.map {
+        listOfNotNull(it.name, it.id?.let(::short), it.who.shown(), stringResource(it.how.text())).joinToString(" · ")
+    }.joinToString("\n")
     is AdminReply.NewRequests ->
         stringResource(R.string.reply_new_requests, networks.map { it.shown() }.joinToString(), pending)
     is AdminReply.SwitchesChanged ->
@@ -493,7 +532,12 @@ private fun LogEntry(e: AdminEntry) {
 
 /** A command sent: waits for the Pharos, then shows its answer (or that it is late). */
 @Composable
-private fun ReplyDialog(entry: AdminEntry?, late: Boolean, onDismiss: () -> Unit) {
+private fun ReplyDialog(
+    entry: AdminEntry?,
+    late: Boolean,
+    look: (Who, String?, String) -> Pair<Boolean, Boolean>,
+    onDismiss: () -> Unit,
+) {
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(entry?.command.shown()) },
@@ -501,6 +545,26 @@ private fun ReplyDialog(entry: AdminEntry?, late: Boolean, onDismiss: () -> Unit
             Column(Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState())) {
                 val reply = entry?.reply
                 when {
+                    reply is AdminReply.Clients -> reply.list.forEach {
+                        val (verified, impostor) = look(Who.RADIO, it.id, "@" + it.alias)
+                        PersonLine("@" + it.alias, it.id, verified, impostor)
+                        val heard = it.heardMin?.let { m -> stringResource(R.string.heard_min_ago, m) }
+                            ?: stringResource(R.string.heard_never)
+                        Text(
+                            "${stringResource(it.status.short())} · $heard",
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.padding(bottom = 8.dp),
+                        )
+                    }
+                    reply is AdminReply.Admins -> reply.list.forEach {
+                        val (verified, impostor) = look(it.who, it.id, it.name)
+                        PersonLine(it.name, it.id, verified, impostor)
+                        Text(
+                            "${it.who.shown()} · ${stringResource(it.how.text())}",
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.padding(bottom = 8.dp),
+                        )
+                    }
                     reply != null -> Text(reply.shown())
                     late -> Text(stringResource(R.string.admin_timeout))
                     else -> {
@@ -520,6 +584,7 @@ private fun RequestsDialog(
     requests: List<RequestEntry>?,
     loading: Boolean,
     late: Boolean,
+    look: (Who, String?, String) -> Pair<Boolean, Boolean>,
     onDecide: (Int, Boolean) -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -539,7 +604,9 @@ private fun RequestsDialog(
                 list.forEachIndexed { i, r ->
                     if (i > 0) HorizontalDivider()
                     Column(Modifier.padding(vertical = 8.dp)) {
-                        Text(r.name, style = MaterialTheme.typography.titleMedium)
+                        val name = if (r.who == Who.RADIO) "@" + r.name else r.name
+                        val (verified, impostor) = look(r.who, r.id, name)
+                        PersonLine(name, r.id, verified, impostor)
                         Text("#${r.num} · ${r.who.shown()}", style = MaterialTheme.typography.bodySmall)
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             TextButton(onClick = { onDecide(r.num, false) }) { Text(stringResource(R.string.admin_refuse)) }
@@ -553,69 +620,90 @@ private fun RequestsDialog(
     )
 }
 
-/** Pick a field user or a network, type the alias or address, then one of the actions. */
+/**
+ * Pick who the command is about. Radio users and MeshCore contacts are
+ * chosen from a list (our contacts and chats, and what the Pharos listed),
+ * never typed: an alias proves nothing and ids are not for typing. Signal
+ * and WhatsApp contacts are typed or picked from the phone's contacts.
+ */
 @Composable
 private fun TargetDialog(
     ask: Ask,
     parse: (ChatKind?, String) -> AdminTarget?,
+    people: List<Person>,
+    onLoadUsers: () -> Unit,
     onSend: (AdminCommand) -> Unit,
     onDismiss: () -> Unit,
 ) {
     var kind by remember { mutableStateOf(ask.kinds.first()) }
     var input by remember { mutableStateOf("") }
+    var chosen by remember { mutableStateOf<AdminTarget?>(null) }
     var bad by remember { mutableStateOf(false) }
     val context = LocalContext.current
     val pick = rememberLauncherForActivityResult(PickPhone()) { uri ->
         uri?.let { readPickedPhone(context, it) }?.let { input = it.number; bad = false }
     }
-    val target = parse(kind, input)
+    val typed = kind == ChatKind.SIGNAL || kind == ChatKind.WHATSAPP
+    val target = if (typed) parse(kind, input) else chosen
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(ask.title)) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(Modifier.heightIn(max = 460.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 if (ask.kinds.size > 1) {
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         ask.kinds.forEach { k ->
                             FilterChip(
                                 selected = k == kind,
-                                onClick = { kind = k; bad = false },
+                                onClick = { kind = k; bad = false; chosen = null },
                                 label = { Text(stringResource(k?.label() ?: R.string.admin_target_field)) },
                             )
                         }
                     }
                 }
-                OutlinedTextField(
-                    value = input,
-                    onValueChange = { input = it; bad = false },
-                    label = {
-                        Text(
-                            stringResource(
-                                when (kind) {
-                                    null -> R.string.admin_alias_label
-                                    ChatKind.MESHCORE -> R.string.admin_meshcore_label
-                                    ChatKind.SIGNAL -> R.string.admin_signal_label
-                                    else -> R.string.admin_phone_label
-                                },
-                            ),
-                        )
-                    },
-                    supportingText = {
-                        Text(if (bad) stringResource(R.string.admin_target_invalid) else target?.shown().orEmpty())
-                    },
-                    isError = bad,
-                    singleLine = true,
-                    trailingIcon = {
-                        if (kind == ChatKind.SIGNAL || kind == ChatKind.WHATSAPP) {
+                if (typed) {
+                    OutlinedTextField(
+                        value = input,
+                        onValueChange = { input = it; bad = false },
+                        label = {
+                            Text(stringResource(if (kind == ChatKind.SIGNAL) R.string.admin_signal_label else R.string.admin_phone_label))
+                        },
+                        supportingText = {
+                            Text(if (bad) stringResource(R.string.admin_target_invalid) else target?.shown().orEmpty())
+                        },
+                        isError = bad,
+                        singleLine = true,
+                        trailingIcon = {
                             IconButton(onClick = { pick.launch(Unit) }) {
                                 Icon(painterResource(R.drawable.ic_contacts), stringResource(R.string.pick_phone_contact))
                             }
+                        },
+                        keyboardOptions = KeyboardOptions(
+                            keyboardType = if (kind == ChatKind.WHATSAPP) KeyboardType.Phone else KeyboardType.Text,
+                        ),
+                    )
+                } else {
+                    val who = if (kind == ChatKind.MESHCORE) Who.MESHCORE else Who.RADIO
+                    val list = people.filter { it.who == who }
+                    if (list.isEmpty()) {
+                        Text(
+                            stringResource(if (who == Who.RADIO) R.string.admin_pick_none_radio else R.string.admin_pick_none_meshcore),
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                    }
+                    list.forEach { p ->
+                        Row(
+                            Modifier.fillMaxWidth().clickable { chosen = p.target },
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            RadioButton(selected = chosen == p.target, onClick = { chosen = p.target })
+                            PersonLine(p.name, p.id, p.verified, p.impostor, MaterialTheme.typography.bodyLarge)
                         }
-                    },
-                    keyboardOptions = KeyboardOptions(
-                        keyboardType = if (kind == ChatKind.WHATSAPP) KeyboardType.Phone else KeyboardType.Text,
-                    ),
-                )
+                    }
+                    if (who == Who.RADIO) {
+                        TextButton(onClick = onLoadUsers) { Text(stringResource(R.string.admin_load_users)) }
+                    }
+                }
             }
         },
         confirmButton = {
@@ -623,7 +711,7 @@ private fun TargetDialog(
                 ask.actions.forEach { (label, make) ->
                     TextButton(
                         onClick = { target?.let(make)?.let(onSend) ?: run { bad = true } },
-                        enabled = input.isNotBlank(),
+                        enabled = target != null || (typed && input.isNotBlank()),
                     ) { Text(stringResource(label)) }
                 }
             }

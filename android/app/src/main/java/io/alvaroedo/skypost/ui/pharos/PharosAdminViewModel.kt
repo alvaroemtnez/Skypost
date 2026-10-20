@@ -8,7 +8,10 @@ import io.alvaroedo.skypost.model.AdminEntry
 import io.alvaroedo.skypost.model.AdminOutcome
 import io.alvaroedo.skypost.model.AdminReply
 import io.alvaroedo.skypost.model.AdminTarget
+import io.alvaroedo.skypost.model.Chat
 import io.alvaroedo.skypost.model.ChatKind
+import io.alvaroedo.skypost.model.Contact
+import io.alvaroedo.skypost.model.Who
 import io.alvaroedo.skypost.model.Pharos
 import io.alvaroedo.skypost.model.PharosSwitch
 import io.alvaroedo.skypost.model.RequestEntry
@@ -29,6 +32,25 @@ data class PharosAdminUi(
     val requests: List<RequestEntry>? = null,
     /** A request list was asked for and has not arrived. */
     val requestsLoading: Boolean = false,
+    /** Who a command can name: our contacts and MeshCore chats, plus the Pharos's lists. */
+    val people: List<Person> = emptyList(),
+    /** Our contacts by radio id, and their aliases, to tell people apart. */
+    val contactIds: Map<String, Contact> = emptyMap(),
+    val contactAliases: Set<String> = emptySet(),
+)
+
+/**
+ * Someone a command can name. [verified]: one of our verified contacts.
+ * [impostor]: a radio user whose name matches one of our contacts but whose
+ * key does not.
+ */
+data class Person(
+    val target: AdminTarget,
+    val who: Who,
+    val name: String,
+    val id: String?,
+    val verified: Boolean = false,
+    val impostor: Boolean = false,
 )
 
 /**
@@ -37,7 +59,15 @@ data class PharosAdminUi(
  * them in the app's language.
  */
 class PharosAdminViewModel(private val repo: Repository, private val key: String) : ViewModel() {
-    val ui: StateFlow<PharosAdminUi> = combine(repo.pharos, repo.settings, repo.adminLog(key)) { list, settings, log ->
+    val ui: StateFlow<PharosAdminUi> = combine(
+        repo.pharos,
+        repo.settings,
+        repo.adminLog(key),
+        repo.contacts,
+        repo.chats,
+    ) { list, settings, log, contacts, chats ->
+        val byId = contacts.associateBy { repo.userId(it.card.key) }
+        val aliases = contacts.map { it.card.alias.lowercase() }.toSet()
         PharosAdminUi(
             pharos = list.firstOrNull { it.card.key == key },
             encryptAll = settings.encryptAll,
@@ -46,6 +76,9 @@ class PharosAdminViewModel(private val repo: Repository, private val key: String
             requests = requestsFrom(log),
             requestsLoading = log.lastOrNull { it.command == AdminCommand.Requests }?.reply == null &&
                 log.any { it.command == AdminCommand.Requests },
+            people = peopleFrom(log, byId, aliases, chats),
+            contactIds = byId,
+            contactAliases = aliases,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), PharosAdminUi())
 
@@ -59,15 +92,13 @@ class PharosAdminViewModel(private val repo: Repository, private val key: String
     fun login(password: String): Boolean = repo.adminLogin(key, password.trim())
 
     /**
-     * What was typed, as a target: an alias for a field user, a phone or a
-     * Signal username, or the first 8 hex digits of a MeshCore key. Null if
-     * it is not usable.
+     * A typed Signal or WhatsApp contact: a phone, or a Signal username.
+     * Radio users and MeshCore contacts are picked from [PharosAdminUi.people],
+     * never typed. Null if it is not usable.
      */
     fun target(kind: ChatKind?, input: String): AdminTarget? {
         val t = input.trim()
         return when (kind) {
-            null -> t.removePrefix("@").takeIf(repo::validAlias)?.let { AdminTarget.FieldUser(it) }
-            ChatKind.MESHCORE -> t.lowercase().takeIf { HEX.matches(it) }?.let { AdminTarget.MeshCore(it.take(8)) }
             ChatKind.SIGNAL if USERNAME.matches(t) -> AdminTarget.Contact(ChatKind.SIGNAL, t)
             ChatKind.SIGNAL, ChatKind.WHATSAPP ->
                 repo.normalizePhone(t).takeIf { it.length in 8..15 }?.let { AdminTarget.Contact(kind, it) }
@@ -83,8 +114,38 @@ class PharosAdminViewModel(private val repo: Repository, private val key: String
          */
         const val REPLY_TIMEOUT_MS = 180_000L
 
-        /** A MeshCore key, or its first 8 hex digits at least. */
-        private val HEX = Regex("^[0-9a-f]{8,64}$")
+        /** How someone from a Pharos list compares with our contacts. */
+        fun look(who: Who, id: String?, name: String, byId: Map<String, Contact>, aliases: Set<String>): Pair<Boolean, Boolean> {
+            if (who != Who.RADIO || id == null) return false to false
+            val mine = byId[id]
+            val impostor = mine == null && name.removePrefix("@").lowercase() in aliases
+            return (mine?.verified == true) to impostor
+        }
+
+        fun peopleFrom(log: List<AdminEntry>, byId: Map<String, Contact>, aliases: Set<String>, chats: List<Chat>): List<Person> {
+            val out = LinkedHashMap<String, Person>()
+            fun add(who: Who, id: String, name: String) {
+                if (id in out) return
+                val target = if (who == Who.RADIO) AdminTarget.User(id, name) else AdminTarget.MeshCore(id, name)
+                val (verified, impostor) = look(who, id, name, byId, aliases)
+                out[id] = Person(target, who, name, id, verified, impostor)
+            }
+            byId.forEach { (id, c) -> add(Who.RADIO, id, "@" + c.card.alias) }
+            chats.filter { it.kind == ChatKind.MESHCORE }.forEach {
+                add(Who.MESHCORE, it.id.substringAfter(':').take(16).uppercase(), it.title)
+            }
+            for (e in log.asReversed()) {
+                when (val r = e.reply) {
+                    is AdminReply.Clients -> r.list.forEach { add(Who.RADIO, it.id, "@" + it.alias) }
+                    is AdminReply.Admins -> r.list.forEach { a -> a.id?.let { add(a.who, it, a.name) } }
+                    is AdminReply.Requests -> r.list.forEach { q ->
+                        q.id?.let { add(q.who, it, if (q.who == Who.RADIO) "@" + q.name else q.name) }
+                    }
+                    else -> {}
+                }
+            }
+            return out.values.toList()
+        }
 
         /** Signal usernames: letters, digits, `_`, then `.` and at least two digits. */
         private val USERNAME = Regex("^[A-Za-z_][A-Za-z0-9_]{2,31}\\.[0-9]{2,9}$")

@@ -13,19 +13,22 @@ enum class PharosSwitch { OPEN, REQUESTS, LOGIN, EMERGENCY, STEALTH }
 /** Network of a user or contact in admin replies. */
 enum class Who { RADIO, SIGNAL, WHATSAPP, MESHCORE }
 
-/** Who a command is about. */
+/**
+ * Who a command is about. Never by alias: anyone can claim one. Radio users
+ * and MeshCore contacts go by their 8-byte id (16 hex digits; for a radio
+ * user the start of its safety code); [name] is only for showing.
+ */
 @Serializable
 sealed interface AdminTarget {
     @Serializable
-    data class FieldUser(val alias: String) : AdminTarget
+    data class User(val id: String, val name: String) : AdminTarget
 
     /** Signal phone or username, WhatsApp phone (digits, no `+`). */
     @Serializable
     data class Contact(val kind: ChatKind, val address: String) : AdminTarget
 
-    /** A MeshCore contact the Pharos knows, by the first 8 hex digits of its key. */
     @Serializable
-    data class MeshCore(val prefix: String) : AdminTarget
+    data class MeshCore(val id: String, val name: String) : AdminTarget
 }
 
 @Serializable
@@ -71,17 +74,18 @@ sealed interface AdminCommand {
 
 enum class AdminOutcome { OK, NOT_ADMIN, UNKNOWN, WRONG_PASSWORD, PASSWORD_IN_CLEAR, LAST_ADMIN, LOGIN_OFF, LOCKED, REFUSED }
 
+/** [id]: 16 hex digits, for radio users and MeshCore contacts. */
 @Serializable
-data class RequestEntry(val num: Int, val who: Who, val name: String)
+data class RequestEntry(val num: Int, val who: Who, val name: String, val id: String? = null)
 
 @Serializable
-data class ClientEntry(val status: Registration, val heardMin: Int?, val alias: String)
+data class ClientEntry(val status: Registration, val heardMin: Int?, val alias: String, val id: String)
 
 /** How someone became admin. */
 enum class AdminHow { SSH, BY_ADMIN, PASSWORD }
 
 @Serializable
-data class AdminEntryRow(val who: Who, val how: AdminHow, val name: String)
+data class AdminEntryRow(val who: Who, val how: AdminHow, val name: String, val id: String? = null)
 
 @Serializable
 sealed interface AdminReply {
@@ -117,7 +121,7 @@ sealed interface AdminReply {
 
     /** Unsolicited: someone became admin or stopped being one. */
     @Serializable
-    data class AdminChanged(val added: Boolean, val who: Who, val name: String) : AdminReply
+    data class AdminChanged(val added: Boolean, val who: Who, val name: String, val id: String? = null) : AdminReply
 }
 
 /**
