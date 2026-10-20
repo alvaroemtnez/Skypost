@@ -447,8 +447,8 @@ private enum class AdminList(val title: Int, val command: AdminCommand) {
 /** Popups that list things keep one height, so they do not jump when the answer comes. */
 private val LIST_HEIGHT = 380.dp
 
-/** A done-or-refused popup: the same height while waiting and once answered. */
-private val RESULT_HEIGHT = 168.dp
+/** A done-or-refused answer: 56 dp icon, 8 dp gap, one line of text. Waiting takes the same. */
+private val RESULT_HEIGHT = 92.dp
 
 private fun PharosSwitch.title(): Int = when (this) {
     PharosSwitch.OPEN -> R.string.switch_open
@@ -660,11 +660,12 @@ private fun ReplyDialog(
             val reply = entry?.reply
             if (entry?.command != AdminCommand.Status) {
                 // Commands answered with done or a reason (switches, block,
-                // add admin…): one height from waiting to the answer, which
-                // sits low, close to the button.
+                // add admin…): the popup fits the answer (icon and text, no
+                // more), and the waiting state takes that same height. A
+                // longer answer (with whom it acted on) may grow it.
                 Column(
-                    Modifier.fillMaxWidth().height(RESULT_HEIGHT),
-                    verticalArrangement = if (reply == null) Arrangement.Center else Arrangement.Bottom,
+                    Modifier.fillMaxWidth().heightIn(min = RESULT_HEIGHT),
+                    verticalArrangement = Arrangement.Center,
                 ) {
                     when {
                         reply is AdminReply.Done -> DoneBody(reply)
