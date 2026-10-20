@@ -129,6 +129,13 @@ Each one becomes a decision record when settled.
   The protocol (`keryx::uri::valid_alias`) and the app must agree. Aliases
   never identify anyone (decision 0021: people are named by key), but clear
   rules make look-alike names harder.
+- **Two contacts with the same alias (owner, 2026-10-21).** Contacts and
+  chats are keyed by public key, so messages never mix, but both would show
+  as "bea" (chat list, top bar, group senders). Proposal: a local name per
+  contact (defaults to the alias, editable, never sent); when an added
+  contact's alias clashes with another, ask for a local name and show the
+  start of the safety code until then. A Pharos already refuses a second
+  user with the same alias (`ALIAS_TAKEN`).
 - **Time sync for JS8 (owner, 2026-10-20).** JS8 slots need both ends within
   ~1–2 s of UTC. Today: the phone takes UTC from GNSS (or the QMX+'s GPS),
   and every ACK reports the clock offset the other end measured, so the app
