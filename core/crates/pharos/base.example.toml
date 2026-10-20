@@ -9,10 +9,13 @@ state_path = "/var/lib/pharos/base.json" # from: pharos init --alias casa ...
 mode = "closed"          # "open", "code" (needs code_file) or "closed" (allow list + admin approval)
 # code_file = "/etc/pharos/access-code"   # 0600; four or more random words
 discoverable = true      # answer "Buscar Pharos cercanos"
+# admin_password_file = "/etc/pharos/admin-password"  # 0600; lets others become admin
+#                          (bridges: "/admin", radio: encrypted only). Without it,
+#                          only the admins listed here manage the Pharos remotely.
 
 [bot]
 inbound = "code"         # bridged contacts: "code", "contacts" (authorised only) or "anyone"
-# admins = ["+34600000000"]               # may send admin commands ("ayuda")
+# admins = ["+34600000000"]               # may send admin commands ("/admin ayuda")
 
 # Field users on the allow list. Their URI comes from the app's "Mi código QR".
 # [[clients]]

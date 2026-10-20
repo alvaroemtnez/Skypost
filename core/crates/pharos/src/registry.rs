@@ -24,9 +24,12 @@ pub enum Status {
 pub struct Client {
     pub alias: String,
     pub status: Status,
-    /// May send admin commands to the Pharos (from config).
+    /// May send admin commands to the Pharos (from config, set over SSH).
     #[serde(default)]
     pub admin: bool,
+    /// Became admin with the admin password, in an encrypted frame.
+    #[serde(default)]
+    pub admin_granted: bool,
     /// Unix time until which the client said it keeps listening.
     #[serde(default)]
     pub listen_until: u64,
@@ -49,12 +52,17 @@ impl Client {
             alias: alias.to_owned(),
             status,
             admin: false,
+            admin_granted: false,
             listen_until: 0,
             last_heard: 0,
             encrypts: false,
             handles: BTreeMap::new(),
             next_handle: PHAROS_HANDLE_BASE,
         }
+    }
+
+    pub fn is_admin(&self) -> bool {
+        self.admin || self.admin_granted
     }
 
     pub fn is_listening(&self, now: u64) -> bool {

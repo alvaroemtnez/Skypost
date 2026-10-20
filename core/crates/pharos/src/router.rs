@@ -4,9 +4,12 @@
 //! carries out the returned actions. Bot texts are Spanish.
 //!
 //! One-to-one chats only. Every refusal is answered, so nobody believes an
-//! undelivered message went out.
+//! undelivered message went out. On Signal and WhatsApp the bot explains
+//! itself (welcome, `/ayuda`); on MeshCore, made for short messages, it keeps
+//! every reply short and sends no welcome.
 
 use crate::admin::{self, Command};
+use crate::station::Revoked;
 use keryx::bridge::Address;
 use keryx::{Message, PublicKey};
 use serde::{Deserialize, Serialize};
@@ -40,8 +43,13 @@ pub struct RouterCfg {
     pub inbound: Inbound,
     /// The Pharos access code (`Inbound::Code`).
     pub access_code: Option<String>,
-    /// Admin accounts: their commands go to [`crate::admin`].
+    /// Admin accounts from the config: their `/admin` commands go to
+    /// [`crate::admin`] without a password.
     pub admins: Vec<Address>,
+    /// Anyone else sending `/admin` is asked for it. `None`: config admins only.
+    pub admin_password: Option<String>,
+    /// How the welcome names this station, e.g. "casa (EA5YYY)".
+    pub station: String,
     pub target_timeout_secs: u64,
     pub max_chars: usize,
     pub max_held: usize,
@@ -56,6 +64,8 @@ impl Default for RouterCfg {
             inbound: Inbound::Code,
             access_code: None,
             admins: vec![],
+            admin_password: None,
+            station: String::new(),
             target_timeout_secs: 3600,
             max_chars: 200,
             max_held: 3,
@@ -70,6 +80,12 @@ impl Default for RouterCfg {
 pub struct RouterState {
     pub authorized: BTreeSet<Address>,
     pub blocked: BTreeSet<Address>,
+    /// Became admins with the admin password.
+    #[serde(default)]
+    pub admins: BTreeSet<Address>,
+    /// Got the welcome already (Signal and WhatsApp).
+    #[serde(default)]
+    pub welcomed: BTreeSet<Address>,
 }
 
 /// A message from a bridged network.
@@ -141,6 +157,10 @@ struct Contact {
     asked_code: bool,
     wrong_codes: Vec<u64>,
     refused_note_at: Option<u64>,
+    /// `/admin` from someone who is not an admin: the command waits for the
+    /// password, sent at this time.
+    admin_asked: Option<(Command, u64)>,
+    wrong_passwords: Vec<u64>,
 }
 
 #[derive(Clone, Debug)]
@@ -159,7 +179,17 @@ pub struct Router {
     next_token: u64,
 }
 
+/// The one-line help (MeshCore, and after a correct access code there).
 const HELP: &str = "Escribe @alias y tu mensaje, p. ej. «@ana ¿Llegasteis bien?».";
+
+/// How long a `/admin` command waits for the password.
+const PASSWORD_WAIT_SECS: u64 = 600;
+
+fn is_user_help(text: &str) -> bool {
+    ["/ayuda", "/help"]
+        .iter()
+        .any(|h| text.trim().eq_ignore_ascii_case(h))
+}
 
 fn split_at_alias(text: &str) -> Option<(&str, &str)> {
     let rest = text.strip_prefix('@')?;
@@ -220,11 +250,165 @@ impl Router {
         }
     }
 
+    /// Admin accounts from the config, and those admitted by password.
+    pub fn admins(&self) -> (&[Address], &BTreeSet<Address>) {
+        (&self.cfg.admins, &self.state.admins)
+    }
+
+    pub fn is_admin(&self, a: &Address) -> bool {
+        self.cfg.admins.contains(a) || self.state.admins.contains(a)
+    }
+
+    /// Take back admin rights granted by password.
+    pub fn revoke_admin(&mut self, a: &Address) -> Revoked {
+        let was = self.state.admins.remove(a);
+        if self.cfg.admins.contains(a) {
+            Revoked::InConfig
+        } else if was {
+            Revoked::Done
+        } else {
+            Revoked::NotAdmin
+        }
+    }
+
+    /// The same text to every admin on the bridges, except `but`.
+    pub fn alert_admins(&self, text: &str, but: Option<&Address>) -> Vec<Action> {
+        let mut to: BTreeSet<&Address> = self.cfg.admins.iter().collect();
+        to.extend(self.state.admins.iter());
+        to.into_iter()
+            .filter(|a| Some(*a) != but)
+            .map(|a| Self::reply(a, text))
+            .collect()
+    }
+
+    /// MeshCore is made for short messages: no welcome, short replies.
+    pub fn terse(a: &Address) -> bool {
+        matches!(a, Address::MeshcoreContact(_))
+    }
+
+    /// The long text on Signal and WhatsApp, the short one on MeshCore.
+    fn say(to: &Address, long: impl Into<String>, short: impl Into<String>) -> Action {
+        Self::reply(
+            to,
+            if Self::terse(to) {
+                short.into()
+            } else {
+                long.into()
+            },
+        )
+    }
+
+    fn user_help(&self) -> String {
+        format!(
+            "• Para escribir a alguien: @alias y el mensaje, p. ej. «@ana ¿Llegasteis bien?». Después basta con escribir: va a la misma persona.
+• Solo texto, hasta {} caracteres. Llega cuando su radio conecta: puede tardar.
+• 📡 en cola · ✅ entregado · ❌ no llegará (te digo por qué).
+• /ayuda muestra esto otra vez.",
+            self.cfg.max_chars
+        )
+    }
+
+    /// Once per contact, on Signal and WhatsApp: who the bot is and how to use it.
+    fn welcome(&mut self, to: &Address) -> Option<Action> {
+        if Self::terse(to) || !self.state.welcomed.insert(to.clone()) {
+            return None;
+        }
+        let me = if self.cfg.station.is_empty() {
+            "un Pharos".to_owned()
+        } else {
+            format!("el Pharos {}", self.cfg.station)
+        };
+        Some(Self::reply(
+            to,
+            format!(
+                "👋 Hola, soy {me}: una estación de radio que lleva mensajes a quienes están sin cobertura.\n{}",
+                self.user_help()
+            ),
+        ))
+    }
+
+    /// `/ayuda` from an authorised contact.
+    fn help_reply(&self, dir: &dyn Directory, to: &Address) -> Action {
+        let c = self.contacts.get(to).cloned().unwrap_or_default();
+        let recent = self.recent_aliases(dir, &c);
+        let mut long = self.user_help();
+        let mut short = HELP.to_owned();
+        if !recent.is_empty() {
+            long += &format!("\nRecientes: {}.", list(&recent));
+            short += &format!(" Recientes: {}.", list(&recent));
+        }
+        Self::say(to, long, short)
+    }
+
     fn authorized(&self, dir: &dyn Directory, from: &Address) -> bool {
         self.cfg.inbound == Inbound::Anyone
             || self.state.authorized.contains(from)
-            || self.cfg.admins.contains(from)
+            || self.is_admin(from)
             || dir.listed(from)
+    }
+
+    /// `/admin …` from someone who is not an admin yet.
+    fn admin_gate(&mut self, m: &Incoming, command: Command) -> Vec<Action> {
+        let max = self.cfg.max_code_attempts;
+        let Some(password) = self.cfg.admin_password.clone() else {
+            return vec![Self::reply(
+                &m.from,
+                "No eres administrador de este Pharos.",
+            )];
+        };
+        let c = self.contacts.entry(m.from.clone()).or_default();
+        if admin::locked_out(&mut c.wrong_passwords, m.now, max) {
+            return vec![];
+        }
+        if let Command::Login(pw) = command {
+            return self.check_password(m, &password, &pw, None);
+        }
+        c.admin_asked = Some((command, m.now));
+        vec![Self::say(
+            &m.from,
+            "Para administrar este Pharos, envíame la contraseña de administración.",
+            "Envía la contraseña de administración.",
+        )]
+    }
+
+    /// The admin password arrived (after `/admin …`, or with `/admin acceder`).
+    fn check_password(
+        &mut self,
+        m: &Incoming,
+        password: &str,
+        sent: &str,
+        then: Option<Command>,
+    ) -> Vec<Action> {
+        let max = self.cfg.max_code_attempts;
+        let c = self.contacts.entry(m.from.clone()).or_default();
+        if sent.trim() != password.trim() {
+            c.wrong_passwords.push(m.now);
+            let t = if c.wrong_passwords.len() >= max {
+                "Contraseña incorrecta. Demasiados intentos: vuelve a probar dentro de una hora."
+            } else {
+                "Contraseña incorrecta. Vuelve a empezar con /admin."
+            };
+            return vec![Self::reply(&m.from, t)];
+        }
+        c.wrong_passwords.clear();
+        self.state.blocked.remove(&m.from);
+        self.state.admins.insert(m.from.clone());
+        let mut out = vec![Self::say(
+            &m.from,
+            "Contraseña correcta: ya eres administrador.\n⚠️ BORRA AHORA EL MENSAJE CON LA CONTRASEÑA. YO NO PUEDO HACERLO.",
+            "Ya eres administrador. ⚠️ BORRA EL MENSAJE CON LA CONTRASEÑA.",
+        )];
+        out.extend(self.alert_admins(
+            &format!("{} es administrador (con la contraseña).", m.from.display()),
+            Some(&m.from),
+        ));
+        if let Some(command) = then.filter(|c| !matches!(c, Command::Login(_))) {
+            out.push(Action::Admin {
+                from: m.from.clone(),
+                command,
+            });
+        }
+        out
     }
 
     fn active(&self, c: &Contact, now: u64) -> Vec<PublicKey> {
@@ -265,10 +449,14 @@ impl Router {
                 .iter()
                 .filter_map(|k| dir.alias_of(k))
                 .collect();
-            format!(
-                "Varias personas te escriben por aquí. Empieza cada mensaje con su alias: {}.",
-                list(&names)
-            )
+            if Self::terse(from) {
+                format!("Empieza con el alias: {}.", list(&names))
+            } else {
+                format!(
+                    "Varias personas te escriben por aquí. Empieza cada mensaje con su alias: {}.",
+                    list(&names)
+                )
+            }
         } else {
             let recent = self.recent_aliases(dir, &c);
             let mut t = "¿Para quién es? Responde con su alias.".to_owned();
@@ -374,11 +562,12 @@ impl Router {
             if last.is_none_or(|t| now.saturating_sub(t) >= 3600) {
                 c.offline_note_at.insert(to, now);
                 let alias = dir.alias_of(&to).unwrap_or_default();
-                out.push(Self::reply(
+                out.push(Self::say(
                     from,
                     format!(
                         "@{alias} no está a la escucha; se entregará cuando conecte (te aviso con ✅)."
                     ),
+                    format!("@{alias} no escucha; se entregará al conectar."),
                 ));
             }
         }
@@ -398,7 +587,8 @@ impl Router {
             .collect()
     }
 
-    /// Unauthorised contact on a Pharos with an access code.
+    /// Unauthorised contact on a Pharos with an access code. Its first
+    /// message is held (not a `/ayuda`).
     fn code_gate(&mut self, dir: &dyn Directory, m: &Incoming, text: &str) -> Vec<Action> {
         let code = self.cfg.access_code.clone().unwrap_or_default();
         let max = self.cfg.max_code_attempts;
@@ -414,17 +604,23 @@ impl Router {
                 c.wrong_codes.clear();
                 let held = !c.held.is_empty();
                 self.state.authorized.insert(m.from.clone());
-                let next = if held {
-                    self.question(dir, &m.from, false, now)
-                } else {
-                    HELP.to_owned()
-                };
-                return vec![Self::reply(
+                let mut out = vec![Self::say(
                     &m.from,
-                    format!(
-                        "Código correcto: ya puedes usar este Pharos. Borra tu mensaje con el código; yo no puedo hacerlo. {next}"
-                    ),
+                    "Código correcto: ya puedes usar este Pharos.\n⚠️ BORRA TU MENSAJE CON EL CÓDIGO. YO NO PUEDO HACERLO.",
+                    "Código correcto. ⚠️ BORRA TU MENSAJE CON EL CÓDIGO.",
                 )];
+                let welcome = self.welcome(&m.from);
+                let welcomed = welcome.is_some();
+                out.extend(welcome);
+                if held {
+                    out.push(Self::reply(
+                        &m.from,
+                        self.question(dir, &m.from, false, now),
+                    ));
+                } else if !welcomed {
+                    out.push(Self::reply(&m.from, HELP));
+                }
+                return out;
             }
             c.wrong_codes.push(now);
             let t = if c.wrong_codes.len() >= max {
@@ -435,14 +631,18 @@ impl Router {
             return vec![Self::reply(&m.from, t)];
         }
         c.asked_code = true;
-        let held = self.hold(m, text);
-        let mut t =
+        let help = is_user_help(text);
+        let held = help || self.hold(m, text);
+        let mut long =
             "Hola. Para escribir por radio a través de este Pharos, envíame su código de acceso."
                 .to_owned();
+        let mut short = "Envía el código de acceso de este Pharos.".to_owned();
         if !held {
-            t += &format!(" No se ha enviado {}.", snippet(text));
+            let not_sent = format!(" No se ha enviado {}.", snippet(text));
+            long += &not_sent;
+            short += &not_sent;
         }
-        vec![Self::reply(&m.from, t)]
+        vec![Self::say(&m.from, long, short)]
     }
 
     /// A message from a bridged contact.
@@ -456,9 +656,19 @@ impl Router {
                 "Solo puedo enviar texto por radio; tu mensaje no se ha enviado.",
             )];
         };
-        if self.cfg.admins.contains(&m.from)
-            && let Some(command) = admin::parse(text, Some(m.from.network()))
+        // The password after `/admin`: checked first, never routed.
+        if let Some(c) = self.contacts.get_mut(&m.from)
+            && let Some((command, at)) = c.admin_asked.take()
+            && m.now.saturating_sub(at) < PASSWORD_WAIT_SECS
+            && let Some(password) = self.cfg.admin_password.clone()
         {
+            return self.check_password(&m, &password, text, Some(command));
+        }
+        if admin::strip_prefix(text).is_some() {
+            let command = admin::parse(text, Some(m.from.network())).unwrap_or(Command::Help);
+            if !self.is_admin(&m.from) {
+                return self.admin_gate(&m, command);
+            }
             return vec![Action::Admin {
                 from: m.from.clone(),
                 command,
@@ -488,11 +698,34 @@ impl Router {
                 return vec![];
             }
             c.refused_note_at = Some(now);
-            return vec![Self::reply(
+            return vec![Self::say(
                 &m.from,
                 "Este Pharos solo acepta mensajes de contactos autorizados. Tu mensaje no se ha enviado.",
+                "Solo contactos autorizados. No se ha enviado.",
             )];
         }
+        if is_user_help(text) {
+            let mut out: Vec<Action> = self.welcome(&m.from).into_iter().collect();
+            if out.is_empty() {
+                out.push(self.help_reply(dir, &m.from));
+            }
+            return out;
+        }
+        let mut out: Vec<Action> = self.welcome(&m.from).into_iter().collect();
+        let welcomed = !out.is_empty();
+        out.extend(self.route(dir, &m, text, welcomed));
+        out
+    }
+
+    /// Steps 1–5 of "Choosing the field user" (docs/spec/pharos.md §2).
+    fn route(
+        &mut self,
+        dir: &dyn Directory,
+        m: &Incoming,
+        text: &str,
+        welcomed: bool,
+    ) -> Vec<Action> {
+        let now = m.now;
         let has_held = self
             .contacts
             .get(&m.from)
@@ -524,7 +757,7 @@ impl Router {
         let c = self.contacts.entry(m.from.clone()).or_default().clone();
         // 3. Several field users at once: @alias is mandatory.
         if self.active(&c, now).len() >= 2 {
-            return self.hold_and_ask(dir, &m, text, true);
+            return self.hold_and_ask(dir, m, text, true);
         }
         // 4. Sticky target.
         if let Some((k, t)) = c.target
@@ -534,15 +767,16 @@ impl Router {
             return self.queue(dir, &m.from, k, text.to_owned(), m.msg_ref.clone(), now);
         }
         // 5. Ask.
-        let mut out = self.hold_and_ask(dir, &m, text, false);
-        if c.talked.is_empty() {
+        let mut out = self.hold_and_ask(dir, m, text, false);
+        if c.talked.is_empty() && !welcomed {
             out.push(Self::reply(&m.from, HELP));
         }
         out
     }
 
-    /// A field user's message for a bridged contact: the text to send there.
-    /// Writing first authorises the contact to answer.
+    /// A field user's message for a bridged contact: the text to send there,
+    /// after the welcome the first time. Writing first authorises the contact
+    /// to answer.
     pub fn on_outgoing(
         &mut self,
         from: PublicKey,
@@ -550,7 +784,7 @@ impl Router {
         to: &Address,
         message: &Message,
         now: u64,
-    ) -> Action {
+    ) -> Vec<Action> {
         if !self.state.blocked.contains(to) {
             self.state.authorized.insert(to.clone());
         }
@@ -564,7 +798,9 @@ impl Router {
             ),
             m => format!("{alias}: {}", m.render()),
         };
-        Self::reply(to, text.trim_end_matches(". ").to_owned())
+        let mut out: Vec<Action> = self.welcome(to).into_iter().collect();
+        out.push(Self::reply(to, text.trim_end_matches(". ").to_owned()));
+        out
     }
 
     /// The field user's station ACKed the message queued under `token`.
@@ -642,7 +878,7 @@ impl Router {
                 Self::reply(
                     a,
                     format!(
-                        "¿Aceptar a @{alias} ({})? Responde «aceptar {alias}» o «rechazar {alias}».",
+                        "¿Aceptar a @{alias} ({})? Responde «/admin aceptar {alias}» o «/admin rechazar {alias}».",
                         key.safety_number()
                     ),
                 )
@@ -786,7 +1022,8 @@ mod tests {
             "Código incorrecto."
         );
         let a = r.on_incoming(&d, msg("caballo pila grapa", T + 2));
-        assert!(replies(&a).contains("Borra tu mensaje"));
+        assert!(replies(&a).contains("BORRA TU MENSAJE CON EL CÓDIGO"));
+        assert!(replies(&a).contains("👋"), "welcome after the code");
         assert!(replies(&a).contains("¿Para quién es?"));
         assert!(r.state().authorized.contains(&mama()));
         assert_eq!(
@@ -837,7 +1074,9 @@ mod tests {
         assert!(replies(&r.on_incoming(&d, media)).contains("no se ha enviado"));
         assert!(replies(&r.on_incoming(&d, msg(&"a".repeat(201), T))).contains("máximo 200"));
         let a = r.on_incoming(&d, msg("@ana hola", T));
-        let Some(Action::Queue { token, .. }) = a.first() else {
+        let Some(Action::Queue { token, .. }) =
+            a.iter().find(|x| matches!(x, Action::Queue { .. }))
+        else {
             panic!("{a:?}")
         };
         let token = *token;
@@ -872,7 +1111,7 @@ mod tests {
             admins: vec![admin.clone()],
             ..RouterCfg::default()
         });
-        let mut m = msg("aceptar @bea", T);
+        let mut m = msg("/admin aceptar @bea", T);
         m.from = admin.clone();
         assert_eq!(
             r.on_incoming(&dir(), m),
@@ -881,10 +1120,132 @@ mod tests {
                 command: Command::Accept("bea".into())
             }]
         );
-        // Ordinary chat from an admin is routed like anyone else's.
-        let mut m = msg("hola", T + 1);
+        // Without /admin, a command word is ordinary chat.
+        let mut m = msg("estado", T + 1);
         m.from = admin;
         assert!(replies(&r.on_incoming(&dir(), m)).contains("¿Para quién es?"));
+    }
+
+    fn admin_router() -> Router {
+        with(RouterCfg {
+            admins: vec![Address::SignalPhone("34600000000".into())],
+            admin_password: Some("faro viejo de la costa".into()),
+            ..RouterCfg::default()
+        })
+    }
+
+    #[test]
+    fn admin_password_is_asked_then_the_command_runs() {
+        let (mut r, d) = (admin_router(), dir());
+        let a = r.on_incoming(&d, msg("/admin estado", T));
+        assert_eq!(
+            replies(&a),
+            "Para administrar este Pharos, envíame la contraseña de administración."
+        );
+        let a = r.on_incoming(&d, msg("faro viejo de la costa", T + 5));
+        assert!(
+            replies(&a).contains("BORRA AHORA EL MENSAJE CON LA CONTRASEÑA"),
+            "{a:?}"
+        );
+        assert!(queued(&a).is_empty(), "the password is never routed");
+        assert!(a.contains(&Action::Admin {
+            from: mama(),
+            command: Command::Status
+        }));
+        assert!(a.contains(&Action::Reply {
+            to: Address::SignalPhone("34600000000".into()),
+            text: "+34611111111 es administrador (con la contraseña).".into()
+        }));
+        assert!(r.is_admin(&mama()));
+        // From now on, no password.
+        let a = r.on_incoming(&d, msg("/admin clientes", T + 10));
+        assert!(matches!(
+            a.as_slice(),
+            [Action::Admin {
+                command: Command::Clients,
+                ..
+            }]
+        ));
+        assert_eq!(r.revoke_admin(&mama()), Revoked::Done);
+        assert!(!r.is_admin(&mama()));
+    }
+
+    #[test]
+    fn wrong_admin_password_is_not_routed_and_locks_out() {
+        let (mut r, d) = (admin_router(), dir());
+        r.on_incoming(&d, msg("/admin estado", T));
+        let a = r.on_incoming(&d, msg("@ana nope", T + 1));
+        assert!(queued(&a).is_empty());
+        assert!(replies(&a).contains("Contraseña incorrecta"));
+        // The next text is a normal message again.
+        assert_eq!(queued(&r.on_incoming(&d, msg("@ana hola", T + 2))).len(), 1);
+        for i in 0..4 {
+            r.on_incoming(&d, msg("/admin acceder mal", T + 10 + i));
+        }
+        assert!(
+            r.on_incoming(&d, msg("/admin acceder faro viejo de la costa", T + 20))
+                .is_empty()
+        );
+        let a = r.on_incoming(&d, msg("/admin acceder faro viejo de la costa", T + 3700));
+        assert!(replies(&a).contains("ya eres administrador"));
+    }
+
+    #[test]
+    fn without_a_password_only_config_admins_manage() {
+        let (mut r, d) = (router(), dir());
+        assert_eq!(
+            replies(&r.on_incoming(&d, msg("/admin estado", T))),
+            "No eres administrador de este Pharos."
+        );
+        // The password wait did not start: the next text goes on as chat.
+        assert!(replies(&r.on_incoming(&d, msg("hola", T + 1))).contains("¿Para quién es?"));
+    }
+
+    #[test]
+    fn welcome_and_help_are_chatty_on_signal_and_short_on_meshcore() {
+        let (mut r, d) = (router(), dir());
+        let a = r.on_incoming(&d, msg("/ayuda", T));
+        assert!(replies(&a).starts_with("👋 Hola, soy un Pharos"), "{a:?}");
+        let a = r.on_incoming(&d, msg("/help", T + 1));
+        assert!(
+            replies(&a).starts_with("• Para escribir a alguien"),
+            "{a:?}"
+        );
+        assert!(queued(&a).is_empty());
+
+        let mesh = Address::MeshcoreContact([7; 32]);
+        let mut r = with(RouterCfg {
+            inbound: Inbound::Anyone,
+            ..RouterCfg::default()
+        });
+        let mut m = msg("/ayuda", T);
+        m.from = mesh.clone();
+        assert_eq!(replies(&r.on_incoming(&d, m)), HELP);
+        let mut m = msg("hola", T + 1);
+        m.from = mesh.clone();
+        let a = r.on_incoming(&d, m);
+        assert!(!replies(&a).contains("👋"), "no welcome on MeshCore");
+        let mut m = msg("/admin estado", T + 2);
+        m.from = mesh;
+        assert_eq!(
+            replies(&r.on_incoming(&d, m)),
+            "No eres administrador de este Pharos."
+        );
+    }
+
+    #[test]
+    fn help_is_not_held_as_a_message_behind_the_access_code() {
+        let d = Dir(vec![(ANA, "ana", true)], vec![]);
+        let mut r = with(RouterCfg {
+            access_code: Some("caballo pila grapa".into()),
+            ..RouterCfg::default()
+        });
+        assert!(replies(&r.on_incoming(&d, msg("/ayuda", T))).contains("código de acceso"));
+        let a = r.on_incoming(&d, msg("caballo pila grapa", T + 1));
+        assert!(
+            !replies(&a).contains("¿Para quién es?"),
+            "nothing held: {a:?}"
+        );
     }
 
     #[test]
@@ -897,15 +1258,18 @@ mod tests {
             &Message::Text("Hemos llegado".into()),
             T,
         );
-        assert_eq!(a, Router::reply(&mama(), "ana: Hemos llegado"));
+        assert_eq!(
+            a.last(),
+            Some(&Router::reply(&mama(), "ana: Hemos llegado"))
+        );
+        assert!(replies(&a).starts_with("👋 Hola"), "welcome first: {a:?}");
         let p = keryx::position::Position {
             lat: 42.6,
             lon: 0.6,
         };
-        let Action::Reply { text, .. } =
-            r.on_outgoing(ANA, "ana", &mama(), &Message::Sos(Some(p)), T)
-        else {
-            panic!()
+        let a = r.on_outgoing(ANA, "ana", &mama(), &Message::Sos(Some(p)), T);
+        let [Action::Reply { text, .. }] = a.as_slice() else {
+            panic!("one reply, no second welcome: {a:?}")
         };
         assert!(
             text.starts_with("🆘 SOS de ana. https://maps.google.com/?q=42.60000,0.60000"),

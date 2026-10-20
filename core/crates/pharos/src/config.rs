@@ -45,6 +45,10 @@ pub struct AccessCfg {
     /// Answer discovery requests. Off: only clients with the QR find it.
     #[serde(default = "yes")]
     pub discoverable: bool,
+    /// File holding the admin password (0600). Without it only the admins in
+    /// the config may manage the Pharos remotely. Accepted from the bridges,
+    /// and over the radio only in an encrypted frame (decision 0020).
+    pub admin_password_file: Option<PathBuf>,
 }
 
 impl Default for AccessCfg {
@@ -53,6 +57,7 @@ impl Default for AccessCfg {
             mode: AccessMode::default(),
             code_file: None,
             discoverable: true,
+            admin_password_file: None,
         }
     }
 }

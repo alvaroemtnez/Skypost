@@ -55,12 +55,14 @@ pub enum Effect {
         alias: String,
         message: Message,
     },
-    /// A message addressed to the Pharos itself. From an admin client, text
-    /// is an admin command (`crate::admin`); otherwise it is logged.
+    /// A message addressed to the Pharos itself. Text goes to
+    /// [`crate::admin::RadioGate`]: admin commands, or the admin password in
+    /// an `encrypted` frame. Anything else is logged.
     Inbox {
         from: PublicKey,
         alias: String,
         admin: bool,
+        encrypted: bool,
         message: Message,
     },
     /// Someone asked to register and the operator must decide.
@@ -79,6 +81,15 @@ pub enum Effect {
         token: Option<u64>,
     },
     Log(String),
+}
+
+/// Result of taking back someone's admin rights.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Revoked {
+    Done,
+    /// Admin by configuration: only SSH can change that.
+    InConfig,
+    NotAdmin,
 }
 
 /// Who may register (see `docs/spec/pharos.md`, "Access").
@@ -193,6 +204,31 @@ impl Station {
             .status = Status::Blocked;
         self.state.outbox.abandon(key);
         Ok(())
+    }
+
+    /// The client sent the admin password in an encrypted frame.
+    pub fn grant_admin(&mut self, key: &PublicKey) -> Result<(), Error> {
+        self.state
+            .registry
+            .get_mut(key)
+            .ok_or(Error::UnknownLink)?
+            .admin_granted = true;
+        Ok(())
+    }
+
+    /// Take back admin rights granted by password. Admins from the config
+    /// keep theirs (they are removed over SSH).
+    pub fn revoke_admin(&mut self, key: &PublicKey) -> Result<Revoked, Error> {
+        let c = self.state.registry.get_mut(key).ok_or(Error::UnknownLink)?;
+        let was = c.admin_granted;
+        c.admin_granted = false;
+        Ok(if c.admin {
+            Revoked::InConfig
+        } else if was {
+            Revoked::Done
+        } else {
+            Revoked::NotAdmin
+        })
     }
 
     /// Admin: lift a block; the user is registered again.
@@ -523,7 +559,8 @@ impl Station {
         client.encrypts = d.header.encrypted;
         let registered = client.status == Status::Registered;
         let alias = client.alias.clone();
-        let admin = client.admin;
+        let admin = client.is_admin();
+        let encrypted = d.header.encrypted;
         let listen = match d.message {
             Message::Poll { listen_min } => Some(listen_min),
             _ => None,
@@ -577,6 +614,7 @@ impl Station {
                 from: key,
                 alias,
                 admin,
+                encrypted,
                 message: m,
             }),
         }
@@ -651,6 +689,7 @@ impl Station {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::router::Action;
     use keryx::JS8_FRAME_PAYLOAD_BYTES as MTU;
     use keryx::bridge::Address;
     use keryx::position::Position;
@@ -775,6 +814,63 @@ mod tests {
         let fx = p.on_rx(&rx(&hi, T0 + 90));
         assert_eq!(transmits(&fx).len(), 1);
         assert!(!fx.iter().any(|e| matches!(e, Effect::BridgeOut { .. })));
+    }
+
+    #[test]
+    fn admin_password_over_the_radio_counts_only_encrypted() {
+        use crate::admin::RadioGate;
+        use crate::router::{Router, RouterCfg, RouterState};
+        let mut p = pharos(Access::Closed);
+        let mut bea = field(3, "bea", &p);
+        p.allow(bea.card().clone(), false).unwrap();
+        let op = Address::SignalPhone("34600000000".into());
+        let mut router = Router::new(
+            RouterCfg {
+                admins: vec![op.clone()],
+                ..RouterCfg::default()
+            },
+            RouterState::default(),
+        );
+        let mut gate = RadioGate::new(Some("faro viejo de la costa".into()));
+        let mut said = |p: &mut Station, k: &mut Keyring, text: &str, enc: bool, now: u64| {
+            let wire = send(k, p, Message::Text(text.into()), enc);
+            let fx = p.on_rx(&rx(&wire, now));
+            let encrypted = fx
+                .iter()
+                .find_map(|e| match e {
+                    Effect::Inbox { encrypted, .. } => Some(*encrypted),
+                    _ => None,
+                })
+                .expect("text to the Pharos is an Inbox effect");
+            assert_eq!(encrypted, enc);
+            gate.on_text(p, &mut router, k.public(), text, encrypted, now)
+        };
+        let o = said(&mut p, &mut bea, "estado", false, T0);
+        assert!(o.actions.is_empty());
+        assert!(!p.registry().get(&bea.public()).unwrap().is_admin());
+        // In clear: refused even though it is right, and the operator is told.
+        let o = said(
+            &mut p,
+            &mut bea,
+            "acceder faro viejo de la costa",
+            false,
+            T0 + 60,
+        );
+        assert!(!p.registry().get(&bea.public()).unwrap().is_admin());
+        assert!(
+            matches!(&o.actions[..], [Action::Reply { to, text }] if *to == op && text.contains("SIN CIFRAR"))
+        );
+        // Encrypted: granted.
+        said(
+            &mut p,
+            &mut bea,
+            "acceder faro viejo de la costa",
+            true,
+            T0 + 120,
+        );
+        assert!(p.registry().get(&bea.public()).unwrap().is_admin());
+        assert_eq!(p.revoke_admin(&bea.public()).unwrap(), Revoked::Done);
+        assert!(!p.registry().get(&bea.public()).unwrap().is_admin());
     }
 
     #[test]

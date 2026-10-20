@@ -1,7 +1,8 @@
 # 0019. Pharos access: access code, closed mode, admin commands
 
 Status: accepted (2026-10-19). Refines the registration and inbound rules of
-[0016](0016-pharos-registration-and-bridging.md).
+[0016](0016-pharos-registration-and-bridging.md). Admin commands refined by
+[0020](0020-remote-management.md) (`/admin` prefix, admin password).
 
 ## Context
 

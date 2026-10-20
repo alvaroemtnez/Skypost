@@ -64,23 +64,43 @@ proof lets an attacker guess the code offline: use four or more random words.
 Clients added at home on both sides (QR both ways) are registered without
 sending `Register`. Blocked clients get nothing, not even ACKs.
 
-### Admin commands
+### Remote management
 
-From admin bridge accounts (`[bot] admins`) or admin field users over the
-radio (`[[clients]] admin = true`, plain text to the Pharos):
+Decision [0020](../decisions/0020-remote-management.md). Admins are those in
+the config (`[bot] admins`, `[[clients]] admin = true`; set over SSH) and
+whoever proves the admin password (`[access] admin_password_file`; without it,
+config admins only).
+
+| Channel | Config admins | Others, with the admin password |
+|---|---|---|
+| Radio, signed plaintext | yes | no: the password would be broadcast; it is refused even if right, and the admins are told to change it |
+| Radio, encrypted | yes | `acceder <contraseña>` once, then admin for good |
+| Signal, WhatsApp, MeshCore | yes | `/admin …` → the bot asks for the password → admin for good; "BORRA AHORA EL MENSAJE CON LA CONTRASEÑA" |
+
+Commands start with `/admin` on the bridges; on the radio the prefix is
+optional (every text to the Pharos is a command). English verbs work too.
 
 | Command | Effect |
 |---|---|
-| `ayuda` | list the commands |
-| `estado` | registered, pending, listening, queued, authorised contacts |
-| `clientes` | each field user, status and when it was last heard |
+| `ayuda` (`help`), or `/admin` alone | list the commands |
+| `estado` (`status`) | registered, pending, listening, queued, authorised contacts |
+| `clientes` (`clients`) | each field user, status and when it was last heard |
+| `admins` | who administers, and how (config or password) |
 | `aceptar @alias` / `rechazar @alias` | decide a pending registration |
 | `bloquear @alias\|número` / `desbloquear …` | ignore a field user or a bridged contact |
 | `permitir número` | authorise a bridged contact |
+| `revocar @alias\|número` | drop admin rights granted by password |
+| `acceder contraseña` (`login`) | become admin |
 
 A number is a phone with country code (on the admin's own network unless
-`signal`/`whatsapp` comes first), a Signal username or a MeshCore key. Admins
-on the radio always name the network. Anything else: SSH and the config.
+`signal`/`whatsapp`/`meshcore` comes first), a Signal username or a MeshCore
+key. Admins on the radio always name the network. Replies over the radio and
+MeshCore are short. Five wrong passwords an hour: no answers for an hour.
+Every new admin is announced to the other admins on the bridges.
+
+SSH only: access mode, access code, admin password, discoverability, bridges
+and their accounts, callsign, frequencies, config admins, SOS contacts,
+restarts and updates.
 
 ### Ping and the "Pharos heard" indicator
 
@@ -145,6 +165,18 @@ any contact; the bot routes by alias. All bot texts are Spanish.
   hour. `inbound = "anyone"`: no check.
 - An unknown alias gets "No puedo hacer llegar mensajes a @x", whether or not
   it exists.
+- The code (and the admin password) are answered with "⚠️ BORRA TU MENSAJE
+  CON EL CÓDIGO. YO NO PUEDO HACERLO.", in capitals so it is not missed.
+
+### Welcome and help
+
+- Signal and WhatsApp: each contact gets one welcome (who the Pharos is, how
+  to write with `@alias`, limits, what 📡 ✅ ❌ mean, `/ayuda`). It comes
+  after the access code when one is needed, on the contact's first message
+  otherwise, or just before a field user's first message to them.
+- `/ayuda` (`/help`) repeats the instructions and lists recent aliases. It is
+  never held or routed as a message.
+- `/admin` commands: see "Remote management" above.
 
 ### Choosing the field user
 
@@ -184,6 +216,9 @@ note.
 
 - Direct messages to the companion node follow the rules above. Channels
   are never bridged.
+- Made for short messages: no welcome, and every reply has a short form
+  ("Envía el código de acceso de este Pharos.", "Solo contactos
+  autorizados. No se ha enviado."). `/ayuda` answers with one line.
 
 ## 3. Configuration (sketch)
 
@@ -194,6 +229,7 @@ See `core/crates/pharos/base.example.toml`:
 mode = "code"                          # "open", "code" or "closed"
 code_file = "/etc/pharos/access-code"  # 0600
 discoverable = true
+admin_password_file = "/etc/pharos/admin-password"  # 0600, optional
 
 [bot]
 inbound = "code"                       # "code", "contacts" or "anyone"

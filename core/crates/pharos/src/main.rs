@@ -93,12 +93,13 @@ fn deliver(e: &Effect) {
         Effect::Sos { alias, message, .. } => {
             warn!(%alias, "SOS — alert every bridge: {}", message.render())
         }
+        // Never log the text: it may be the admin password.
         Effect::Inbox {
             alias,
-            message,
             admin,
+            encrypted,
             ..
-        } => info!(%alias, admin, "{}", message.render()),
+        } => info!(%alias, admin, encrypted, "message to the Pharos"),
         Effect::ApprovalNeeded { alias, key } => {
             warn!(%alias, safety = %key.safety_number(), "registration needs approval");
         }
@@ -175,6 +176,15 @@ async fn run(path: &Path) -> Result<()> {
             Access::Code(Arc::new(AccessKey::derive(&code, &state.keyring.public())?))
         }
     };
+    let admin_password = match &cfg.access.admin_password_file {
+        Some(p) => {
+            Some(std::fs::read_to_string(p).with_context(|| format!("reading {}", p.display()))?)
+        }
+        None => None,
+    };
+    // TODO(phase 1): Inbox text -> admin::RadioGate; bridge messages -> Router
+    // (with admin_password and the station name for the welcome).
+    let _radio_admin = admin::RadioGate::new(admin_password.clone());
     let scfg = StationCfg {
         access,
         discoverable: cfg.access.discoverable,
