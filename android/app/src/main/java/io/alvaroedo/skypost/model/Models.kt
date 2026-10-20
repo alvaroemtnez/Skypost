@@ -109,6 +109,22 @@ data class Pharos(
     val bridges: Set<ChatKind>,
     val safetyNumber: String,
     val blocked: Boolean = false,
+    /** We may manage it remotely: listed as admin in its config, or signed in with its admin password. */
+    val admin: Boolean = false,
+)
+
+/**
+ * An admin command sent to a Pharos (plain text to the Pharos itself, decision
+ * 0020) and its reply once it arrives.
+ */
+@Serializable
+data class AdminEntry(
+    val id: Long,
+    val pharosKey: String,
+    /** What went on air, e.g. "aceptar @bea". The password is never kept. */
+    val command: String,
+    val atMillis: Long,
+    val reply: String? = null,
 )
 
 /** A Signal, WhatsApp or MeshCore contact used before, listed in the new-chat screens. */

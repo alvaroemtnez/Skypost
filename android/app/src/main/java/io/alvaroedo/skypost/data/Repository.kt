@@ -1,5 +1,7 @@
 package io.alvaroedo.skypost.data
 
+import io.alvaroedo.skypost.core.Card
+import io.alvaroedo.skypost.model.AdminEntry
 import io.alvaroedo.skypost.model.Blocked
 import io.alvaroedo.skypost.model.Chat
 import io.alvaroedo.skypost.model.ChatKind
@@ -103,6 +105,9 @@ interface Repository {
 
     fun setContactBlocked(key: String, on: Boolean)
 
+    /** The user compared the contact's safety code (same as [markVerified] for a Pharos). */
+    fun markContactVerified(key: String)
+
     fun setGroupBlocked(id: String, on: Boolean)
 
     fun setRecentBlocked(recent: Recent, on: Boolean)
@@ -128,8 +133,15 @@ interface Repository {
     /** A `skypost:` URI or a MeshCore QR payload, or null if it is neither. */
     fun parse(text: String): Scanned?
 
-    /** Adds a contact, Pharos, group or MeshCore chat. Returns the chat to open, if any. */
-    fun import(scanned: Scanned): String?
+    /**
+     * Adds a contact, Pharos, group or MeshCore chat. Returns the chat to open, if any.
+     * [inPerson]: scanned with the in-app camera, so the key is verified. Pasted
+     * codes and links arrive unverified (they may have been forwarded).
+     */
+    fun import(scanned: Scanned, inPerson: Boolean): String?
+
+    /** A contact's or Pharos's `skypost:id/` URI, to show as a QR and pass on. */
+    fun uriOf(card: Card): String
 
     fun createGroup(name: String): String
 
@@ -156,6 +168,19 @@ interface Repository {
     fun markVerified(key: String)
 
     fun removePharos(key: String)
+
+    /** Admin commands sent to this Pharos and its replies, oldest first. */
+    fun adminLog(pharosKey: String): Flow<List<AdminEntry>>
+
+    /** Sends an admin command (`estado`, `aceptar @bea`, …) as text to the Pharos. */
+    fun sendAdmin(pharosKey: String, command: String)
+
+    /**
+     * Sends the admin password (`acceder …`). Only while emergency encryption is
+     * on: in signed plaintext it would be broadcast, so nothing is sent and it
+     * returns false.
+     */
+    fun adminLogin(pharosKey: String, password: String): Boolean
 
     /** Pings the active Pharos; true if it answered. */
     suspend fun ping(): Boolean

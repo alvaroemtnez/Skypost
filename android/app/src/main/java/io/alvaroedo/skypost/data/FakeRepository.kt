@@ -3,6 +3,7 @@ package io.alvaroedo.skypost.data
 import io.alvaroedo.skypost.core.Card
 import io.alvaroedo.skypost.core.KeryxCore
 import io.alvaroedo.skypost.core.ParsedUri
+import io.alvaroedo.skypost.model.AdminEntry
 import io.alvaroedo.skypost.model.Auth
 import io.alvaroedo.skypost.model.Recent
 import io.alvaroedo.skypost.model.DeletedChats
@@ -63,13 +64,14 @@ class FakeRepository(
     private val messages = MutableStateFlow<Map<String, List<ChatMessage>>>(emptyMap())
     private val _recents = MutableStateFlow<List<Recent>>(emptyList())
     private val _blocked = MutableStateFlow<List<Blocked>>(emptyList())
+    private val _adminLog = MutableStateFlow<List<AdminEntry>>(emptyList())
     private var nextId = 1L
 
     init {
         store?.load()?.let(::restore)
         if (store != null) {
             scope.launch {
-                merge(_identity, _chats, _contacts, _groups, _pharos, _settings, messages, _recents, _blocked)
+                merge(_identity, _chats, _contacts, _groups, _pharos, _settings, messages, _recents, _blocked, _adminLog)
                     .drop(1)
                     .debounce(300)
                     .collect {
@@ -90,6 +92,7 @@ class FakeRepository(
         messages = messages.value,
         recents = _recents.value,
         blocked = _blocked.value,
+        adminLog = _adminLog.value,
     )
 
     /** Messages still waiting for an ACK when the app stopped are lost. */
@@ -104,7 +107,9 @@ class FakeRepository(
         messages.value = s.messages.mapValues { (_, l) -> l.map(pending) }
         _recents.value = s.recents
         _blocked.value = s.blocked
-        nextId = (s.messages.values.flatten().maxOfOrNull { it.id } ?: 0) + 1
+        _adminLog.value = s.adminLog
+        // Messages and admin log entries share the counter.
+        nextId = maxOf(s.messages.values.flatten().maxOfOrNull { it.id } ?: 0, s.adminLog.maxOfOrNull { it.id } ?: 0) + 1
     }
 
     override val identity: StateFlow<Identity?> = _identity.asStateFlow()
@@ -308,6 +313,10 @@ class FakeRepository(
         setBlocked("contact:$key", c.card.alias, ChatKind.DIRECT, on)
     }
 
+    override fun markContactVerified(key: String) {
+        _contacts.update { list -> list.map { if (it.card.key == key) it.copy(verified = true) else it } }
+    }
+
     override fun setGroupBlocked(id: String, on: Boolean) {
         val g = _groups.value.firstOrNull { it.id == id } ?: return
         setBlocked("group:$id", g.name, ChatKind.GROUP, on)
@@ -390,15 +399,19 @@ class FakeRepository(
         return chat.id
     }
 
-    override fun import(scanned: Scanned): String? = when (scanned) {
+    override fun import(scanned: Scanned, inPerson: Boolean): String? = when (scanned) {
         is Scanned.Person -> {
             if (_contacts.value.none { it.card.key == scanned.card.key }) {
-                _contacts.update { it + Contact(scanned.card, verified = true, safetyNumber = scanned.safetyNumber) }
+                _contacts.update { it + Contact(scanned.card, verified = inPerson, safetyNumber = scanned.safetyNumber) }
+                applyBlocks()
+            } else if (inPerson) {
+                markContactVerified(scanned.card.key)
             }
             chatWith(scanned.card.key)
         }
         is Scanned.PharosCard -> {
-            addPharos(scanned.card, verified = true, snr = null, bridges = ChatKind.entries.filter { it.bridged }.toSet())
+            addPharos(scanned.card, verified = inPerson, snr = null, bridges = ChatKind.entries.filter { it.bridged }.toSet())
+            if (inPerson) markVerified(scanned.card.key)
             null
         }
         is Scanned.GroupInvite -> {
@@ -427,9 +440,11 @@ class FakeRepository(
         }
     }
 
+    override fun uriOf(card: Card): String = core.identityUri(card)
+
     override fun createGroup(name: String): String {
         val uri = core.newGroupUri(name)
-        return import(Scanned.GroupInvite(name, uri))!!
+        return import(Scanned.GroupInvite(name, uri), inPerson = true)!!
     }
 
     override fun chatWith(contactKey: String): String {
@@ -529,6 +544,55 @@ class FakeRepository(
         }
     }
 
+    override fun adminLog(pharosKey: String): Flow<List<AdminEntry>> =
+        _adminLog.map { log -> log.filter { it.pharosKey == pharosKey } }
+
+    private fun isAdmin(pharosKey: String) = _pharos.value.any { it.card.key == pharosKey && it.admin }
+
+    /** Logs [shown] and fills in the Pharos's [reply] after the ACK delay. */
+    private fun adminRoundTrip(pharosKey: String, shown: String, reply: () -> String) {
+        if (_pharos.value.none { it.card.key == pharosKey && !it.blocked }) return
+        val entry = AdminEntry(nextId++, pharosKey, shown, now())
+        _adminLog.update { (it + entry).takeLast(ADMIN_LOG_MAX) }
+        scope.launch {
+            delay(ackDelayMs)
+            val text = reply()
+            _adminLog.update { log -> log.map { if (it.id == entry.id) it.copy(reply = text) else it } }
+        }
+    }
+
+    // The real one sends Message::Text to the Pharos; these replies imitate `pharos::admin`.
+    override fun sendAdmin(pharosKey: String, command: String) = adminRoundTrip(pharosKey, command) {
+        val words = command.trim().split(Regex("\\s+"))
+        val arg = words.drop(1).joinToString(" ")
+        when {
+            !isAdmin(pharosKey) -> "No eres administrador."
+            words[0] == "estado" -> "Registrados: 3. Pendientes: 1. A la escucha: 1. Mensajes en cola: 2. Contactos autorizados: 4."
+            words[0] == "clientes" -> "@bea — registrado — oído hace 41 min\n@tio — pendiente — oído hace 12 min\n@${_identity.value?.card?.alias} — registrado — oído hace 0 min"
+            words[0] == "admins" -> "Administradores: @${_identity.value?.card?.alias} (config), +34600000000 (config)."
+            words[0] == "aceptar" -> "$arg aceptado."
+            words[0] == "rechazar" -> "$arg rechazado."
+            words[0] == "bloquear" -> "$arg bloqueado."
+            words[0] == "desbloquear" -> "$arg desbloqueado."
+            words[0] == "permitir" -> "$arg autorizado."
+            words[0] == "revocar" -> "$arg ya no es administrador."
+            else -> "estado · clientes · admins · aceptar/rechazar @alias · bloquear/desbloquear @alias|nº · permitir nº · revocar @alias|nº"
+        }
+    }
+
+    override fun adminLogin(pharosKey: String, password: String): Boolean {
+        if (!_settings.value.encryptAll || password.isBlank()) return false
+        adminRoundTrip(pharosKey, "acceder ••••••") {
+            if (password.length < 8) {
+                "Contraseña incorrecta."
+            } else {
+                _pharos.update { list -> list.map { if (it.card.key == pharosKey) it.copy(admin = true) else it } }
+                "Eres administrador."
+            }
+        }
+        return true
+    }
+
     override suspend fun ping(): Boolean {
         val p = activePharos()?.takeUnless { it.blocked } ?: return false
         delay(1_500)
@@ -553,6 +617,10 @@ class FakeRepository(
         return true
     }
 
+    private companion object {
+        const val ADMIN_LOG_MAX = 50
+    }
+
     private fun seedDemo() {
         val t = now()
         val min = 60_000L
@@ -564,12 +632,13 @@ class FakeRepository(
             snr = -14,
             bridges = setOf(ChatKind.SIGNAL, ChatKind.WHATSAPP, ChatKind.MESHCORE),
         )
-        _pharos.update { list -> list.map { it.copy(lastHeardMillis = t - 4 * min) } }
+        // The owner's own Pharos: admin from its config.
+        _pharos.update { list -> list.map { it.copy(lastHeardMillis = t - 4 * min, admin = true) } }
         val familia = createGroup("Familia")
         val direct = chatWith(bea.key)
         val mama = openBridged(ChatKind.SIGNAL, "34611111111", "Mamá")!!
         val papa = openBridged(ChatKind.WHATSAPP, "34622222222", "Papá")!!
-        val refugio = import(Scanned.MeshCore("Refugio Góriz", "a1b2c3d4e5f6".repeat(5) + "a1b2"))!!
+        val refugio = import(Scanned.MeshCore("Refugio Góriz", "a1b2c3d4e5f6".repeat(5) + "a1b2"), inPerson = true)!!
         fun rx(chat: String, text: String, ago: Long, auth: Auth = Auth.SIGNED, sender: String? = null) =
             post(chat, ChatMessage(nextId++, chat, false, text, t - ago * min, auth, sender = sender))
         fun tx(chat: String, text: String, ago: Long, auth: Auth = Auth.SIGNED) =

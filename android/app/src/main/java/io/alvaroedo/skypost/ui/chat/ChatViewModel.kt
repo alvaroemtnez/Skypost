@@ -2,6 +2,7 @@ package io.alvaroedo.skypost.ui.chat
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import io.alvaroedo.skypost.core.Card
 import io.alvaroedo.skypost.data.Repository
 import io.alvaroedo.skypost.model.Chat
 import io.alvaroedo.skypost.model.ChatKind
@@ -38,8 +39,10 @@ data class ChatUi(
     val via: String? = null,
     /** Bridged chat without a usable Pharos: sending will fail. */
     val noPharos: Boolean = false,
-    /** Direct chats: the contact's safety number. */
+    /** Direct chats: the contact's card, safety number and whether it was verified. */
+    val contact: Card? = null,
     val safetyNumber: String? = null,
+    val verified: Boolean = false,
     /** Emergency encryption is on for every chat (Settings); the per-chat switch is moot. */
     val encryptAll: Boolean = false,
 ) {
@@ -103,6 +106,7 @@ class ChatViewModel(
     ) { chats, msgs, d, pharos, (contacts, settings) ->
         val chat = chats.firstOrNull { it.id == chatId }
         val via = pharos.firstOrNull { it.card.key == chat?.ref }
+        val contact = contacts.firstOrNull { it.card.key == chat?.ref && chat.kind == ChatKind.DIRECT }
         ChatUi(
             chat = chat,
             messages = msgs,
@@ -115,7 +119,9 @@ class ChatViewModel(
             via = via?.card?.alias,
             noPharos = chat?.kind?.bridged == true && via == null,
             encryptAll = settings.encryptAll,
-            safetyNumber = contacts.firstOrNull { it.card.key == chat?.ref && chat.kind == ChatKind.DIRECT }?.safetyNumber,
+            contact = contact?.card,
+            safetyNumber = contact?.safetyNumber,
+            verified = contact?.verified == true,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ChatUi())
 
@@ -177,6 +183,10 @@ class ChatViewModel(
     }
 
     fun setEncrypted(on: Boolean) = repo.setEncrypted(chatId, on)
+
+    fun markVerified() {
+        ui.value.contact?.let { repo.markContactVerified(it.key) }
+    }
 
     fun markRead() = repo.markRead(chatId)
 

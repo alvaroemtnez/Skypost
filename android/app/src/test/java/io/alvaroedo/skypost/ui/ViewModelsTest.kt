@@ -11,6 +11,8 @@ import io.alvaroedo.skypost.model.ChatKind
 import io.alvaroedo.skypost.ui.chat.ChatViewModel
 import io.alvaroedo.skypost.ui.chats.ChatListViewModel
 import io.alvaroedo.skypost.ui.newchat.NewChatViewModel
+import io.alvaroedo.skypost.ui.pharos.AdminTarget
+import io.alvaroedo.skypost.ui.pharos.PharosAdminViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -86,6 +88,24 @@ class ViewModelsTest {
     }
 
     @Test
+    fun `a pasted contact is unverified until scanned in person or marked`() = runTest {
+        val r = repo()
+        val app = AppViewModel(r, Locator { null })
+        app.offer("skypost:id/ZZZZ?n=carla")
+        val chat = app.confirmImport()!!
+        val vm = ChatViewModel(r, chat)
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { vm.ui.collect {} }
+        assertEquals(false, vm.ui.value.verified)
+        app.offer("skypost:id/ZZZZ?n=carla", inPerson = true)
+        app.confirmImport()
+        assertEquals(true, vm.ui.value.verified)
+        assertTrue(r.uriOf(vm.ui.value.contact!!).startsWith("skypost:id/ZZZZ"))
+        val other = r.chats.value.first { it.kind == ChatKind.DIRECT && it.id != chat }.ref!!
+        r.markContactVerified(other)
+        assertTrue(r.contacts.value.first { it.card.key == other }.verified)
+    }
+
+    @Test
     fun `typed text that is a stock phrase in the app language goes as its id`() = runTest {
         val r = repo()
         val id = r.chats.value.first { it.kind == ChatKind.DIRECT }.id
@@ -137,6 +157,29 @@ class ViewModelsTest {
         blind.sendPosition()
         assertEquals(listOf(ChatEvent.SENT_WITHOUT_POSITION, ChatEvent.NO_POSITION), events)
         assertEquals(0, r.messages(id).first().last().phrase)
+    }
+
+    @Test
+    fun `pharos admin builds command texts and signs in only encrypted`() = runTest {
+        val r = repo()
+        val key = r.pharos.value.first().card.key
+        val vm = PharosAdminViewModel(r, key)
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { vm.ui.collect {} }
+        assertEquals("@bea", vm.text(AdminTarget.FieldUser("@bea")))
+        assertEquals("whatsapp +34600123456", vm.text(AdminTarget.Bridged(ChatKind.WHATSAPP, "+34 600 12 34 56")))
+        assertEquals("signal mama.01", vm.text(AdminTarget.Bridged(ChatKind.SIGNAL, "mama.01")))
+        assertEquals("meshcore " + "ab".repeat(32), vm.text(AdminTarget.Bridged(ChatKind.MESHCORE, "AB".repeat(32))))
+        assertNull(vm.text(AdminTarget.Bridged(ChatKind.MESHCORE, "abc")))
+        assertFalse(vm.decide("no spaces allowed", true))
+        assertTrue(vm.decide("tio", true))
+        assertEquals("aceptar @tio", vm.ui.value.log.first().command)
+        testScheduler.advanceTimeBy(100)
+        testScheduler.runCurrent()
+        assertEquals("@tio aceptado.", vm.ui.value.log.first().reply)
+        assertFalse("never in signed plaintext", vm.login("faro viejo de la costa"))
+        r.setEncryptAll(true)
+        assertTrue(vm.login("faro viejo de la costa"))
+        assertFalse("the password is not kept", vm.ui.value.log.first().command.contains("faro"))
     }
 
     @Test

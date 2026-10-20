@@ -9,6 +9,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
+/** A code waiting for the user to confirm, and whether it was scanned in person. */
+data class PendingImport(val scanned: Scanned, val inPerson: Boolean)
+
 /** How an SOS went out: to how many chats, and whether it carried a position. */
 data class SosResult(val sentTo: Int, val withPosition: Boolean)
 
@@ -20,21 +23,24 @@ data class SosResult(val sentTo: Int, val withPosition: Boolean)
 class AppViewModel(private val repo: Repository, private val locator: Locator) : ViewModel() {
     val identity: StateFlow<Identity?> = repo.identity
 
-    private val _pendingImport = MutableStateFlow<Scanned?>(null)
-    val pendingImport: StateFlow<Scanned?> = _pendingImport.asStateFlow()
+    private val _pendingImport = MutableStateFlow<PendingImport?>(null)
+    val pendingImport: StateFlow<PendingImport?> = _pendingImport.asStateFlow()
 
-    /** Returns false if the text is not a code the app understands. */
-    fun offer(text: String?): Boolean {
+    /**
+     * Returns false if the text is not a code the app understands. [inPerson]:
+     * it came from the in-app scanner (verified), not a paste or a link.
+     */
+    fun offer(text: String?, inPerson: Boolean = false): Boolean {
         val s = text?.let(repo::parse) ?: return false
-        _pendingImport.value = s
+        _pendingImport.value = PendingImport(s, inPerson)
         return true
     }
 
     /** Adds what was offered; returns the chat to open, if any. */
     fun confirmImport(): String? {
-        val s = _pendingImport.value ?: return null
+        val p = _pendingImport.value ?: return null
         _pendingImport.value = null
-        return repo.import(s)
+        return repo.import(p.scanned, p.inPerson)
     }
 
     fun dismissImport() {

@@ -15,6 +15,8 @@ conversations, and everyone already knows the Signal/WhatsApp pattern.
   unified chat list with filter chips (direct, groups, Signal, WhatsApp,
   MeshCore), a bubble timeline, a "new chat" picker, a Pharos screen, settings.
 - SOS stays one tap away in the top bar of the chat list (with a confirm step).
+  Amended 2026-10-20: a round button at the bottom right, held for 3 seconds
+  (heartbeat pulse and a filling ring) before the confirmation.
 - Quick messages (stock phrases, "Estoy bien" with position) live in the
   composer, so a non-operator still sends them with two taps.
 - Emergency encryption is a per-chat switch with a confirmation, not a global

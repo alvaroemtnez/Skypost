@@ -16,6 +16,10 @@ from pathlib import Path
 
 ICONS = [
     ("ic_add", "add", False),
+    ("ic_admin", "admin_panel_settings", False),
+    ("ic_person_add", "person_add", False),
+    ("ic_remove_moderator", "remove_moderator", False),
+    ("ic_login", "login", True),
     ("ic_archive", "archive", False),
     ("ic_unarchive", "unarchive", False),
     ("ic_push_pin", "push_pin", False),

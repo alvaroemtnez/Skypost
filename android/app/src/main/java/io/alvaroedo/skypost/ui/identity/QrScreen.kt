@@ -56,6 +56,8 @@ fun QrScreen(
     detail: String? = null,
     safetyNumber: String? = null,
     secret: Boolean = false,
+    /** What the code is for; defaults to "show it so they can write to you". */
+    body: String? = null,
 ) {
     val context = LocalContext.current
     val snackbar = LocalSnackbar.current
@@ -94,7 +96,7 @@ fun QrScreen(
                     )
                 }
             } else {
-                Text(stringResource(R.string.my_code_body), textAlign = TextAlign.Center)
+                Text(body ?: stringResource(R.string.my_code_body), textAlign = TextAlign.Center)
             }
             safetyNumber?.let {
                 Text(stringResource(R.string.safety_number), style = MaterialTheme.typography.labelLarge)

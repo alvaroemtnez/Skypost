@@ -24,7 +24,6 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -72,6 +71,7 @@ import io.alvaroedo.skypost.ui.components.SwipeRow
 import io.alvaroedo.skypost.ui.components.label
 import io.alvaroedo.skypost.ui.components.shortTime
 import io.alvaroedo.skypost.ui.components.shownText
+import io.alvaroedo.skypost.ui.components.SosButton
 import io.alvaroedo.skypost.ui.components.rememberWithLocation
 import io.alvaroedo.skypost.ui.SosResult
 import io.alvaroedo.skypost.ui.theme.extraColors
@@ -107,6 +107,7 @@ fun ChatListScreen(
     val sosSent = stringResource(R.string.sos_sent)
     val sosNowhere = stringResource(R.string.sos_nowhere)
     val sosNoPosition = stringResource(R.string.sos_sent_no_position)
+    val holdSos = stringResource(R.string.sos_hold_hint)
     val locating = stringResource(R.string.locating)
     val withLocation = rememberWithLocation()
     val undo = stringResource(R.string.undo)
@@ -173,14 +174,10 @@ fun ChatListScreen(
         },
         floatingActionButton = {
             if (!archived) {
-                FloatingActionButton(
-                    onClick = { confirmSos = true },
-                    containerColor = MaterialTheme.extraColors.emergency,
-                    contentColor = MaterialTheme.extraColors.onEmergency,
-                    modifier = Modifier.size(72.dp),
-                ) {
-                    Icon(painterResource(R.drawable.ic_sos), stringResource(R.string.sos), Modifier.size(52.dp))
-                }
+                SosButton(
+                    onHeld = { confirmSos = true },
+                    onTooShort = { scope.launch { snackbar.showSnackbar(holdSos) } },
+                )
             }
         },
     ) { padding ->

@@ -276,9 +276,18 @@ fun SafetyNumber(value: String, modifier: Modifier = Modifier) {
     )
 }
 
-/** Confirm adding a contact, Pharos, group or MeshCore chat that was scanned, pasted or linked. */
+/** The key was compared in person (scanned QR or checked safety code). Same badge for contacts and Pharos. */
 @Composable
-fun ImportDialog(scanned: Scanned, onConfirm: () -> Unit, onDismiss: () -> Unit) {
+fun VerifiedBadge(modifier: Modifier = Modifier) {
+    Icon(painterResource(R.drawable.ic_verified), stringResource(R.string.verified), modifier)
+}
+
+/**
+ * Confirm adding a contact, Pharos, group or MeshCore chat that was scanned,
+ * pasted or linked. A pasted or linked contact or Pharos arrives unverified.
+ */
+@Composable
+fun ImportDialog(scanned: Scanned, inPerson: Boolean, onConfirm: () -> Unit, onDismiss: () -> Unit) {
     val (title, body, extra) = when (scanned) {
         is Scanned.Person -> Triple(
             stringResource(R.string.import_contact_title, scanned.card.alias),
@@ -314,6 +323,13 @@ fun ImportDialog(scanned: Scanned, onConfirm: () -> Unit, onDismiss: () -> Unit)
                         modifier = Modifier.padding(top = 16.dp, bottom = 4.dp),
                     )
                     SafetyNumber(it, Modifier.fillMaxWidth())
+                    if (!inPerson) {
+                        Text(
+                            stringResource(R.string.import_unverified_note),
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.padding(top = 16.dp),
+                        )
+                    }
                 }
             }
         },

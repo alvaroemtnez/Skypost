@@ -1,5 +1,6 @@
 package io.alvaroedo.skypost.data
 
+import io.alvaroedo.skypost.model.AdminEntry
 import io.alvaroedo.skypost.model.Blocked
 import io.alvaroedo.skypost.model.Chat
 import io.alvaroedo.skypost.model.ChatMessage
@@ -25,6 +26,7 @@ data class DemoSnapshot(
     val messages: Map<String, List<ChatMessage>>,
     val recents: List<Recent> = emptyList(),
     val blocked: List<Blocked> = emptyList(),
+    val adminLog: List<AdminEntry> = emptyList(),
 )
 
 interface DemoStore {

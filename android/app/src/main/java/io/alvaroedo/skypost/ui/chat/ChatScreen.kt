@@ -62,6 +62,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -91,6 +92,7 @@ import io.alvaroedo.skypost.ui.components.AuthIcon
 import io.alvaroedo.skypost.ui.components.DeliveryIcon
 import io.alvaroedo.skypost.ui.components.LocalSnackbar
 import io.alvaroedo.skypost.ui.components.SafetyNumber
+import io.alvaroedo.skypost.ui.components.VerifiedBadge
 import io.alvaroedo.skypost.ui.components.label
 import io.alvaroedo.skypost.ui.components.shortTime
 
@@ -99,7 +101,12 @@ private const val NORMAL_FRAME_SECS = 15
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ChatScreen(vm: ChatViewModel, onInvite: (uri: String, name: String) -> Unit, onBack: () -> Unit) {
+fun ChatScreen(
+    vm: ChatViewModel,
+    onInvite: (uri: String, name: String) -> Unit,
+    onShowCode: (key: String) -> Unit,
+    onBack: () -> Unit,
+) {
     val ui by vm.ui.collectAsStateWithLifecycle()
     val chat = ui.chat
     var menu by remember { mutableStateOf(false) }
@@ -183,7 +190,15 @@ fun ChatScreen(vm: ChatViewModel, onInvite: (uri: String, name: String) -> Unit,
                 },
                 title = {
                     Column {
-                        Text(chat?.title.orEmpty(), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                chat?.title.orEmpty(),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f, fill = false),
+                            )
+                            if (ui.verified) VerifiedBadge(Modifier.padding(start = 6.dp).size(20.dp))
+                        }
                         chat?.let {
                             val kind = stringResource(it.kind.label())
                             val sub = listOfNotNull(
@@ -255,6 +270,13 @@ fun ChatScreen(vm: ChatViewModel, onInvite: (uri: String, name: String) -> Unit,
                                     text = { Text(stringResource(R.string.safety_number)) },
                                     leadingIcon = { Icon(painterResource(R.drawable.ic_key), null) },
                                     onClick = { menu = false; showSafety = true },
+                                )
+                            }
+                            ui.contact?.let { c ->
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.show_qr)) },
+                                    leadingIcon = { Icon(painterResource(R.drawable.ic_qr_code), null) },
+                                    onClick = { menu = false; onShowCode(c.key) },
                                 )
                             }
                         }
@@ -353,6 +375,16 @@ fun ChatScreen(vm: ChatViewModel, onInvite: (uri: String, name: String) -> Unit,
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Text(stringResource(R.string.safety_number_body, chat?.title.orEmpty()))
                     SafetyNumber(ui.safetyNumber.orEmpty(), Modifier.fillMaxWidth())
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        if (ui.verified) VerifiedBadge()
+                        Text(
+                            stringResource(if (ui.verified) R.string.contact_verified_body else R.string.contact_unverified_body),
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                    }
+                    if (!ui.verified) {
+                        OutlinedButton(onClick = vm::markVerified) { Text(stringResource(R.string.mark_verified)) }
+                    }
                 }
             },
             confirmButton = { TextButton(onClick = { showSafety = false }) { Text(stringResource(R.string.close)) } },

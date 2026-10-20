@@ -50,6 +50,7 @@ import io.alvaroedo.skypost.model.PharosAccess
 import io.alvaroedo.skypost.model.Registration
 import io.alvaroedo.skypost.ui.components.LocalSnackbar
 import io.alvaroedo.skypost.ui.components.SafetyNumber
+import io.alvaroedo.skypost.ui.components.VerifiedBadge
 import io.alvaroedo.skypost.ui.components.clipboardText
 import io.alvaroedo.skypost.ui.components.heardAgo
 import io.alvaroedo.skypost.ui.components.label
@@ -57,7 +58,14 @@ import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun PharosScreen(vm: PharosViewModel, onCode: (String?) -> Boolean, onScan: () -> Unit, onBack: () -> Unit) {
+fun PharosScreen(
+    vm: PharosViewModel,
+    onCode: (String?) -> Boolean,
+    onScan: () -> Unit,
+    onShowCode: (key: String) -> Unit,
+    onAdmin: (key: String) -> Unit,
+    onBack: () -> Unit,
+) {
     val ui by vm.ui.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val snackbar = LocalSnackbar.current
@@ -89,7 +97,7 @@ fun PharosScreen(vm: PharosViewModel, onCode: (String?) -> Boolean, onScan: () -
         },
     ) { padding ->
         LazyColumn(Modifier.padding(padding), contentPadding = PaddingValues(bottom = 24.dp)) {
-            item { ActiveCard(ui.list.firstOrNull { it.active }, ui.pinging, vm::ping) }
+            item { ActiveCard(ui.list.firstOrNull { it.active }, ui.pinging, vm::ping, onAdmin) }
             item { Section(R.string.pharos_trusted) }
             if (ui.list.isEmpty()) {
                 item { ListItem(headlineContent = { Text(stringResource(R.string.pharos_trusted_empty)) }) }
@@ -103,9 +111,7 @@ fun PharosScreen(vm: PharosViewModel, onCode: (String?) -> Boolean, onScan: () -
                         val v = stringResource(if (p.verified) R.string.verified else R.string.not_verified)
                         Text("$v · ${heardAgo(p.lastHeardMillis)}")
                     },
-                    trailingContent = {
-                        if (p.verified) Icon(painterResource(R.drawable.ic_verified), stringResource(R.string.verified))
-                    },
+                    trailingContent = { if (p.verified) VerifiedBadge() },
                 )
             }
             item {
@@ -174,6 +180,7 @@ fun PharosScreen(vm: PharosViewModel, onCode: (String?) -> Boolean, onScan: () -
             onEnterCode = { codeFor = null to p.card.key; details = null },
             onRemove = { vm.remove(p.card.key); details = null },
             onBlock = { vm.block(p.card.key); details = null },
+            onShowCode = { details = null; onShowCode(p.card.key) },
         )
     }
 
@@ -227,7 +234,7 @@ private fun Section(text: Int) {
 }
 
 @Composable
-private fun ActiveCard(p: Pharos?, pinging: Boolean, onPing: () -> Unit) {
+private fun ActiveCard(p: Pharos?, pinging: Boolean, onPing: () -> Unit, onAdmin: (key: String) -> Unit) {
     ElevatedCard(Modifier.fillMaxWidth().padding(16.dp)) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -236,7 +243,14 @@ private fun ActiveCard(p: Pharos?, pinging: Boolean, onPing: () -> Unit) {
                     p?.let { listOfNotNull(it.card.alias, it.card.callsign).joinToString(" · ") }
                         ?: stringResource(R.string.pharos_none),
                     style = MaterialTheme.typography.titleLarge,
+                    modifier = Modifier.weight(1f),
                 )
+                if (p != null) {
+                    if (p.verified) VerifiedBadge()
+                    IconButton(onClick = { onAdmin(p.card.key) }) {
+                        Icon(painterResource(R.drawable.ic_settings), stringResource(R.string.pharos_admin))
+                    }
+                }
             }
             if (p != null) {
                 Text(heardAgo(p.lastHeardMillis), style = MaterialTheme.typography.bodyLarge)
@@ -279,6 +293,7 @@ private fun PharosDetails(
     onEnterCode: () -> Unit,
     onRemove: () -> Unit,
     onBlock: () -> Unit,
+    onShowCode: () -> Unit,
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -294,6 +309,10 @@ private fun PharosDetails(
                 }
                 if (!p.verified) OutlinedButton(onClick = onVerify) { Text(stringResource(R.string.mark_verified)) }
                 if (!p.active) OutlinedButton(onClick = onActivate) { Text(stringResource(R.string.use_this_pharos)) }
+                OutlinedButton(onClick = onShowCode) {
+                    Icon(painterResource(R.drawable.ic_qr_code), null)
+                    Text(stringResource(R.string.show_qr), Modifier.padding(start = 8.dp))
+                }
                 OutlinedButton(onClick = onBlock) {
                     Icon(painterResource(R.drawable.ic_block), null)
                     Text(stringResource(R.string.pharos_block), Modifier.padding(start = 8.dp))

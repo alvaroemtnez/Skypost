@@ -43,6 +43,6 @@ Kotlin + Jetpack Compose Material 3. Package `io.alvaroedo.skypost`, min SDK 26.
   the table, never the XML. Stock phrases stay Spanish (they are wire
   protocol, `keryx::canned`). SOS, quick messages and
   the chat must stay usable by a non-technical person under stress: big
-  targets, few choices, confirm before SOS, plain words. SOS is always signed
+  targets, few choices, SOS held 3 s then confirmed, plain words. SOS is always signed
   plaintext; encryption is opt-in per chat with a warning.
 - See `android/README.md` for the phase 2 plan.

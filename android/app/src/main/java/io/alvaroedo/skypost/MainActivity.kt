@@ -14,6 +14,7 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -44,6 +45,8 @@ import io.alvaroedo.skypost.ui.newchat.NewChatOfScreen
 import io.alvaroedo.skypost.ui.newchat.NewChatScreen
 import io.alvaroedo.skypost.ui.newchat.NewChatViewModel
 import io.alvaroedo.skypost.ui.onboarding.OnboardingScreen
+import io.alvaroedo.skypost.ui.pharos.PharosAdminScreen
+import io.alvaroedo.skypost.ui.pharos.PharosAdminViewModel
 import io.alvaroedo.skypost.ui.pharos.PharosScreen
 import io.alvaroedo.skypost.ui.pharos.PharosViewModel
 import io.alvaroedo.skypost.ui.scan.ScanScreen
@@ -103,6 +106,13 @@ data object MyCode : NavKey
 
 @Serializable
 data class GroupInvite(val uri: String, val name: String) : NavKey
+
+/** QR of a contact or Pharos, to pass it on. */
+@Serializable
+data class CardCode(val key: String) : NavKey
+
+@Serializable
+data class PharosAdminRoute(val key: String) : NavKey
 
 @Serializable
 data object SettingsRoute : NavKey
@@ -210,6 +220,7 @@ private fun AppRoot(repo: Repository, radioLink: RadioLink, locator: Locator, ap
                     ChatScreen(
                         vm = viewModel { ChatViewModel(repo, key.id, locator) },
                         onInvite = { uri, name -> backStack.add(GroupInvite(uri, name)) },
+                        onShowCode = { backStack.add(CardCode(it)) },
                         onBack = { backStack.removeLastOrNull() },
                     )
                 }
@@ -236,8 +247,36 @@ private fun AppRoot(repo: Repository, radioLink: RadioLink, locator: Locator, ap
                         vm = viewModel { PharosViewModel(repo) },
                         onCode = appVm::offer,
                         onScan = { backStack.add(ScanRoute) },
+                        onShowCode = { backStack.add(CardCode(it)) },
+                        onAdmin = { backStack.add(PharosAdminRoute(it)) },
                         onBack = { backStack.removeLastOrNull() },
                     )
+                }
+                entry<PharosAdminRoute> { key ->
+                    PharosAdminScreen(
+                        vm = viewModel { PharosAdminViewModel(repo, key.key) },
+                        onBack = { backStack.removeLastOrNull() },
+                    )
+                }
+                entry<CardCode> { key ->
+                    val contacts by repo.contacts.collectAsStateWithLifecycle()
+                    val pharos by repo.pharos.collectAsStateWithLifecycle()
+                    val card = contacts.firstOrNull { it.card.key == key.key }?.let { it.card to it.safetyNumber }
+                        ?: pharos.firstOrNull { it.card.key == key.key }?.let { it.card to it.safetyNumber }
+                    if (card == null) {
+                        // Removed meanwhile: nothing to show.
+                        LaunchedEffect(Unit) { backStack.removeLastOrNull() }
+                    } else {
+                        QrScreen(
+                            title = stringResource(R.string.show_qr),
+                            heading = card.first.alias,
+                            detail = card.first.callsign,
+                            uri = repo.uriOf(card.first),
+                            safetyNumber = card.second,
+                            body = stringResource(R.string.card_code_body, card.first.alias),
+                            onBack = { backStack.removeLastOrNull() },
+                        )
+                    }
                 }
                 entry<MyCode> {
                     QrScreen(
@@ -281,7 +320,7 @@ private fun AppRoot(repo: Repository, radioLink: RadioLink, locator: Locator, ap
                     ScanScreen(
                         onResult = { text ->
                             backStack.removeLastOrNull()
-                            if (!appVm.offer(text)) scope.launch { snackbar.showSnackbar(notACode) }
+                            if (!appVm.offer(text, inPerson = true)) scope.launch { snackbar.showSnackbar(notACode) }
                         },
                         onBack = { backStack.removeLastOrNull() },
                     )
@@ -290,7 +329,8 @@ private fun AppRoot(repo: Repository, radioLink: RadioLink, locator: Locator, ap
         )
         pending?.let { s ->
             ImportDialog(
-                scanned = s,
+                scanned = s.scanned,
+                inPerson = s.inPerson,
                 onConfirm = { appVm.confirmImport()?.let { backStack.openChat(it) } },
                 onDismiss = appVm::dismissImport,
             )

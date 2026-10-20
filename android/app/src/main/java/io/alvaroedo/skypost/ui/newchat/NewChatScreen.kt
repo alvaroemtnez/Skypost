@@ -2,6 +2,7 @@ package io.alvaroedo.skypost.ui.newchat
 
 import androidx.activity.compose.rememberLauncherForActivityResult
 import io.alvaroedo.skypost.ui.components.SwipeRow
+import io.alvaroedo.skypost.ui.components.VerifiedBadge
 import io.alvaroedo.skypost.ui.components.MenuItem
 import io.alvaroedo.skypost.model.Recent
 import androidx.compose.material3.DropdownMenu
@@ -136,6 +137,7 @@ fun NewChatOfScreen(
                         subtitle = c.card.callsign,
                         kind = ChatKind.DIRECT,
                         blocked = c.blocked,
+                        verified = c.verified,
                         onOpen = { onOpenChat(vm.chatWith(c.card.key)) },
                         onBlock = { vm.setContactBlocked(c.card.key, !c.blocked) },
                         onDelete = { forget = Forget(c.card.alias, R.string.contact_delete_body) { vm.removeContact(c.card.key) } },
@@ -352,6 +354,7 @@ private fun EntryRow(
     onOpen: () -> Unit,
     onBlock: () -> Unit,
     onDelete: () -> Unit,
+    verified: Boolean = false,
 ) {
     var menu by remember { mutableStateOf(false) }
     SwipeRow(onStartSwipe = null, onEndSwipe = onDelete) {
@@ -365,7 +368,11 @@ private fun EntryRow(
                     if (!sub.isNullOrEmpty()) Text(sub, maxLines = 1)
                 },
                 trailingContent = {
-                    if (blocked) Icon(painterResource(R.drawable.ic_block), stringResource(R.string.blocked))
+                    if (blocked) {
+                        Icon(painterResource(R.drawable.ic_block), stringResource(R.string.blocked))
+                    } else if (verified) {
+                        VerifiedBadge()
+                    }
                 },
             )
             DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
