@@ -54,8 +54,7 @@ Design: decisions [0015](decisions/0015-identities.md), [0016](decisions/0016-ph
 - [ ] Remote reboot admin command: decide what it restarts (the `pharos` service, the sidecars, or the whole Pi via a narrow sudoers/polkit rule) and how the station is sure to come back (hardware watchdog, radio and bridges re-attached on boot)
 - [ ] Channel-simulator tests (codec2 `ch`, Watterson fading) in CI
 - [ ] Channel access on the JS8 lanes: audio offset per station (derived from its key, a few sub-channels in the passband), listen before transmitting, random backoff on ARQ retries; verify with Phase 0 data that the Pharos decodes simultaneous clients at different offsets
-- [ ] Per-link mode choice, end to end: lane and speed already follow each peer's reported SNR; add each peer's OFDM capability (in its card/announce) so Mercury is only tried when both ends can do it, and keep per-link lane state across restarts
-- [ ] Mercury "highways": dedicated fast-lane dial frequencies, check the channel is free before using one, one OFDM session at a time per Pharos transmitter, fall back to JS8 when busy
+- [ ] Per-link mode choice, end to end: lane and speed already follow each peer's reported SNR; keep per-link lane state across restarts; settle the open questions below first
 - [ ] Consider selective repeat for long multi-frame messages (today a lost frame resends the whole message)
 - [x] Decide tag length (8 vs 16): 8, decision 0015
 - [ ] Text codec v1: word dictionary, weights trained on Phase 0 messages
@@ -89,6 +88,40 @@ Design: decisions [0015](decisions/0015-identities.md), [0016](decisions/0016-ph
   systemd units), then create a Forgejo release named after the tag whose notes
   are that version's section of `CHANGELOG.md` (start the file; Keep a
   Changelog format)
+
+## Open design questions
+
+Write down here what is undecided, with the context, so it is not lost.
+Each one becomes a decision record when settled.
+
+- **JS8 as the control channel, Mercury as "highways" (owner, 2026-10-20).**
+  Like TETRA's control channel: JS8 Normal is the default lane for
+  everything; JS8 Slow is the forced fallback and the lane for control
+  traffic (discovery, pings, ACKs of control frames, highway setup). When the
+  reported SNR is high enough and both ends can, the stations open a Mercury
+  "highway" on a separate dial frequency for the bulk of a session, then
+  return to JS8. To decide:
+  - Default lane: Normal for messages, with Slow forced for control traffic
+    and as the last fallback? (Today: Normal first, Slow for discovery,
+    pings and their ACKs.)
+  - Highway setup: a short JS8 handshake ("highway on frequency X?" →
+    "yes") is a negotiation, so it revisits
+    [0009](decisions/0009-no-lane-negotiation.md), which only rules out
+    negotiating JS8 lanes.
+  - Highway frequencies: a fixed list per band; who picks one; both ends
+    check it is free; timeout and fallback to JS8 if it goes bad or busy.
+  - One OFDM session at a time per transmitter (Pharos or field station).
+- **Peer to peer, not Pharos-centred (owner, 2026-10-20).** A Pharos is a
+  regular peer that is automatic and has bridges. Highways, channel access
+  and mode choice must work between two field stations exactly as with a
+  Pharos, so the network does not depend on one.
+- **OFDM capability belongs to the radio, not the identity (owner,
+  2026-10-20).** The same person may use a QDX one day (no OFDM transmit) and
+  a G90 or QMX+ the next, so it cannot go in the QR card. It must travel on
+  air with the current session. Options: bit 5 of byte 0 of the compact Poll
+  (always 0 today), a flag in the next message's content, or part of the
+  highway handshake (the offer itself says "I can"). The ACK has no spare
+  bit (byte 0 bit 5 is `more`).
 
 ## Phase 3 — fast lane
 
