@@ -284,6 +284,21 @@ impl Station {
         out
     }
 
+    /// Admin: take a field user off without blocking: unregistered, its
+    /// queue dropped; it may ask again. False if unknown or blocked (a block
+    /// stays a block).
+    pub fn remove_client(&mut self, key: &PublicKey) -> bool {
+        match self.state.registry.get_mut(key) {
+            Some(c) if c.status != Status::Blocked => {
+                c.status = Status::Unregistered;
+                c.listen_until = 0;
+                self.state.outbox.abandon(key);
+                true
+            }
+            _ => false,
+        }
+    }
+
     /// Admin: lift a block; the user is registered again.
     pub fn unblock(&mut self, key: &PublicKey) -> Result<(), Error> {
         self.state

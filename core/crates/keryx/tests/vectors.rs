@@ -181,6 +181,14 @@ fn generate() -> Value {
             }])),
         ),
     ];
+    let mut replies = replies;
+    replies.push((
+        "admin_reply_blocked",
+        Message::AdminReply(admin::Reply::Blocked(vec![admin::Party {
+            target: admin::Target::User(admin::user_id(&field.public())),
+            name: "ana".into(),
+        }])),
+    ));
     let replies: Vec<Value> = replies
         .into_iter()
         .map(|(name, m)| {

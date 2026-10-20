@@ -121,9 +121,11 @@ On the bridges they are English text after `/admin`, with English replies:
 | `requests` | pending access requests, numbered |
 | `accept n` / `refuse n` | decide a request |
 | `clients` | each field user, status and when it was last heard |
+| `remove who` | take a field user or a contact off without blocking (they may ask again) |
+| `blocked` | who is blocked |
 | `allow number` | let a Signal or WhatsApp contact write (MeshCore: by request only) |
 | `block who` / `unblock who` | ignore a field user or a bridged contact |
-| `admins` | who administers, and how (SSH, by an admin, password) |
+| `admins` | who administers |
 | `grant who` / `revoke who` | add or remove an admin |
 | `set open\|requests\|login\|emergency\|stealth on\|off` | flip a switch |
 | `login password` | become admin |

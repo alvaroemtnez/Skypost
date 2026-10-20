@@ -278,6 +278,32 @@
       },
       "name": "admin_reply_requests",
       "wire_hex": "500E000102030205D765B79EE052E8D314B2D7B940"
+    },
+    {
+      "encrypted": false,
+      "message": {
+        "AdminReply": {
+          "Blocked": [
+            {
+              "name": "ana",
+              "target": {
+                "User": [
+                  104,
+                  17,
+                  209,
+                  61,
+                  223,
+                  63,
+                  166,
+                  138
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "name": "admin_reply_blocked",
+      "wire_hex": "500E000208006811D13DDF3FA68A0250B708F904514F47F378"
     }
   ],
   "pharos_public": "B6VGQTWSRBT3S72KNIW64XPYZ2LU45VXAGHD6IVBYTHSM6CXB4QA",

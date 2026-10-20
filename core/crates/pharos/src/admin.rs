@@ -12,6 +12,8 @@
 //! /admin accept <n>               admit a request
 //! /admin refuse <n>               refuse it
 //! /admin clients                   field users and when they were heard
+//! /admin remove <who>              take a user or contact off (not blocked)
+//! /admin blocked                   who is blocked
 //! /admin admins                    who manages this Pharos
 //! /admin allow <number>            let a Signal/WhatsApp contact write
 //! /admin block <who>              ignore a field user or contact
@@ -38,8 +40,8 @@ use crate::registry::Status;
 use crate::router::{Action, Router};
 use crate::station::{Effect, Station};
 use keryx::admin::{
-    AdminEntry, ClientEntry, Command, Id, Outcome, Reply, RequestEntry, Switch, Switches, Target,
-    how, meshcore_id, user_id, who,
+    ClientEntry, Command, Id, Outcome, Party, Reply, RequestEntry, Switch, Switches, Target, how,
+    meshcore_id, user_id, who,
 };
 use keryx::bridge::{Address, network};
 use keryx::{Message, PublicKey};
@@ -51,6 +53,8 @@ pub const HELP: &str = "Admin commands (start each with /admin):
 • status — switches and counters
 • requests — pending access requests · accept n · refuse n
 • clients — field users and when they were last heard
+• remove who — take a user or contact off, without blocking
+• blocked — who is blocked
 • allow number — let a Signal or WhatsApp contact write
 • block who · unblock who
 • admins · grant who · revoke who
@@ -60,7 +64,7 @@ Everything else over SSH.";
 
 /// Help for MeshCore: every character counts.
 pub const HELP_SHORT: &str = "status · requests · accept/refuse n · clients · allow nº · \
-block/unblock id|nº · admins · grant/revoke id|nº · set <switch> on|off";
+remove id|nº · blocked · block/unblock id|nº · admins · grant/revoke id|nº · set <switch> on|off";
 
 /// A bridge admin text: the help, or a command.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -173,6 +177,8 @@ pub fn parse(body: &str, net: Option<u8>) -> Text {
         "unblock" => cmd(target(args, net).map(Command::Unblock)),
         "grant" => cmd(target(args, net).map(Command::AddAdmin)),
         "revoke" => cmd(target(args, net).map(Command::RemoveAdmin)),
+        "blocked" => cmd(Some(Command::Blocked)),
+        "remove" => cmd(target(args, net).map(Command::Remove)),
         "set" => cmd(match args {
             [s, v] => switch(s).and_then(|s| match v.to_lowercase().as_str() {
                 "on" => Some(Command::Set(s, true)),
@@ -296,36 +302,33 @@ pub fn render(r: &Reply) -> String {
             .collect::<Vec<_>>()
             .join("\n"),
         Reply::Admins(l) => format!(
-            "Admins: {}.",
-            l.iter()
-                .map(|e| {
-                    let how = ["SSH", "by an admin", "password"]
-                        .get(usize::from(e.how))
-                        .unwrap_or(&"?");
-                    let id =
-                        e.id.map(|i| format!(" {}", id_text(e.who, &i)))
-                            .unwrap_or_default();
-                    format!("{}{id} ({}, {how})", e.name, network_name(e.who))
-                })
-                .collect::<Vec<_>>()
-                .join(", ")
+            "Admins:\n{}",
+            l.iter().map(party_text).collect::<Vec<_>>().join("\n")
+        ),
+        Reply::Blocked(l) if l.is_empty() => "Nobody is blocked.".into(),
+        Reply::Blocked(l) => format!(
+            "Blocked:\n{}",
+            l.iter().map(party_text).collect::<Vec<_>>().join("\n")
         ),
         Reply::NewRequests { pending, .. } => {
             format!("New access request ({pending} pending). /admin requests to see them.")
         }
         Reply::SwitchesChanged(s) => format!("Switches changed: {}.", switch_names(*s)),
-        Reply::AdminChanged {
-            added,
-            who,
-            id,
-            name,
-        } => format!(
-            "{name}{} ({}) {} an admin.",
-            id.map(|i| format!(" {}", hex(&i))).unwrap_or_default(),
-            network_name(*who),
+        Reply::AdminChanged { added, party } => format!(
+            "{} {} an admin.",
+            party_text(party),
             if *added { "is now" } else { "is no longer" }
         ),
     }
+}
+
+/// "@bea 4F2A9C11D3E5B7A0 (radio)": the id is what a bridge command takes.
+fn party_text(p: &Party) -> String {
+    let id = match &p.target {
+        Target::User(id) | Target::Meshcore(id) => format!(" {}", id_text(p.target.who(), id)),
+        Target::Contact(_) => String::new(),
+    };
+    format!("{}{id} ({})", p.name, network_name(p.target.who()))
 }
 
 fn network_name(w: u8) -> &'static str {
@@ -381,6 +384,15 @@ pub fn contact_name(a: &Address, profile: Option<&str>) -> String {
     match a {
         Address::MeshcoreContact(_) => profile.unwrap_or("MeshCore").to_owned(),
         _ => profile.map_or_else(|| a.display(), |n| format!("{n} {}", a.display())),
+    }
+}
+
+/// How the protocol names someone: by id, or a Signal/WhatsApp address.
+pub fn target_of(w: &Who) -> Target {
+    match w {
+        Who::Radio(k) => Target::User(user_id(k)),
+        Who::Contact(Address::MeshcoreContact(k)) => Target::Meshcore(meshcore_id(k)),
+        Who::Contact(a) => Target::Contact(a.clone()),
     }
 }
 
@@ -578,9 +590,10 @@ impl Admin {
         station.access_mut().add_admin(me.clone(), how::PASSWORD);
         let changed = Reply::AdminChanged {
             added: true,
-            who: me.network(),
-            id: id_of(&me),
-            name,
+            party: Party {
+                target: target_of(&me),
+                name,
+            },
         };
         ran.effects
             .extend(announce(station, &me, changed, now, false));
@@ -680,14 +693,50 @@ impl Admin {
                     .access()
                     .admins
                     .iter()
-                    .map(|a| AdminEntry {
-                        who: a.who.network(),
-                        how: a.how,
-                        id: id_of(&a.who),
+                    .map(|a| Party {
+                        target: target_of(&a.who),
                         name: Self::name_of(station, router, &a.who),
                     })
                     .collect(),
             ),
+            Command::Blocked => {
+                let mut l: Vec<Party> = station
+                    .registry()
+                    .iter()
+                    .filter(|(_, c)| c.status == Status::Blocked)
+                    .map(|(k, c)| Party {
+                        target: Target::User(user_id(k)),
+                        name: format!("@{}", c.alias),
+                    })
+                    .collect();
+                l.extend(router.state().blocked.iter().map(|a| {
+                    let w = Who::Contact(a.clone());
+                    Party {
+                        target: target_of(&w),
+                        name: Self::name_of(station, router, &w),
+                    }
+                }));
+                Reply::Blocked(l)
+            }
+            Command::Remove(t) => {
+                let Some(w) = Self::resolve(station, router, &t) else {
+                    return done(Outcome::Unknown, None);
+                };
+                let name = Self::subject(station, router, &w);
+                let removed = match &w {
+                    Who::Radio(k) => station.remove_client(k),
+                    Who::Contact(a) => router.deauthorize(a),
+                };
+                station.access_mut().drop_request(&w);
+                done(
+                    if removed {
+                        Outcome::Ok
+                    } else {
+                        Outcome::Unknown
+                    },
+                    Some(name),
+                )
+            }
             Command::Allow(a) => {
                 router.authorize(&a);
                 station.access_mut().drop_request(&Who::Contact(a.clone()));
@@ -726,9 +775,10 @@ impl Admin {
                 if station.access_mut().add_admin(w.clone(), how::BY_ADMIN) {
                     let changed = Reply::AdminChanged {
                         added: true,
-                        who: w.network(),
-                        id: id_of(&w),
-                        name: Self::name_of(station, router, &w),
+                        party: Party {
+                            target: target_of(&w),
+                            name: Self::name_of(station, router, &w),
+                        },
                     };
                     ran.effects
                         .extend(announce(station, me, changed, now, false));
@@ -748,9 +798,10 @@ impl Admin {
                     Ok(()) => {
                         let changed = Reply::AdminChanged {
                             added: false,
-                            who: w.network(),
-                            id: id_of(&w),
-                            name: plain,
+                            party: Party {
+                                target: target_of(&w),
+                                name: plain,
+                            },
                         };
                         ran.effects
                             .extend(announce(station, me, changed, now, false));
@@ -860,6 +911,13 @@ mod tests {
             ])))
         );
         assert_eq!(parse("revoke @tio", sig), Text::Help, "no aliases");
+        assert_eq!(parse("blocked", sig), Text::Command(Command::Blocked));
+        assert_eq!(
+            parse("remove whatsapp +34622222222", sig),
+            Text::Command(Command::Remove(Target::Contact(Address::WhatsappPhone(
+                "34622222222".into()
+            ))))
+        );
         assert_eq!(
             parse("revoke 4F2A9C11D3E5B7A0", sig),
             Text::Command(Command::RemoveAdmin(Target::User([

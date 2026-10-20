@@ -113,6 +113,8 @@ opcode byte, then arguments. Opcodes are append only.
 | 8 | allow (Signal or WhatsApp only) | network (1) ‖ address |
 | 9 / 10 | add admin / remove admin | target |
 | 11 | login (encrypted frames only) | password (text codec) |
+| 12 | blocked (list) | — |
+| 13 | remove (take a user or contact off, not blocked) | target |
 | `0x40 \| switch << 1 \| on` | set a switch | — (one byte in all) |
 
 Switches: 0 open, 1 requests, 2 login, 3 emergency, 4 stealth. A switch byte
@@ -134,12 +136,16 @@ Body of `AdminReply`: a kind byte, then:
 | 1 | status | switches (1) ‖ registered (1) ‖ requests (1) ‖ listening (1) ‖ queued (u16) ‖ authorised contacts (u16) |
 | 2 | requests | per request: number (1) ‖ who (1) ‖ [id (8)] ‖ name |
 | 3 | clients | per user: status (1) ‖ minutes since heard (u16, `0xFFFF` never) ‖ id (8) ‖ alias |
-| 4 | admins | per admin: who (1) ‖ how (1: 0 SSH, 1 by an admin, 2 password) ‖ [id (8)] ‖ name |
+| 4 | admins | per admin: target ‖ name |
 | 5 | new requests (to admins) | networks mask (1, bit = who) ‖ pending (1) |
 | 6 | switches changed (to admins) | switches (1) |
-| 7 | admin changed (to admins) | added (1) ‖ who (1) ‖ [id (8)] ‖ name (text codec) |
+| 7 | admin changed (to admins) | added (1) ‖ target ‖ name (text codec, to the end) |
+| 8 | blocked | per entry: target ‖ name |
 
-`[id (8)]` is present for radio users and MeshCore contacts only. Names in
+`[id (8)]` is present for radio users and MeshCore contacts only. In lists a
+target is the same as in commands (self-delimiting), so the app can act on an
+entry directly (unblock it, remove an admin). How someone became admin is not
+sent: it is not worth the airtime. Names in
 lists are a length byte ‖ text codec. Who: 0 radio, 1 Signal, 2
 WhatsApp, 3 MeshCore. Outcomes: 0 ok, 1 not admin, 2 unknown, 3 wrong
 password, 4 password in clear (refused), 5 last admin, 6 login off, 7 locked

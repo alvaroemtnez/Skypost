@@ -259,6 +259,12 @@ impl Router {
         self.state.authorized.insert(a.clone());
     }
 
+    /// Take a contact off the authorised list without blocking. False if it
+    /// was not on it.
+    pub fn deauthorize(&mut self, a: &Address) -> bool {
+        self.state.authorized.remove(a)
+    }
+
     /// Contacts the bot knows of (to resolve MeshCore key prefixes).
     pub fn known_contacts(&self) -> impl Iterator<Item = Address> + '_ {
         self.state

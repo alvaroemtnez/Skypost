@@ -601,4 +601,33 @@ mod tests {
             crate::registry::Status::Blocked
         );
     }
+
+    #[test]
+    fn remove_takes_off_without_blocking_and_blocked_lists() {
+        let (mut h, mut ana) = hub();
+        // Ana hears (and ACKs) the new-request notice, so her queue moves on.
+        let out = h.on_bridge(bridge(papa(), "hola", T + 10));
+        heard(&mut h, &mut ana, &out, T + 10);
+        h.on_bridge(bridge(op(), "/admin accept 0", T + 12));
+        assert!(h.router.state().authorized.contains(&papa()));
+        let out = h.on_bridge(bridge(op(), "/admin remove whatsapp +34622222222", T + 20));
+        assert!(texts_to(&out, &op()).starts_with("Done"), "{out:?}");
+        assert!(!h.router.state().authorized.contains(&papa()));
+        assert!(
+            !h.router.state().blocked.contains(&papa()),
+            "removed, not blocked"
+        );
+        let blk = send(
+            &mut ana,
+            &h,
+            Message::Admin(Command::Block(keryx::admin::Target::Contact(papa()))),
+            false,
+        );
+        let out = h.on_rx(&rx(&blk, T + 30));
+        heard(&mut h, &mut ana, &out, T + 30);
+        let list = send(&mut ana, &h, Message::Admin(Command::Blocked), false);
+        let out = h.on_rx(&rx(&list, T + 40));
+        assert!(heard(&mut h, &mut ana, &out, T + 40).iter().any(|m| matches!(m,
+            Message::AdminReply(Reply::Blocked(l)) if l.len() == 1 && l[0].target == keryx::admin::Target::Contact(papa()))));
+    }
 }

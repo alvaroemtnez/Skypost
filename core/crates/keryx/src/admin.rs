@@ -111,23 +111,52 @@ impl Target {
         Ok(())
     }
 
+    /// A whole command argument.
     fn decode(b: &[u8]) -> Result<Self, Error> {
-        let id = |rest: &[u8]| -> Result<Id, Error> {
-            rest.try_into()
-                .map_err(|_| Error::Malformed("an id is 8 bytes"))
-        };
+        let (t, rest) = Self::take(b)?;
+        if !rest.is_empty() {
+            return Err(Error::Malformed("bytes after the target"));
+        }
+        Ok(t)
+    }
+
+    /// A target at the start of `b` (they are self-delimiting) and the rest.
+    fn take(b: &[u8]) -> Result<(Self, &[u8]), Error> {
         match b.split_first().ok_or(Error::TooShort)? {
-            (&TARGET_USER, rest) => Ok(Self::User(id(rest)?)),
-            (&TARGET_MESHCORE, rest) => Ok(Self::Meshcore(id(rest)?)),
+            (&TARGET_USER, rest) => {
+                let (id, r) = take::<8>(rest)?;
+                Ok((Self::User(id), r))
+            }
+            (&TARGET_MESHCORE, rest) => {
+                let (id, r) = take::<8>(rest)?;
+                Ok((Self::Meshcore(id), r))
+            }
             _ => {
                 let (c, n) = Address::decode(b)?;
-                if n != b.len() || matches!(c, Address::MeshcoreContact(_)) {
-                    return Err(Error::Malformed("one Signal or WhatsApp address"));
+                if matches!(c, Address::MeshcoreContact(_)) {
+                    return Err(Error::Malformed("MeshCore goes by its id"));
                 }
-                Ok(Self::Contact(c))
+                Ok((Self::Contact(c), &b[n..]))
             }
         }
     }
+
+    /// [`who`] code.
+    pub fn who(&self) -> u8 {
+        match self {
+            Self::User(_) => who::RADIO,
+            Self::Meshcore(_) => who::MESHCORE,
+            Self::Contact(a) => who::of(a),
+        }
+    }
+}
+
+/// Someone in a list (admins, blocked) or a notice: enough to act on them
+/// (the [`Target`]) and a name to show.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Party {
+    pub target: Target,
+    pub name: String,
 }
 
 /// A field user's command to a Pharos.
@@ -142,6 +171,11 @@ pub enum Command {
     Admins,
     Block(Target),
     Unblock(Target),
+    /// List who is blocked.
+    Blocked,
+    /// Take a field user off the Pharos, or a contact off the authorised
+    /// list, without blocking: they may ask again.
+    Remove(Target),
     /// Let a Signal or WhatsApp contact write (MeshCore only by request).
     Allow(Address),
     AddAdmin(Target),
@@ -165,6 +199,8 @@ mod op {
     pub const ADD_ADMIN: u8 = 9;
     pub const REMOVE_ADMIN: u8 = 10;
     pub const LOGIN: u8 = 11;
+    pub const BLOCKED: u8 = 12;
+    pub const REMOVE: u8 = 13;
     pub const SET: u8 = 0x40;
 }
 
@@ -184,6 +220,8 @@ impl Command {
             Self::AddAdmin(_) => op::ADD_ADMIN,
             Self::RemoveAdmin(_) => op::REMOVE_ADMIN,
             Self::Login(_) => op::LOGIN,
+            Self::Blocked => op::BLOCKED,
+            Self::Remove(_) => op::REMOVE,
             Self::Set(s, on) => op::SET | (*s as u8) << 1 | u8::from(*on),
         }
     }
@@ -196,12 +234,15 @@ impl Command {
             Self::Requests
             | Self::Clients
             | Self::Admins
+            | Self::Blocked
             | Self::Allow(_)
             | Self::Accept(_)
             | Self::Refuse(_) => true,
-            Self::Block(t) | Self::Unblock(t) | Self::AddAdmin(t) | Self::RemoveAdmin(t) => {
-                matches!(t, Target::Contact(_))
-            }
+            Self::Block(t)
+            | Self::Unblock(t)
+            | Self::AddAdmin(t)
+            | Self::RemoveAdmin(t)
+            | Self::Remove(t) => matches!(t, Target::Contact(_)),
             _ => false,
         }
     }
@@ -210,9 +251,11 @@ impl Command {
         let mut b = vec![self.opcode()];
         match self {
             Self::Accept(n) | Self::Refuse(n) => b.push(*n),
-            Self::Block(t) | Self::Unblock(t) | Self::AddAdmin(t) | Self::RemoveAdmin(t) => {
-                t.encode(&mut b)?
-            }
+            Self::Block(t)
+            | Self::Unblock(t)
+            | Self::AddAdmin(t)
+            | Self::RemoveAdmin(t)
+            | Self::Remove(t) => t.encode(&mut b)?,
             Self::Allow(a) => {
                 if matches!(a, Address::MeshcoreContact(_)) {
                     return Err(Error::Range("MeshCore contacts join by request only"));
@@ -268,6 +311,8 @@ impl Command {
             op::ADD_ADMIN => Ok(Self::AddAdmin(Target::decode(rest)?)),
             op::REMOVE_ADMIN => Ok(Self::RemoveAdmin(Target::decode(rest)?)),
             op::LOGIN => Ok(Self::Login(textcodec::decode(rest)?)),
+            op::BLOCKED => none(Self::Blocked),
+            op::REMOVE => Ok(Self::Remove(Target::decode(rest)?)),
             _ => Err(Error::Malformed("unknown admin opcode")),
         }
     }
@@ -347,22 +392,11 @@ pub struct ClientEntry {
     pub alias: String,
 }
 
-/// How someone became admin. Append only.
+/// How someone became admin. Kept by the Pharos only: not worth airtime.
 pub mod how {
     pub const SSH: u8 = 0;
     pub const BY_ADMIN: u8 = 1;
     pub const PASSWORD: u8 = 2;
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct AdminEntry {
-    /// [`who`].
-    pub who: u8,
-    /// [`how`].
-    pub how: u8,
-    /// As in [`RequestEntry::id`].
-    pub id: Option<Id>,
-    pub name: String,
 }
 
 /// Bits of [`Reply::NewRequests`]: networks with new requests (bit = [`who`]).
@@ -390,7 +424,9 @@ pub enum Reply {
     },
     Requests(Vec<RequestEntry>),
     Clients(Vec<ClientEntry>),
-    Admins(Vec<AdminEntry>),
+    Admins(Vec<Party>),
+    /// Who is blocked: field users, and bridged contacts.
+    Blocked(Vec<Party>),
     /// To admins: new access requests, no personal data. `networks` is a
     /// mask of [`network_bit`]s, `pending` the total now pending.
     NewRequests {
@@ -402,10 +438,7 @@ pub enum Reply {
     /// To admins: someone became admin, or stopped being one.
     AdminChanged {
         added: bool,
-        who: u8,
-        /// As in [`RequestEntry::id`].
-        id: Option<Id>,
-        name: String,
+        party: Party,
     },
 }
 
@@ -418,6 +451,26 @@ mod kind {
     pub const NEW_REQUESTS: u8 = 5;
     pub const SWITCHES_CHANGED: u8 = 6;
     pub const ADMIN_CHANGED: u8 = 7;
+    pub const BLOCKED: u8 = 8;
+}
+
+fn put_parties(out: &mut Vec<u8>, l: &[Party]) -> Result<(), Error> {
+    for p in l {
+        p.target.encode(out)?;
+        put_text(out, &p.name)?;
+    }
+    Ok(())
+}
+
+fn take_parties(mut b: &[u8]) -> Result<Vec<Party>, Error> {
+    let mut l = Vec::new();
+    while !b.is_empty() {
+        let (target, r) = Target::take(b)?;
+        let (name, r) = take_text(r)?;
+        l.push(Party { target, name });
+        b = r;
+    }
+    Ok(l)
 }
 
 /// Length-prefixed text inside lists.
@@ -510,25 +563,20 @@ impl Reply {
             }
             Self::Admins(l) => {
                 b.push(kind::ADMINS);
-                for e in l {
-                    b.extend([e.who, e.how]);
-                    put_id(&mut b, e.who, &e.id)?;
-                    put_text(&mut b, &e.name)?;
-                }
+                put_parties(&mut b, l)?;
+            }
+            Self::Blocked(l) => {
+                b.push(kind::BLOCKED);
+                put_parties(&mut b, l)?;
             }
             Self::NewRequests { networks, pending } => {
                 b.extend([kind::NEW_REQUESTS, *networks, *pending]);
             }
             Self::SwitchesChanged(s) => b.extend([kind::SWITCHES_CHANGED, s.0]),
-            Self::AdminChanged {
-                added,
-                who,
-                id,
-                name,
-            } => {
-                b.extend([kind::ADMIN_CHANGED, u8::from(*added), *who]);
-                put_id(&mut b, *who, id)?;
-                b.extend(textcodec::encode(name));
+            Self::AdminChanged { added, party } => {
+                b.extend([kind::ADMIN_CHANGED, u8::from(*added)]);
+                party.target.encode(&mut b)?;
+                b.extend(textcodec::encode(&party.name));
             }
         }
         Ok(b)
@@ -595,17 +643,8 @@ impl Reply {
                 }
                 Self::Clients(l)
             }
-            kind::ADMINS => {
-                let mut l = Vec::new();
-                while !rest.is_empty() {
-                    let ([who, how], r) = take::<2>(rest)?;
-                    let (id, r) = take_id(r, who)?;
-                    let (name, r) = take_text(r)?;
-                    l.push(AdminEntry { who, how, id, name });
-                    rest = r;
-                }
-                Self::Admins(l)
-            }
+            kind::ADMINS => Self::Admins(take_parties(rest)?),
+            kind::BLOCKED => Self::Blocked(take_parties(rest)?),
             kind::NEW_REQUESTS => match rest {
                 [networks, pending] => Self::NewRequests {
                     networks: *networks,
@@ -618,13 +657,14 @@ impl Reply {
                 _ => return Err(Error::Malformed("switches length")),
             },
             kind::ADMIN_CHANGED => {
-                let ([added, who], r) = take::<2>(rest)?;
-                let (id, r) = take_id(r, who)?;
+                let (&added, r) = rest.split_first().ok_or(Error::TooShort)?;
+                let (target, r) = Target::take(r)?;
                 Self::AdminChanged {
                     added: added != 0,
-                    who,
-                    id,
-                    name: textcodec::decode(r)?,
+                    party: Party {
+                        target,
+                        name: textcodec::decode(r)?,
+                    },
                 }
             }
             _ => return Err(Error::Malformed("unknown admin reply")),
@@ -664,6 +704,8 @@ mod tests {
             Command::Set(Switch::Emergency, true),
             Command::Set(Switch::Open, false),
             Command::Login("faro viejo".into()),
+            Command::Blocked,
+            Command::Remove(Target::User([4; 8])),
         ];
         for c in cmds {
             let b = c.encode().unwrap();
@@ -750,12 +792,26 @@ mod tests {
                 id: [0x4F; 8],
                 alias: "bea".into(),
             }]),
-            Reply::Admins(vec![AdminEntry {
-                who: who::RADIO,
-                how: how::SSH,
-                id: Some([1; 8]),
-                name: "alvaro".into(),
-            }]),
+            Reply::Admins(vec![
+                Party {
+                    target: Target::User([1; 8]),
+                    name: "alvaro".into(),
+                },
+                Party {
+                    target: Target::Contact(Address::SignalPhone("34600000000".into())),
+                    name: "+34600000000".into(),
+                },
+            ]),
+            Reply::Blocked(vec![
+                Party {
+                    target: Target::Meshcore([2; 8]),
+                    name: "Spam".into(),
+                },
+                Party {
+                    target: Target::Contact(Address::SignalUsername("x.01".into())),
+                    name: "x.01".into(),
+                },
+            ]),
             Reply::NewRequests {
                 networks: network_bit(who::WHATSAPP) | network_bit(who::RADIO),
                 pending: 2,
@@ -763,9 +819,10 @@ mod tests {
             Reply::SwitchesChanged(sw),
             Reply::AdminChanged {
                 added: true,
-                who: who::SIGNAL,
-                id: None,
-                name: "+34600000000".into(),
+                party: Party {
+                    target: Target::Contact(Address::SignalPhone("34600000000".into())),
+                    name: "+34600000000".into(),
+                },
             },
         ];
         for r in replies {
