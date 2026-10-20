@@ -8,6 +8,7 @@ import io.alvaroedo.skypost.model.GeoFix
 import io.alvaroedo.skypost.ui.chat.ChatEvent
 import io.alvaroedo.skypost.model.Auth
 import io.alvaroedo.skypost.model.ChatKind
+import io.alvaroedo.skypost.model.VerifyResult
 import io.alvaroedo.skypost.ui.chat.ChatViewModel
 import io.alvaroedo.skypost.ui.chats.ChatListViewModel
 import io.alvaroedo.skypost.ui.newchat.NewChatViewModel
@@ -101,7 +102,12 @@ class ViewModelsTest {
         assertEquals(true, vm.ui.value.verified)
         assertTrue(r.uriOf(vm.ui.value.contact!!).startsWith("skypost:id/ZZZZ"))
         val other = r.chats.value.first { it.kind == ChatKind.DIRECT && it.id != chat }.ref!!
-        r.markContactVerified(other)
+        r.setContactVerified(other, false)
+        assertFalse(r.contacts.value.first { it.card.key == other }.verified)
+        assertEquals(VerifyResult.OTHER_KEY, r.verifyByScan(other, "skypost:id/ZZZZ?n=carla"))
+        assertEquals(VerifyResult.NOT_A_CODE, r.verifyByScan(other, "hola"))
+        assertFalse(r.contacts.value.first { it.card.key == other }.verified)
+        assertEquals(VerifyResult.VERIFIED, r.verifyByScan(other, r.uriOf(r.contacts.value.first { it.card.key == other }.card)))
         assertTrue(r.contacts.value.first { it.card.key == other }.verified)
     }
 

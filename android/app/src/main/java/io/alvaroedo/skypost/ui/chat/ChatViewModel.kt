@@ -184,8 +184,8 @@ class ChatViewModel(
 
     fun setEncrypted(on: Boolean) = repo.setEncrypted(chatId, on)
 
-    fun markVerified() {
-        ui.value.contact?.let { repo.markContactVerified(it.key) }
+    fun setVerified(on: Boolean) {
+        ui.value.contact?.let { repo.setContactVerified(it.key, on) }
     }
 
     fun markRead() = repo.markRead(chatId)

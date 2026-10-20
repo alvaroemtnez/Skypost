@@ -17,6 +17,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Button
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -280,6 +282,23 @@ fun SafetyNumber(value: String, modifier: Modifier = Modifier) {
 @Composable
 fun VerifiedBadge(modifier: Modifier = Modifier) {
     Icon(painterResource(R.drawable.ic_verified), stringResource(R.string.verified), modifier)
+}
+
+/**
+ * Verify a contact or Pharos (scan its QR in person, or compare the safety
+ * code and mark it), or take the verification back.
+ */
+@Composable
+fun VerifyControls(verified: Boolean, onScan: () -> Unit, onSet: (Boolean) -> Unit) {
+    if (verified) {
+        OutlinedButton(onClick = { onSet(false) }) { Text(stringResource(R.string.unverify)) }
+    } else {
+        Button(onClick = onScan) {
+            Icon(painterResource(R.drawable.ic_qr_code_scanner), null)
+            Text(stringResource(R.string.verify_scan), Modifier.padding(start = 8.dp))
+        }
+        OutlinedButton(onClick = { onSet(true) }) { Text(stringResource(R.string.mark_verified)) }
+    }
 }
 
 /**

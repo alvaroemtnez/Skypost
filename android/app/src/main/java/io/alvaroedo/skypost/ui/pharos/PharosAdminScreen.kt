@@ -1,5 +1,6 @@
 package io.alvaroedo.skypost.ui.pharos
 
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -36,6 +37,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
@@ -47,6 +49,8 @@ import io.alvaroedo.skypost.R
 import io.alvaroedo.skypost.model.AdminEntry
 import io.alvaroedo.skypost.model.ChatKind
 import io.alvaroedo.skypost.ui.components.LocalSnackbar
+import io.alvaroedo.skypost.ui.components.PickPhone
+import io.alvaroedo.skypost.ui.components.readPickedPhone
 import io.alvaroedo.skypost.ui.components.label
 import io.alvaroedo.skypost.ui.components.shortTime
 import kotlinx.coroutines.launch
@@ -120,18 +124,18 @@ fun PharosAdminScreen(vm: PharosAdminViewModel, onBack: () -> Unit) {
                             ),
                         )
                     }
-                    Command(R.drawable.ic_block, R.string.admin_block, R.string.admin_block_body) {
-                        ask = Ask(
-                            R.string.admin_block,
-                            anyone,
-                            listOf(R.string.unblock to { t -> vm.block(t, false) }, R.string.block to { t -> vm.block(t, true) }),
-                        )
-                    }
                     Command(R.drawable.ic_check_circle, R.string.admin_allow, R.string.admin_allow_body) {
                         ask = Ask(
                             R.string.admin_allow,
                             bridged,
                             listOf(R.string.admin_allow_action to { t -> vm.allow(t as AdminTarget.Bridged) }),
+                        )
+                    }
+                    Command(R.drawable.ic_block, R.string.admin_block, R.string.admin_block_body) {
+                        ask = Ask(
+                            R.string.admin_block,
+                            anyone,
+                            listOf(R.string.unblock to { t -> vm.block(t, false) }, R.string.block to { t -> vm.block(t, true) }),
                         )
                     }
                     Command(R.drawable.ic_admin, R.string.admin_admins, R.string.admin_admins_body, vm::admins)
@@ -231,6 +235,10 @@ private fun TargetDialog(ask: Ask, preview: (AdminTarget) -> String?, onDismiss:
     var kind by remember { mutableStateOf(ask.kinds.first()) }
     var input by remember { mutableStateOf("") }
     var bad by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    val pick = rememberLauncherForActivityResult(PickPhone()) { uri ->
+        uri?.let { readPickedPhone(context, it) }?.let { input = it.number; bad = false }
+    }
     val target = kind?.let { AdminTarget.Bridged(it, input) } ?: AdminTarget.FieldUser(input)
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -269,6 +277,13 @@ private fun TargetDialog(ask: Ask, preview: (AdminTarget) -> String?, onDismiss:
                     },
                     isError = bad,
                     singleLine = true,
+                    trailingIcon = {
+                        if (kind == ChatKind.SIGNAL || kind == ChatKind.WHATSAPP) {
+                            IconButton(onClick = { pick.launch(Unit) }) {
+                                Icon(painterResource(R.drawable.ic_contacts), stringResource(R.string.pick_phone_contact))
+                            }
+                        }
+                    },
                     keyboardOptions = KeyboardOptions(
                         keyboardType = if (kind == ChatKind.WHATSAPP) KeyboardType.Phone else KeyboardType.Text,
                     ),

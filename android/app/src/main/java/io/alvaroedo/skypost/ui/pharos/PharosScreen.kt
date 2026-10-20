@@ -51,6 +51,7 @@ import io.alvaroedo.skypost.model.Registration
 import io.alvaroedo.skypost.ui.components.LocalSnackbar
 import io.alvaroedo.skypost.ui.components.SafetyNumber
 import io.alvaroedo.skypost.ui.components.VerifiedBadge
+import io.alvaroedo.skypost.ui.components.VerifyControls
 import io.alvaroedo.skypost.ui.components.clipboardText
 import io.alvaroedo.skypost.ui.components.heardAgo
 import io.alvaroedo.skypost.ui.components.label
@@ -64,6 +65,7 @@ fun PharosScreen(
     onScan: () -> Unit,
     onShowCode: (key: String) -> Unit,
     onAdmin: (key: String) -> Unit,
+    onScanVerify: (key: String) -> Unit,
     onBack: () -> Unit,
 ) {
     val ui by vm.ui.collectAsStateWithLifecycle()
@@ -176,7 +178,8 @@ fun PharosScreen(
             p,
             onDismiss = { details = null },
             onActivate = { vm.setActive(p.card.key); details = null },
-            onVerify = { vm.markVerified(p.card.key) },
+            onVerify = { vm.setVerified(p.card.key, it) },
+            onScan = { details = null; onScanVerify(p.card.key) },
             onEnterCode = { codeFor = null to p.card.key; details = null },
             onRemove = { vm.remove(p.card.key); details = null },
             onBlock = { vm.block(p.card.key); details = null },
@@ -289,7 +292,8 @@ private fun PharosDetails(
     p: Pharos,
     onDismiss: () -> Unit,
     onActivate: () -> Unit,
-    onVerify: () -> Unit,
+    onVerify: (Boolean) -> Unit,
+    onScan: () -> Unit,
     onEnterCode: () -> Unit,
     onRemove: () -> Unit,
     onBlock: () -> Unit,
@@ -307,7 +311,7 @@ private fun PharosDetails(
                 if (p.registration == Registration.NEEDS_CODE) {
                     OutlinedButton(onClick = onEnterCode) { Text(stringResource(R.string.access_code_enter)) }
                 }
-                if (!p.verified) OutlinedButton(onClick = onVerify) { Text(stringResource(R.string.mark_verified)) }
+                VerifyControls(p.verified, onScan, onVerify)
                 if (!p.active) OutlinedButton(onClick = onActivate) { Text(stringResource(R.string.use_this_pharos)) }
                 OutlinedButton(onClick = onShowCode) {
                     Icon(painterResource(R.drawable.ic_qr_code), null)

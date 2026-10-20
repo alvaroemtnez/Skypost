@@ -16,6 +16,7 @@ import io.alvaroedo.skypost.model.Pharos
 import io.alvaroedo.skypost.model.Recent
 import io.alvaroedo.skypost.model.Scanned
 import io.alvaroedo.skypost.model.Settings
+import io.alvaroedo.skypost.model.VerifyResult
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
 
@@ -105,8 +106,14 @@ interface Repository {
 
     fun setContactBlocked(key: String, on: Boolean)
 
-    /** The user compared the contact's safety code (same as [markVerified] for a Pharos). */
-    fun markContactVerified(key: String)
+    /** The user compared the contact's safety code, or takes that back. */
+    fun setContactVerified(key: String, on: Boolean)
+
+    /**
+     * Scanned [text] in person to verify the contact or Pharos [key]: marks it
+     * verified only if the code carries that same key.
+     */
+    fun verifyByScan(key: String, text: String): VerifyResult
 
     fun setGroupBlocked(id: String, on: Boolean)
 
@@ -165,7 +172,7 @@ interface Repository {
 
     fun setActivePharos(key: String)
 
-    fun markVerified(key: String)
+    fun setPharosVerified(key: String, on: Boolean)
 
     fun removePharos(key: String)
 

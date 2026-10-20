@@ -127,6 +127,15 @@ data class AdminEntry(
     val reply: String? = null,
 )
 
+/** Scanning someone's QR to verify them. */
+enum class VerifyResult {
+    VERIFIED,
+
+    /** A Skypost code, but for another key: not who you think, or the wrong QR. */
+    OTHER_KEY,
+    NOT_A_CODE,
+}
+
 /** A Signal, WhatsApp or MeshCore contact used before, listed in the new-chat screens. */
 @Serializable
 data class Recent(val kind: ChatKind, val address: String, val name: String?) {

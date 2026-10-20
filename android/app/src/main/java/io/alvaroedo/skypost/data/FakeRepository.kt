@@ -22,6 +22,7 @@ import io.alvaroedo.skypost.model.PharosAccess
 import io.alvaroedo.skypost.model.Registration
 import io.alvaroedo.skypost.model.Scanned
 import io.alvaroedo.skypost.model.Settings
+import io.alvaroedo.skypost.model.VerifyResult
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -313,8 +314,19 @@ class FakeRepository(
         setBlocked("contact:$key", c.card.alias, ChatKind.DIRECT, on)
     }
 
-    override fun markContactVerified(key: String) {
-        _contacts.update { list -> list.map { if (it.card.key == key) it.copy(verified = true) else it } }
+    override fun setContactVerified(key: String, on: Boolean) {
+        _contacts.update { list -> list.map { if (it.card.key == key) it.copy(verified = on) else it } }
+    }
+
+    override fun verifyByScan(key: String, text: String): VerifyResult {
+        val card = when (val s = parse(text)) {
+            is Scanned.Person -> s.card
+            is Scanned.PharosCard -> s.card
+            else -> return VerifyResult.NOT_A_CODE
+        }
+        if (card.key != key) return VerifyResult.OTHER_KEY
+        if (card.isPharos) setPharosVerified(key, true) else setContactVerified(key, true)
+        return VerifyResult.VERIFIED
     }
 
     override fun setGroupBlocked(id: String, on: Boolean) {
@@ -405,13 +417,13 @@ class FakeRepository(
                 _contacts.update { it + Contact(scanned.card, verified = inPerson, safetyNumber = scanned.safetyNumber) }
                 applyBlocks()
             } else if (inPerson) {
-                markContactVerified(scanned.card.key)
+                setContactVerified(scanned.card.key, true)
             }
             chatWith(scanned.card.key)
         }
         is Scanned.PharosCard -> {
             addPharos(scanned.card, verified = inPerson, snr = null, bridges = ChatKind.entries.filter { it.bridged }.toSet())
-            if (inPerson) markVerified(scanned.card.key)
+            if (inPerson) setPharosVerified(scanned.card.key, true)
             null
         }
         is Scanned.GroupInvite -> {
@@ -533,8 +545,8 @@ class FakeRepository(
         _pharos.update { list -> list.map { it.copy(active = it.card.key == key && !it.blocked) } }
     }
 
-    override fun markVerified(key: String) {
-        _pharos.update { list -> list.map { if (it.card.key == key) it.copy(verified = true) else it } }
+    override fun setPharosVerified(key: String, on: Boolean) {
+        _pharos.update { list -> list.map { if (it.card.key == key) it.copy(verified = on) else it } }
     }
 
     override fun removePharos(key: String) {

@@ -33,6 +33,7 @@ import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
 import io.alvaroedo.skypost.data.Repository
 import io.alvaroedo.skypost.model.ChatKind
+import io.alvaroedo.skypost.model.VerifyResult
 import io.alvaroedo.skypost.ui.AppViewModel
 import io.alvaroedo.skypost.ui.chat.ChatScreen
 import io.alvaroedo.skypost.ui.chat.ChatViewModel
@@ -111,6 +112,10 @@ data class GroupInvite(val uri: String, val name: String) : NavKey
 @Serializable
 data class CardCode(val key: String) : NavKey
 
+/** Scan someone's QR in person to verify the contact or Pharos [key]. */
+@Serializable
+data class ScanVerify(val key: String) : NavKey
+
 @Serializable
 data class PharosAdminRoute(val key: String) : NavKey
 
@@ -162,6 +167,8 @@ private fun AppRoot(repo: Repository, radioLink: RadioLink, locator: Locator, ap
     val radio by radioLink.state.collectAsStateWithLifecycle()
     val pending by appVm.pendingImport.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
+    // Outlives the screens: a scanner pops itself before its snackbar shows.
+    val rootScope = rememberCoroutineScope()
     CompositionLocalProvider(LocalSnackbar provides snackbar) {
         val me = identity
         if (me == null) {
@@ -221,6 +228,7 @@ private fun AppRoot(repo: Repository, radioLink: RadioLink, locator: Locator, ap
                         vm = viewModel { ChatViewModel(repo, key.id, locator) },
                         onInvite = { uri, name -> backStack.add(GroupInvite(uri, name)) },
                         onShowCode = { backStack.add(CardCode(it)) },
+                        onScanVerify = { backStack.add(ScanVerify(it)) },
                         onBack = { backStack.removeLastOrNull() },
                     )
                 }
@@ -249,6 +257,7 @@ private fun AppRoot(repo: Repository, radioLink: RadioLink, locator: Locator, ap
                         onScan = { backStack.add(ScanRoute) },
                         onShowCode = { backStack.add(CardCode(it)) },
                         onAdmin = { backStack.add(PharosAdminRoute(it)) },
+                        onScanVerify = { backStack.add(ScanVerify(it)) },
                         onBack = { backStack.removeLastOrNull() },
                     )
                 }
@@ -314,13 +323,27 @@ private fun AppRoot(repo: Repository, radioLink: RadioLink, locator: Locator, ap
                 entry<SosContactsRoute> {
                     SosContactsScreen(repo = repo, onBack = { backStack.removeLastOrNull() })
                 }
-                entry<ScanRoute> {
-                    val notACode = stringResource(R.string.code_not_recognised)
-                    val scope = rememberCoroutineScope()
+                entry<ScanVerify> { key ->
+                    val messages = mapOf(
+                        VerifyResult.VERIFIED to stringResource(R.string.verify_ok),
+                        VerifyResult.OTHER_KEY to stringResource(R.string.verify_other_key),
+                        VerifyResult.NOT_A_CODE to stringResource(R.string.code_not_recognised),
+                    )
                     ScanScreen(
                         onResult = { text ->
                             backStack.removeLastOrNull()
-                            if (!appVm.offer(text, inPerson = true)) scope.launch { snackbar.showSnackbar(notACode) }
+                            val r = repo.verifyByScan(key.key, text)
+                            rootScope.launch { snackbar.showSnackbar(messages.getValue(r)) }
+                        },
+                        onBack = { backStack.removeLastOrNull() },
+                    )
+                }
+                entry<ScanRoute> {
+                    val notACode = stringResource(R.string.code_not_recognised)
+                    ScanScreen(
+                        onResult = { text ->
+                            backStack.removeLastOrNull()
+                            if (!appVm.offer(text, inPerson = true)) rootScope.launch { snackbar.showSnackbar(notACode) }
                         },
                         onBack = { backStack.removeLastOrNull() },
                     )

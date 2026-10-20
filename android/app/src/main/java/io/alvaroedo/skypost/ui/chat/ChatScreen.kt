@@ -62,7 +62,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -93,6 +92,7 @@ import io.alvaroedo.skypost.ui.components.DeliveryIcon
 import io.alvaroedo.skypost.ui.components.LocalSnackbar
 import io.alvaroedo.skypost.ui.components.SafetyNumber
 import io.alvaroedo.skypost.ui.components.VerifiedBadge
+import io.alvaroedo.skypost.ui.components.VerifyControls
 import io.alvaroedo.skypost.ui.components.label
 import io.alvaroedo.skypost.ui.components.shortTime
 
@@ -105,6 +105,7 @@ fun ChatScreen(
     vm: ChatViewModel,
     onInvite: (uri: String, name: String) -> Unit,
     onShowCode: (key: String) -> Unit,
+    onScanVerify: (key: String) -> Unit,
     onBack: () -> Unit,
 ) {
     val ui by vm.ui.collectAsStateWithLifecycle()
@@ -197,7 +198,11 @@ fun ChatScreen(
                                 overflow = TextOverflow.Ellipsis,
                                 modifier = Modifier.weight(1f, fill = false),
                             )
-                            if (ui.verified) VerifiedBadge(Modifier.padding(start = 6.dp).size(20.dp))
+                            if (ui.verified) {
+                                VerifiedBadge(
+                                    Modifier.padding(start = 6.dp).size(20.dp).clickable { showSafety = true },
+                                )
+                            }
                         }
                         chat?.let {
                             val kind = stringResource(it.kind.label())
@@ -382,9 +387,11 @@ fun ChatScreen(
                             style = MaterialTheme.typography.bodyMedium,
                         )
                     }
-                    if (!ui.verified) {
-                        OutlinedButton(onClick = vm::markVerified) { Text(stringResource(R.string.mark_verified)) }
-                    }
+                    VerifyControls(
+                        verified = ui.verified,
+                        onScan = { showSafety = false; ui.contact?.let { onScanVerify(it.key) } },
+                        onSet = vm::setVerified,
+                    )
                 }
             },
             confirmButton = { TextButton(onClick = { showSafety = false }) { Text(stringResource(R.string.close)) } },

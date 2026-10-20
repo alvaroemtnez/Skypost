@@ -60,7 +60,7 @@ class PharosViewModel(private val repo: Repository) : ViewModel() {
 
     fun setActive(key: String) = repo.setActivePharos(key)
 
-    fun markVerified(key: String) = repo.markVerified(key)
+    fun setVerified(key: String, on: Boolean) = repo.setPharosVerified(key, on)
 
     fun remove(key: String) = repo.removePharos(key)
 
