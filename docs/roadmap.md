@@ -33,6 +33,7 @@ Design: decisions [0015](decisions/0015-identities.md), [0016](decisions/0016-ph
 - [x] `pharos`: bridge bot router (alias prompts, `@alias`, sticky target, limits); wiring to sidecars is Phase 1
 - [x] Android: chat UI on fakes (onboarding, chat list, chat, new chat, Pharos, settings, my QR, `skypost:` deep links)
 - [x] Pharos access: modes, access-code proof, admin commands, bot feedback ([0019](decisions/0019-pharos-access.md))
+- [x] Remote management: `/admin`, admin password (encrypted only on air), `admins`/`revocar`, welcome and `/ayuda` on Signal/WhatsApp, short MeshCore replies ([0020](decisions/0020-remote-management.md))
 - [ ] Revisit forward secrecy for encrypted mode (ephemeral rekey, ~32 B each way) and the whole key model
 
 ## Phase 1 — real PHY and base daemon
@@ -66,7 +67,17 @@ Design: decisions [0015](decisions/0015-identities.md), [0016](decisions/0016-ph
 - [ ] Real `Repository` over the keyring (Keystore-encrypted state); delivery ticks wired to ARQ events
 - [x] Try the chat UI on a phone (first round of feedback applied: in-app QR scanner, slide-back, SOS button and contacts, global encryption, signal colours, English/Spanish/Valencian)
 - [x] Second feedback round: message bar, archive/pin/unread/select/swipe, blocking (core + app), contact pings, translated stock phrases, MeshCore links
+- [x] Third feedback round: restore from the welcome screen fixed, contact QR, verified contacts (in-app scan = verified, pasted/linked = not), Pharos management screen, SOS held 3 s
 - [ ] Screenshot tests
+
+## Releases
+
+- [ ] Forgejo Actions release flow: on a pushed tag `vX.Y.Z`, build the APK
+  (`android/build.sh release`, signing key from a repository secret) and the
+  Pharos assets (`pharos` and `keryx` for aarch64 and x86_64, example config,
+  systemd units), then create a Forgejo release named after the tag whose notes
+  are that version's section of `CHANGELOG.md` (start the file; Keep a
+  Changelog format)
 
 ## Phase 3 — fast lane
 
