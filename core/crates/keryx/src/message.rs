@@ -8,19 +8,21 @@ use crate::header::{BROADCAST, HEADER_LEN, Header, MsgType, peek_type};
 use crate::keyring::{Card, Keyring, LinkRef, PeerKind, Sealed};
 use crate::position::{POSITION_LEN, Position};
 use crate::segment::unpad_candidates;
-use crate::{Error, canned, textcodec};
+use crate::{Error, admin, canned, textcodec};
 use serde::{Deserialize, Serialize};
 
 /// `Announce` flag bits.
 pub mod flags {
     pub const PHAROS: u8 = 1 << 0;
-    /// Registration needs the access code ([`crate::access`]).
+    /// It accepts an access code ([`crate::access`]): a valid proof admits at once.
     pub const CODE_REQUIRED: u8 = 1 << 1;
     pub const SIGNAL: u8 = 1 << 2;
     pub const WHATSAPP: u8 = 1 << 3;
     pub const MESHCORE: u8 = 1 << 4;
-    /// Invitation only: the operator admits each field user.
+    /// Closed: registered users and accepted contacts only.
     pub const CLOSED: u8 = 1 << 5;
+    /// Closed, but it takes access requests (decision 0021).
+    pub const REQUESTS: u8 = 1 << 6;
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -66,6 +68,10 @@ pub enum Message {
         code: u8,
         handle: Option<u8>,
     },
+    /// Admin command to a Pharos.
+    Admin(admin::Command),
+    /// Admin reply or notice from a Pharos.
+    AdminReply(admin::Reply),
 }
 
 /// An authenticated message, opened and decoded.
@@ -128,6 +134,8 @@ impl Message {
             Self::BridgeOpen { .. } => MsgType::BridgeOpen,
             Self::Bridged { .. } => MsgType::Bridged,
             Self::Notice { .. } => MsgType::Notice,
+            Self::Admin(_) => MsgType::Admin,
+            Self::AdminReply(_) => MsgType::AdminReply,
         }
     }
 
@@ -187,6 +195,8 @@ impl Message {
                 }
                 b
             }
+            Self::Admin(c) => c.encode()?,
+            Self::AdminReply(r) => r.encode()?,
         })
     }
 
@@ -271,6 +281,8 @@ impl Message {
                 };
                 Self::Notice { code, handle }
             }
+            MsgType::Admin => Self::Admin(admin::Command::decode(b)?),
+            MsgType::AdminReply => Self::AdminReply(admin::Reply::decode(b)?),
             MsgType::Ack | MsgType::Discover | MsgType::Announce => {
                 return Err(Error::Malformed("not a sealed message type"));
             }
@@ -295,6 +307,10 @@ impl Message {
             } => format!("(chat {handle} con {})", address.display()),
             Self::Bridged { handle, inner } => format!("[{handle}] {}", inner.render()),
             Self::Notice { code, handle } => format!("(aviso {code} {handle:?})"),
+            // Never the password.
+            Self::Admin(admin::Command::Login(_)) => "(admin login)".to_owned(),
+            Self::Admin(c) => format!("(admin {c:?})"),
+            Self::AdminReply(r) => format!("(admin reply {r:?})"),
         }
     }
 }

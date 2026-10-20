@@ -1,0 +1,724 @@
+//! Binary admin messages between a field user and a Pharos (decision 0021,
+//! `docs/spec/frame-format.md`, "Admin and AdminReply"). One opcode byte and
+//! compact arguments: a switch change is a single byte. Replies are
+//! structured, so each app shows them in its own language.
+
+use crate::Error;
+use crate::bridge::{Address, network};
+use crate::textcodec;
+use serde::{Deserialize, Serialize};
+
+/// The Pharos access switches.
+#[repr(u8)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum Switch {
+    /// Anyone may use it; off = closed.
+    Open = 0,
+    /// While closed, unknown users and contacts may ask to join.
+    Requests = 1,
+    /// The admin password works.
+    Login = 2,
+    /// Encrypted only.
+    Emergency = 3,
+    /// No discovery answers, no automatic messages.
+    Stealth = 4,
+}
+
+impl Switch {
+    pub const ALL: [Switch; 5] = [
+        Self::Open,
+        Self::Requests,
+        Self::Login,
+        Self::Emergency,
+        Self::Stealth,
+    ];
+
+    fn from_u8(v: u8) -> Result<Self, Error> {
+        Self::ALL
+            .get(usize::from(v))
+            .copied()
+            .ok_or(Error::Malformed("unknown switch"))
+    }
+}
+
+/// All switches as one byte, bit = [`Switch`] value.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Switches(pub u8);
+
+impl Switches {
+    pub fn get(self, s: Switch) -> bool {
+        self.0 & (1 << s as u8) != 0
+    }
+
+    pub fn set(&mut self, s: Switch, on: bool) {
+        if on {
+            self.0 |= 1 << s as u8;
+        } else {
+            self.0 &= !(1 << s as u8);
+        }
+    }
+}
+
+/// Who a command is about.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum Target {
+    /// A field user.
+    Alias(String),
+    /// A bridged contact, in full.
+    Contact(Address),
+    /// A MeshCore contact the Pharos already knows, by the first 4 key bytes
+    /// (a full key is 32 bytes on air).
+    MeshcorePrefix([u8; 4]),
+}
+
+const TARGET_ALIAS: u8 = 0x00;
+const TARGET_MESHCORE_PREFIX: u8 = 0x10;
+
+impl Target {
+    /// Last argument of a command: an alias runs to the end of the body.
+    fn encode(&self, out: &mut Vec<u8>) -> Result<(), Error> {
+        match self {
+            Self::Alias(a) => {
+                out.push(TARGET_ALIAS);
+                out.extend(textcodec::encode(a));
+            }
+            Self::Contact(c) => c.encode(out)?,
+            Self::MeshcorePrefix(p) => {
+                out.push(TARGET_MESHCORE_PREFIX);
+                out.extend_from_slice(p);
+            }
+        }
+        Ok(())
+    }
+
+    fn decode(b: &[u8]) -> Result<Self, Error> {
+        match b.split_first().ok_or(Error::TooShort)? {
+            (&TARGET_ALIAS, rest) => Ok(Self::Alias(textcodec::decode(rest)?)),
+            (&TARGET_MESHCORE_PREFIX, rest) => Ok(Self::MeshcorePrefix(
+                rest.try_into()
+                    .map_err(|_| Error::Malformed("key prefix is 4 bytes"))?,
+            )),
+            _ => {
+                let (c, n) = Address::decode(b)?;
+                if n != b.len() {
+                    return Err(Error::Malformed("bytes after the address"));
+                }
+                Ok(Self::Contact(c))
+            }
+        }
+    }
+}
+
+/// A field user's command to a Pharos.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum Command {
+    Status,
+    /// List pending access requests.
+    Requests,
+    Accept(u8),
+    Refuse(u8),
+    Clients,
+    Admins,
+    Block(Target),
+    Unblock(Target),
+    /// Let a Signal or WhatsApp contact write (MeshCore only by request).
+    Allow(Address),
+    AddAdmin(Target),
+    RemoveAdmin(Target),
+    Set(Switch, bool),
+    /// The admin password; accepted only in an encrypted frame.
+    Login(String),
+}
+
+/// Opcodes. Append only. `Set` packs into the opcode byte: `0x40 | switch << 1 | on`.
+mod op {
+    pub const STATUS: u8 = 0;
+    pub const REQUESTS: u8 = 1;
+    pub const ACCEPT: u8 = 2;
+    pub const REFUSE: u8 = 3;
+    pub const CLIENTS: u8 = 4;
+    pub const ADMINS: u8 = 5;
+    pub const BLOCK: u8 = 6;
+    pub const UNBLOCK: u8 = 7;
+    pub const ALLOW: u8 = 8;
+    pub const ADD_ADMIN: u8 = 9;
+    pub const REMOVE_ADMIN: u8 = 10;
+    pub const LOGIN: u8 = 11;
+    pub const SET: u8 = 0x40;
+}
+
+impl Command {
+    /// The opcode byte (also echoed in [`Reply::Done`]).
+    pub fn opcode(&self) -> u8 {
+        match self {
+            Self::Status => op::STATUS,
+            Self::Requests => op::REQUESTS,
+            Self::Accept(_) => op::ACCEPT,
+            Self::Refuse(_) => op::REFUSE,
+            Self::Clients => op::CLIENTS,
+            Self::Admins => op::ADMINS,
+            Self::Block(_) => op::BLOCK,
+            Self::Unblock(_) => op::UNBLOCK,
+            Self::Allow(_) => op::ALLOW,
+            Self::AddAdmin(_) => op::ADD_ADMIN,
+            Self::RemoveAdmin(_) => op::REMOVE_ADMIN,
+            Self::Login(_) => op::LOGIN,
+            Self::Set(s, on) => op::SET | (*s as u8) << 1 | u8::from(*on),
+        }
+    }
+
+    /// True if it, or its reply, may put a name or phone number on air (the
+    /// app warns before sending it in plain). Accept and refuse replies name
+    /// who they acted on.
+    pub fn reveals_personal_data(&self) -> bool {
+        match self {
+            Self::Requests
+            | Self::Clients
+            | Self::Admins
+            | Self::Allow(_)
+            | Self::Accept(_)
+            | Self::Refuse(_) => true,
+            Self::Block(t) | Self::Unblock(t) | Self::AddAdmin(t) | Self::RemoveAdmin(t) => {
+                !matches!(t, Target::Alias(_))
+            }
+            _ => false,
+        }
+    }
+
+    pub fn encode(&self) -> Result<Vec<u8>, Error> {
+        let mut b = vec![self.opcode()];
+        match self {
+            Self::Accept(n) | Self::Refuse(n) => b.push(*n),
+            Self::Block(t) | Self::Unblock(t) | Self::AddAdmin(t) | Self::RemoveAdmin(t) => {
+                t.encode(&mut b)?
+            }
+            Self::Allow(a) => {
+                if matches!(a, Address::MeshcoreContact(_)) {
+                    return Err(Error::Range("MeshCore contacts join by request only"));
+                }
+                a.encode(&mut b)?;
+            }
+            Self::Login(pw) => b.extend(textcodec::encode(pw)),
+            _ => {}
+        }
+        Ok(b)
+    }
+
+    pub fn decode(b: &[u8]) -> Result<Self, Error> {
+        let (&code, rest) = b.split_first().ok_or(Error::TooShort)?;
+        let none = |c: Self| {
+            if rest.is_empty() {
+                Ok(c)
+            } else {
+                Err(Error::Malformed("admin command takes no arguments"))
+            }
+        };
+        let num = || match rest {
+            [n] => Ok(*n),
+            _ => Err(Error::Malformed("request number is 1 byte")),
+        };
+        if code & 0xC0 == op::SET {
+            if code & 0x30 != 0 {
+                return Err(Error::Malformed("unknown admin opcode"));
+            }
+            return none(Self::Set(
+                Switch::from_u8((code >> 1) & 0x07)?,
+                code & 1 == 1,
+            ));
+        }
+        match code {
+            op::STATUS => none(Self::Status),
+            op::REQUESTS => none(Self::Requests),
+            op::ACCEPT => Ok(Self::Accept(num()?)),
+            op::REFUSE => Ok(Self::Refuse(num()?)),
+            op::CLIENTS => none(Self::Clients),
+            op::ADMINS => none(Self::Admins),
+            op::BLOCK => Ok(Self::Block(Target::decode(rest)?)),
+            op::UNBLOCK => Ok(Self::Unblock(Target::decode(rest)?)),
+            op::ALLOW => {
+                let (a, n) = Address::decode(rest)?;
+                if n != rest.len() || matches!(a, Address::MeshcoreContact(_)) {
+                    return Err(Error::Malformed(
+                        "allow takes one Signal or WhatsApp address",
+                    ));
+                }
+                Ok(Self::Allow(a))
+            }
+            op::ADD_ADMIN => Ok(Self::AddAdmin(Target::decode(rest)?)),
+            op::REMOVE_ADMIN => Ok(Self::RemoveAdmin(Target::decode(rest)?)),
+            op::LOGIN => Ok(Self::Login(textcodec::decode(rest)?)),
+            _ => Err(Error::Malformed("unknown admin opcode")),
+        }
+    }
+}
+
+/// How a command went. Append only.
+#[repr(u8)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum Outcome {
+    Ok = 0,
+    NotAdmin = 1,
+    /// No such alias, contact or pending request.
+    Unknown = 2,
+    WrongPassword = 3,
+    /// The password came in signed plaintext: refused even if right.
+    PasswordInClear = 4,
+    /// Removing the last admin while password login is off.
+    LastAdmin = 5,
+    /// Password login is switched off.
+    LoginOff = 6,
+    /// Too many wrong passwords: try again in an hour.
+    Locked = 7,
+    /// Not possible (e.g. a pending list that is full).
+    Refused = 8,
+}
+
+impl Outcome {
+    const ALL: [Outcome; 9] = [
+        Self::Ok,
+        Self::NotAdmin,
+        Self::Unknown,
+        Self::WrongPassword,
+        Self::PasswordInClear,
+        Self::LastAdmin,
+        Self::LoginOff,
+        Self::Locked,
+        Self::Refused,
+    ];
+}
+
+/// Network of a user or contact in replies: 0 is a field user (radio).
+pub mod who {
+    pub const RADIO: u8 = 0;
+    pub const SIGNAL: u8 = 1;
+    pub const WHATSAPP: u8 = 2;
+    pub const MESHCORE: u8 = 3;
+
+    pub fn of(a: &crate::bridge::Address) -> u8 {
+        use crate::bridge::Address::*;
+        match a {
+            SignalPhone(_) | SignalUsername(_) => SIGNAL,
+            WhatsappPhone(_) => WHATSAPP,
+            MeshcoreContact(_) => MESHCORE,
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RequestEntry {
+    pub num: u8,
+    /// [`who`].
+    pub who: u8,
+    /// Alias, profile name or number, or MeshCore name and key prefix.
+    pub name: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ClientEntry {
+    /// 0 registered, 1 pending, 2 refused, 3 unregistered, 4 blocked.
+    pub status: u8,
+    /// Minutes since last heard; `None` never (0xFFFF on air, capped below).
+    pub heard_min: Option<u16>,
+    pub alias: String,
+}
+
+/// How someone became admin. Append only.
+pub mod how {
+    pub const SSH: u8 = 0;
+    pub const BY_ADMIN: u8 = 1;
+    pub const PASSWORD: u8 = 2;
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AdminEntry {
+    /// [`who`].
+    pub who: u8,
+    /// [`how`].
+    pub how: u8,
+    pub name: String,
+}
+
+/// Bits of [`Reply::NewRequests`]: networks with new requests (bit = [`who`]).
+pub fn network_bit(who: u8) -> u8 {
+    1 << who
+}
+
+/// A Pharos's answer or notice to a field user.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum Reply {
+    /// Result of a command; `subject` names who it acted on (e.g. the
+    /// request that was accepted).
+    Done {
+        opcode: u8,
+        outcome: Outcome,
+        subject: Option<String>,
+    },
+    Status {
+        switches: Switches,
+        registered: u8,
+        requests: u8,
+        listening: u8,
+        queued: u16,
+        contacts: u16,
+    },
+    Requests(Vec<RequestEntry>),
+    Clients(Vec<ClientEntry>),
+    Admins(Vec<AdminEntry>),
+    /// To admins: new access requests, no personal data. `networks` is a
+    /// mask of [`network_bit`]s, `pending` the total now pending.
+    NewRequests {
+        networks: u8,
+        pending: u8,
+    },
+    /// To admins: another admin changed the switches.
+    SwitchesChanged(Switches),
+    /// To admins: someone became admin, or stopped being one.
+    AdminChanged {
+        added: bool,
+        who: u8,
+        name: String,
+    },
+}
+
+mod kind {
+    pub const DONE: u8 = 0;
+    pub const STATUS: u8 = 1;
+    pub const REQUESTS: u8 = 2;
+    pub const CLIENTS: u8 = 3;
+    pub const ADMINS: u8 = 4;
+    pub const NEW_REQUESTS: u8 = 5;
+    pub const SWITCHES_CHANGED: u8 = 6;
+    pub const ADMIN_CHANGED: u8 = 7;
+}
+
+/// Length-prefixed text inside lists.
+fn put_text(out: &mut Vec<u8>, s: &str) -> Result<(), Error> {
+    let t = textcodec::encode(s);
+    out.push(u8::try_from(t.len()).map_err(|_| Error::Range("name too long"))?);
+    out.extend(t);
+    Ok(())
+}
+
+fn take_text(b: &[u8]) -> Result<(String, &[u8]), Error> {
+    let (&n, rest) = b.split_first().ok_or(Error::TooShort)?;
+    let t = rest.get(..usize::from(n)).ok_or(Error::TooShort)?;
+    Ok((textcodec::decode(t)?, &rest[usize::from(n)..]))
+}
+
+fn take<const N: usize>(b: &[u8]) -> Result<([u8; N], &[u8]), Error> {
+    let h = b.get(..N).ok_or(Error::TooShort)?;
+    Ok((h.try_into().unwrap(), &b[N..]))
+}
+
+impl Reply {
+    pub fn encode(&self) -> Result<Vec<u8>, Error> {
+        let mut b = Vec::new();
+        match self {
+            Self::Done {
+                opcode,
+                outcome,
+                subject,
+            } => {
+                b.extend([kind::DONE, *opcode, *outcome as u8]);
+                if let Some(s) = subject.as_deref().filter(|s| !s.is_empty()) {
+                    b.extend(textcodec::encode(s));
+                }
+            }
+            Self::Status {
+                switches,
+                registered,
+                requests,
+                listening,
+                queued,
+                contacts,
+            } => {
+                b.extend([kind::STATUS, switches.0, *registered, *requests, *listening]);
+                b.extend(queued.to_be_bytes());
+                b.extend(contacts.to_be_bytes());
+            }
+            Self::Requests(l) => {
+                b.push(kind::REQUESTS);
+                for e in l {
+                    b.extend([e.num, e.who]);
+                    put_text(&mut b, &e.name)?;
+                }
+            }
+            Self::Clients(l) => {
+                b.push(kind::CLIENTS);
+                for e in l {
+                    b.push(e.status);
+                    b.extend(
+                        e.heard_min
+                            .map_or(u16::MAX, |m| m.min(u16::MAX - 1))
+                            .to_be_bytes(),
+                    );
+                    put_text(&mut b, &e.alias)?;
+                }
+            }
+            Self::Admins(l) => {
+                b.push(kind::ADMINS);
+                for e in l {
+                    b.extend([e.who, e.how]);
+                    put_text(&mut b, &e.name)?;
+                }
+            }
+            Self::NewRequests { networks, pending } => {
+                b.extend([kind::NEW_REQUESTS, *networks, *pending]);
+            }
+            Self::SwitchesChanged(s) => b.extend([kind::SWITCHES_CHANGED, s.0]),
+            Self::AdminChanged { added, who, name } => {
+                b.extend([kind::ADMIN_CHANGED, u8::from(*added), *who]);
+                b.extend(textcodec::encode(name));
+            }
+        }
+        Ok(b)
+    }
+
+    pub fn decode(b: &[u8]) -> Result<Self, Error> {
+        let (&k, mut rest) = b.split_first().ok_or(Error::TooShort)?;
+        Ok(match k {
+            kind::DONE => {
+                let ([opcode, outcome], r) = take::<2>(rest)?;
+                let outcome = *Outcome::ALL
+                    .get(usize::from(outcome))
+                    .ok_or(Error::Malformed("unknown outcome"))?;
+                let subject = if r.is_empty() {
+                    None
+                } else {
+                    Some(textcodec::decode(r)?)
+                };
+                Self::Done {
+                    opcode,
+                    outcome,
+                    subject,
+                }
+            }
+            kind::STATUS => {
+                let ([s, registered, requests, listening, q0, q1, c0, c1], r) = take::<8>(rest)?;
+                if !r.is_empty() {
+                    return Err(Error::Malformed("status length"));
+                }
+                Self::Status {
+                    switches: Switches(s),
+                    registered,
+                    requests,
+                    listening,
+                    queued: u16::from_be_bytes([q0, q1]),
+                    contacts: u16::from_be_bytes([c0, c1]),
+                }
+            }
+            kind::REQUESTS => {
+                let mut l = Vec::new();
+                while !rest.is_empty() {
+                    let ([num, who], r) = take::<2>(rest)?;
+                    let (name, r) = take_text(r)?;
+                    l.push(RequestEntry { num, who, name });
+                    rest = r;
+                }
+                Self::Requests(l)
+            }
+            kind::CLIENTS => {
+                let mut l = Vec::new();
+                while !rest.is_empty() {
+                    let ([status, h0, h1], r) = take::<3>(rest)?;
+                    let (alias, r) = take_text(r)?;
+                    let h = u16::from_be_bytes([h0, h1]);
+                    l.push(ClientEntry {
+                        status,
+                        heard_min: (h != u16::MAX).then_some(h),
+                        alias,
+                    });
+                    rest = r;
+                }
+                Self::Clients(l)
+            }
+            kind::ADMINS => {
+                let mut l = Vec::new();
+                while !rest.is_empty() {
+                    let ([who, how], r) = take::<2>(rest)?;
+                    let (name, r) = take_text(r)?;
+                    l.push(AdminEntry { who, how, name });
+                    rest = r;
+                }
+                Self::Admins(l)
+            }
+            kind::NEW_REQUESTS => match rest {
+                [networks, pending] => Self::NewRequests {
+                    networks: *networks,
+                    pending: *pending,
+                },
+                _ => return Err(Error::Malformed("new requests length")),
+            },
+            kind::SWITCHES_CHANGED => match rest {
+                [s] => Self::SwitchesChanged(Switches(*s)),
+                _ => return Err(Error::Malformed("switches length")),
+            },
+            kind::ADMIN_CHANGED => {
+                let ([added, who], r) = take::<2>(rest)?;
+                Self::AdminChanged {
+                    added: added != 0,
+                    who,
+                    name: textcodec::decode(r)?,
+                }
+            }
+            _ => return Err(Error::Malformed("unknown admin reply")),
+        })
+    }
+}
+
+/// The MeshCore key prefix used in [`Target::MeshcorePrefix`] and shown next to
+/// advert names.
+pub fn meshcore_prefix(key: &[u8; 32]) -> [u8; 4] {
+    key[..4].try_into().unwrap()
+}
+
+/// `network` codes cover Signal phones and usernames separately; replies use [`who`].
+pub fn who_of_network(net: u8) -> u8 {
+    match net {
+        network::SIGNAL_PHONE | network::SIGNAL_USERNAME => who::SIGNAL,
+        network::WHATSAPP_PHONE => who::WHATSAPP,
+        _ => who::MESHCORE,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn commands_roundtrip_and_switches_fit_in_one_byte() {
+        let cmds = [
+            Command::Status,
+            Command::Requests,
+            Command::Accept(3),
+            Command::Refuse(255),
+            Command::Clients,
+            Command::Admins,
+            Command::Block(Target::Alias("bea".into())),
+            Command::Unblock(Target::Contact(Address::WhatsappPhone(
+                "34600123456".into(),
+            ))),
+            Command::Allow(Address::SignalUsername("mama.01".into())),
+            Command::AddAdmin(Target::MeshcorePrefix([1, 2, 3, 4])),
+            Command::RemoveAdmin(Target::Alias("tio".into())),
+            Command::Set(Switch::Emergency, true),
+            Command::Set(Switch::Open, false),
+            Command::Login("faro viejo".into()),
+        ];
+        for c in cmds {
+            let b = c.encode().unwrap();
+            assert_eq!(Command::decode(&b).unwrap(), c, "{b:02X?}");
+        }
+        assert_eq!(
+            Command::Set(Switch::Stealth, true).encode().unwrap(),
+            [0x49]
+        );
+        assert_eq!(Command::Status.encode().unwrap().len(), 1);
+        assert_eq!(Command::Accept(7).encode().unwrap().len(), 2);
+        assert_eq!(
+            Command::Block(Target::MeshcorePrefix([0; 4]))
+                .encode()
+                .unwrap()
+                .len(),
+            6,
+            "a known MeshCore contact by prefix, not its 32-byte key"
+        );
+        assert!(
+            Command::Allow(Address::MeshcoreContact([0; 32]))
+                .encode()
+                .is_err()
+        );
+        assert!(Command::decode(&[0x7F]).is_err());
+        assert!(Command::decode(&[op::STATUS, 0]).is_err());
+    }
+
+    #[test]
+    fn replies_roundtrip() {
+        let mut sw = Switches::default();
+        sw.set(Switch::Requests, true);
+        sw.set(Switch::Login, true);
+        assert!(sw.get(Switch::Login) && !sw.get(Switch::Open));
+        let replies = [
+            Reply::Done {
+                opcode: op::ACCEPT,
+                outcome: Outcome::Ok,
+                subject: Some("Mamá +34611111111".into()),
+            },
+            Reply::Done {
+                opcode: op::LOGIN,
+                outcome: Outcome::PasswordInClear,
+                subject: None,
+            },
+            Reply::Status {
+                switches: sw,
+                registered: 3,
+                requests: 1,
+                listening: 1,
+                queued: 2,
+                contacts: 4,
+            },
+            Reply::Requests(vec![
+                RequestEntry {
+                    num: 4,
+                    who: who::WHATSAPP,
+                    name: "Papá".into(),
+                },
+                RequestEntry {
+                    num: 5,
+                    who: who::MESHCORE,
+                    name: "Refugio Góriz a1b2c3d4".into(),
+                },
+            ]),
+            Reply::Clients(vec![ClientEntry {
+                status: 0,
+                heard_min: None,
+                alias: "bea".into(),
+            }]),
+            Reply::Admins(vec![AdminEntry {
+                who: who::RADIO,
+                how: how::SSH,
+                name: "alvaro".into(),
+            }]),
+            Reply::NewRequests {
+                networks: network_bit(who::WHATSAPP) | network_bit(who::RADIO),
+                pending: 2,
+            },
+            Reply::SwitchesChanged(sw),
+            Reply::AdminChanged {
+                added: true,
+                who: who::SIGNAL,
+                name: "+34600000000".into(),
+            },
+        ];
+        for r in replies {
+            let b = r.encode().unwrap();
+            assert_eq!(Reply::decode(&b).unwrap(), r, "{b:02X?}");
+        }
+        assert_eq!(
+            Reply::NewRequests {
+                networks: 1,
+                pending: 1
+            }
+            .encode()
+            .unwrap()
+            .len(),
+            3,
+            "the admin notice carries no personal data"
+        );
+    }
+
+    #[test]
+    fn personal_data_is_flagged() {
+        assert!(Command::Requests.reveals_personal_data());
+        assert!(
+            Command::Allow(Address::WhatsappPhone("34600123456".into())).reveals_personal_data()
+        );
+        assert!(!Command::Block(Target::Alias("bea".into())).reveals_personal_data());
+        assert!(
+            Command::Accept(3).reveals_personal_data(),
+            "the reply names who"
+        );
+        assert!(!Command::Status.reveals_personal_data());
+        assert!(!Command::Set(Switch::Open, true).reveals_personal_data());
+    }
+}

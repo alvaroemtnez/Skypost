@@ -6,6 +6,7 @@
 //! and update `docs/spec/`.
 
 use data_encoding::HEXUPPER;
+use keryx::admin;
 use keryx::bridge::{Address, notice};
 use keryx::crypto::{GroupKey, Identity};
 use keryx::message::{self, Message, Received, flags};
@@ -40,7 +41,7 @@ fn stations() -> (Keyring, Keyring) {
 }
 
 fn generate() -> Value {
-    let (mut field, pharos) = stations();
+    let (mut field, mut pharos) = stations();
     let to_pharos = LinkRef::Peer(pharos.public());
     let group = LinkRef::Group(GroupKey(GROUP_KEY).id());
     let pos = Position {
@@ -127,12 +128,55 @@ fn generate() -> Value {
             group,
             false,
         ),
+        (
+            "admin_switch_emergency_on",
+            Message::Admin(admin::Command::Set(admin::Switch::Emergency, true)),
+            to_pharos,
+            false,
+        ),
+        (
+            "admin_accept_request",
+            Message::Admin(admin::Command::Accept(3)),
+            to_pharos,
+            false,
+        ),
+        (
+            "admin_login_encrypted",
+            Message::Admin(admin::Command::Login("faro viejo de la costa".into())),
+            to_pharos,
+            true,
+        ),
     ];
     let frames: Vec<Value> = cases
         .into_iter()
         .map(|(name, m, link, enc)| {
             let s = message::encode(&mut field, &m, &link, enc).unwrap();
             json!({ "name": name, "message": m, "link": link, "encrypted": enc, "wire_hex": HEXUPPER.encode(&s.wire) })
+        })
+        .collect();
+    let to_field = LinkRef::Peer(field.public());
+    let replies: Vec<(&str, Message)> = vec![
+        (
+            "admin_reply_new_requests",
+            Message::AdminReply(admin::Reply::NewRequests {
+                networks: admin::network_bit(admin::who::WHATSAPP),
+                pending: 1,
+            }),
+        ),
+        (
+            "admin_reply_requests",
+            Message::AdminReply(admin::Reply::Requests(vec![admin::RequestEntry {
+                num: 3,
+                who: admin::who::WHATSAPP,
+                name: "Papá".into(),
+            }])),
+        ),
+    ];
+    let replies: Vec<Value> = replies
+        .into_iter()
+        .map(|(name, m)| {
+            let s = message::encode(&mut pharos, &m, &to_field, false).unwrap();
+            json!({ "name": name, "message": m, "encrypted": false, "wire_hex": HEXUPPER.encode(&s.wire) })
         })
         .collect();
     let ack = pharos
@@ -153,6 +197,7 @@ fn generate() -> Value {
         "field_public": field.public(),
         "pharos_public": pharos.public(),
         "frames": frames,
+        "pharos_frames": replies,
         "discover_hex": HEXUPPER.encode(&message::encode_discover(&field, 0xBEEF).unwrap()),
         "announce_hex": HEXUPPER.encode(&message::encode_announce(&pharos, flags::PHAROS | flags::SIGNAL, field.short_id(), 0xBEEF).unwrap()),
         "ack": { "from": "pharos", "counter": 2, "snr_db": -17, "dt_ds": 4, "more": true, "wire_hex": HEXUPPER.encode(&ack) },
@@ -177,8 +222,15 @@ fn wire_format_matches_golden_vectors() {
 
 #[test]
 fn golden_frames_decode() {
-    let (_, mut pharos) = stations();
+    let (mut field, mut pharos) = stations();
     let v = generate();
+    for f in v["pharos_frames"].as_array().unwrap() {
+        let wire = HEXUPPER
+            .decode(f["wire_hex"].as_str().unwrap().as_bytes())
+            .unwrap();
+        let r = message::decode(&mut field, &wire).unwrap();
+        assert!(matches!(r, Received::Message(_)), "{}", f["name"]);
+    }
     for f in v["frames"].as_array().unwrap() {
         let wire = HEXUPPER
             .decode(f["wire_hex"].as_str().unwrap().as_bytes())

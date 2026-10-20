@@ -179,9 +179,82 @@
       },
       "name": "group_text_signed",
       "wire_hex": "41E70001D50C1853B8B491DCC8A54CA386"
+    },
+    {
+      "encrypted": false,
+      "link": {
+        "Peer": "B6VGQTWSRBT3S72KNIW64XPYZ2LU45VXAGHD6IVBYTHSM6CXB4QA"
+      },
+      "message": {
+        "Admin": {
+          "Set": [
+            "Emergency",
+            true
+          ]
+        }
+      },
+      "name": "admin_switch_emergency_on",
+      "wire_hex": "4FE0000A47D538A7B465028DA8"
+    },
+    {
+      "encrypted": false,
+      "link": {
+        "Peer": "B6VGQTWSRBT3S72KNIW64XPYZ2LU45VXAGHD6IVBYTHSM6CXB4QA"
+      },
+      "message": {
+        "Admin": {
+          "Accept": 3
+        }
+      },
+      "name": "admin_accept_request",
+      "wire_hex": "4FE0000B020329CE8B2D6BCE057F"
+    },
+    {
+      "encrypted": true,
+      "link": {
+        "Peer": "B6VGQTWSRBT3S72KNIW64XPYZ2LU45VXAGHD6IVBYTHSM6CXB4QA"
+      },
+      "message": {
+        "Admin": {
+          "Login": "faro viejo de la costa"
+        }
+      },
+      "name": "admin_login_encrypted",
+      "wire_hex": "6FE0000C09A84373273C98A3D5C928285909353487F64183E7A2"
     }
   ],
   "group_key_hex": "4242424242424242424242424242424242424242424242424242424242424242",
+  "pharos_frames": [
+    {
+      "encrypted": false,
+      "message": {
+        "AdminReply": {
+          "NewRequests": {
+            "networks": 4,
+            "pending": 1
+          }
+        }
+      },
+      "name": "admin_reply_new_requests",
+      "wire_hex": "500E000005040188FB00B7A71180A0"
+    },
+    {
+      "encrypted": false,
+      "message": {
+        "AdminReply": {
+          "Requests": [
+            {
+              "name": "Papá",
+              "num": 3,
+              "who": 2
+            }
+          ]
+        }
+      },
+      "name": "admin_reply_requests",
+      "wire_hex": "500E000102030205D765B79EE052E8D314B2D7B940"
+    }
+  ],
   "pharos_public": "B6VGQTWSRBT3S72KNIW64XPYZ2LU45VXAGHD6IVBYTHSM6CXB4QA",
   "pharos_secret_hex": "2222222222222222222222222222222222222222222222222222222222222222",
   "protocol": 1

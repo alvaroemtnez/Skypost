@@ -14,6 +14,7 @@
 
 pub mod access;
 pub mod ack;
+pub mod admin;
 pub mod arq;
 pub mod backup;
 pub mod bandplan;

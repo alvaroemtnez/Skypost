@@ -46,6 +46,10 @@ pub enum MsgType {
     Bridged = 13,
     /// Status codes from a Pharos (registration, bridge errors).
     Notice = 14,
+    /// A field user's admin command to a Pharos ([`crate::admin::Command`]).
+    Admin = 15,
+    /// A Pharos's admin reply or notice ([`crate::admin::Reply`]).
+    AdminReply = 16,
 }
 
 impl MsgType {
@@ -73,6 +77,8 @@ impl TryFrom<u8> for MsgType {
             12 => Self::BridgeOpen,
             13 => Self::Bridged,
             14 => Self::Notice,
+            15 => Self::Admin,
+            16 => Self::AdminReply,
             other => return Err(Error::UnknownType(other)),
         })
     }

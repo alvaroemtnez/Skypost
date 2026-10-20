@@ -44,6 +44,8 @@ The tag covers header + body as sent. Unauthenticated types have no tag.
 | 12 | BridgeOpen | tag | handle (1) ‖ network (1) ‖ address ‖ [display name, text codec] |
 | 13 | Bridged | tag | handle (1) ‖ inner type (1) ‖ inner body (types 1–5) |
 | 14 | Notice | tag | code (1) ‖ [handle (1)] |
+| 15 | Admin | tag | admin command, see "Admin and AdminReply" |
+| 16 | AdminReply | tag | admin reply or notice, see "Admin and AdminReply" |
 
 `Register` and `GroupJoin` are tagged with the key of the public key they
 carry, which proves possession of the matching secret. They are always
@@ -55,11 +57,12 @@ link.
 | Bit | Meaning |
 |---|---|
 | 0 | Sender is a Pharos |
-| 1 | Access code required ([pharos.md](pharos.md#access)) |
+| 1 | An access code is accepted: a valid proof admits at once ([pharos.md](pharos.md#access)) |
 | 2 | Signal bridge |
 | 3 | WhatsApp bridge |
 | 4 | MeshCore bridge |
-| 5 | Closed: allow list and admin approval only |
+| 5 | Closed: registered users and accepted contacts only |
+| 6 | Closed but taking access requests (decision 0021) |
 
 ### Bridge networks and addresses
 
@@ -86,12 +89,57 @@ rebinds it.
 | 3 | Registration refused | no |
 | 4 | Alias already taken on this Pharos | no |
 | 5 | Access code needed (proof missing or wrong) | no |
+| 6 | Emergency mode: encrypted messages only (sent encrypted, once) | no |
 | 16 | Unknown handle: send `BridgeOpen` again | yes |
 | 17 | Recipient not reachable on that network | yes |
 | 18 | Sending failed, will not retry | yes |
 | 19 | Rate limited | yes |
 | 20 | Message expired in the queue | yes |
 | 21 | Message too long for the bridge | yes |
+
+### Admin and AdminReply
+
+Decision [0021](../decisions/0021-pharos-access-v2.md). Body of `Admin`: an
+opcode byte, then arguments. Opcodes are append only.
+
+| Opcode | Command | Arguments |
+|---|---|---|
+| 0 | status | — |
+| 1 | requests (list pending) | — |
+| 2 / 3 | accept / refuse | request number (1) |
+| 4 | clients | — |
+| 5 | admins | — |
+| 6 / 7 | block / unblock | target |
+| 8 | allow (Signal or WhatsApp only) | network (1) ‖ address |
+| 9 / 10 | add admin / remove admin | target |
+| 11 | login (encrypted frames only) | password (text codec) |
+| `0x40 \| switch << 1 \| on` | set a switch | — (one byte in all) |
+
+Switches: 0 open, 1 requests, 2 login, 3 emergency, 4 stealth. A switch byte
+holds them as bits (bit = switch number).
+
+Target: `0x00` ‖ alias (text codec, to the end); or network (1) ‖ address as
+in `BridgeOpen`; or `0x10` ‖ the first 4 bytes of a MeshCore key the Pharos
+knows.
+
+Body of `AdminReply`: a kind byte, then:
+
+| Kind | Reply | Body |
+|---|---|---|
+| 0 | done | opcode (1) ‖ outcome (1) ‖ [subject, text codec] |
+| 1 | status | switches (1) ‖ registered (1) ‖ requests (1) ‖ listening (1) ‖ queued (u16) ‖ authorised contacts (u16) |
+| 2 | requests | per request: number (1) ‖ who (1) ‖ name |
+| 3 | clients | per user: status (1) ‖ minutes since heard (u16, `0xFFFF` never) ‖ alias |
+| 4 | admins | per admin: who (1) ‖ how (1: 0 SSH, 1 by an admin, 2 password) ‖ name |
+| 5 | new requests (to admins) | networks mask (1, bit = who) ‖ pending (1) |
+| 6 | switches changed (to admins) | switches (1) |
+| 7 | admin changed (to admins) | added (1) ‖ who (1) ‖ name (text codec) |
+
+Names in lists are a length byte ‖ text codec. Who: 0 radio, 1 Signal, 2
+WhatsApp, 3 MeshCore. Outcomes: 0 ok, 1 not admin, 2 unknown, 3 wrong
+password, 4 password in clear (refused), 5 last admin, 6 login off, 7 locked
+(too many wrong passwords), 8 refused. Client status: 0 registered, 1 pending,
+2 refused, 3 unregistered, 4 blocked.
 
 ### Position (6 bytes)
 
@@ -147,6 +195,9 @@ Duplicates of a delivered frame are re-ACKed.
 | Announce ("casa EA5YYY") | ~46 | 6 | 90 s | 180 s |
 | Register (alias "ana") | 54 | 6 | 90 s | 180 s |
 | BridgeOpen, Spanish mobile | 20 | 3 | 45 s | 90 s |
+| Admin: switch, status, list | 13 | 2 | 30 s | 60 s |
+| Admin: accept #n | 14 | 2 | 30 s | 60 s |
+| AdminReply: new requests | 15 | 2 | 30 s | 60 s |
 
 ## Phase 0 on-air form
 

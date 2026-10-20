@@ -35,6 +35,9 @@ pub mod notice {
     pub const ALIAS_TAKEN: u8 = 4;
     /// The Pharos needs its access code; the proof was missing or wrong.
     pub const ACCESS_CODE_NEEDED: u8 = 5;
+    /// Emergency mode: this Pharos takes encrypted messages only (sent
+    /// encrypted, once, to a client that wrote in plain).
+    pub const ENCRYPTED_ONLY: u8 = 6;
     pub const UNKNOWN_HANDLE: u8 = 16;
     pub const RECIPIENT_UNREACHABLE: u8 = 17;
     pub const SEND_FAILED: u8 = 18;
