@@ -1,4 +1,6 @@
-# Skypost
+<p align="center"><img src="docs/logo.png" width="128" alt="Skypost logo"></p>
+
+<h1 align="center">Skypost</h1>
 
 Encrypted off-grid messaging over HF NVIS for a family: phone + small HF radio
 in the field, a 24/7 base station at home that bridges to Signal,

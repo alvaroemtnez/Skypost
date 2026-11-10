@@ -64,6 +64,7 @@ Design: decisions [0015](decisions/0015-identities.md), [0016](decisions/0016-ph
 
 - [x] First build; script-based toolchain (`android/build.sh`, [0012](decisions/0012-android-script-build.md))
 - [x] Bump to current stable (AGP 9.4, Kotlin 2.4, Gradle 9.8, SDK 37); R8, Navigation 3, splash, icon, theme, backup rules
+- [x] Logo: sky dome on Night sky, launcher, themed, splash and status-bar icons, README logo ([0022](decisions/0022-logo.md))
 - [ ] Material 3 Expressive once material3 1.5 is stable
 - [x] Try the debug APK on a phone
 - [ ] `keryx-ffi` crate (UniFFI) + cargo-ndk build into `jniLibs`
@@ -79,6 +80,7 @@ Design: decisions [0015](decisions/0015-identities.md), [0016](decisions/0016-ph
 - [x] Third feedback round: restore from the welcome screen fixed, contact QR, verified contacts (in-app scan = verified, pasted/linked = not), Pharos management screen, SOS held 3 s
 - [x] Pharos management v2: switches, pending-requests popup, add/remove admins, replies in the app's language, personal-data warning in plain, "Request access" / "I have a code" in discovery
 - [ ] Android notification for admins when a Pharos reports new access requests
+- [ ] Home-icon colour setting: Night sky (default), Dusk violet `#5A3E96`, Ionosphere `#1F6F8B`, Ember `#B4532A` ([0022](decisions/0022-logo.md)); one `activity-alias` per colour, switched with `PackageManager.setComponentEnabledSetting`
 - [ ] Screenshot tests
 
 ## Releases

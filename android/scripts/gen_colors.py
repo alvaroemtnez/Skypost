@@ -13,7 +13,7 @@ from materialyoucolor.dynamiccolor.material_dynamic_colors import MaterialDynami
 from materialyoucolor.hct import Hct
 from materialyoucolor.scheme.scheme_tonal_spot import SchemeTonalSpot
 
-SEED = 0x2563C9  # sky blue
+SEED = 0x26386E  # Night sky (decision 0022)
 
 # Roles of androidx.compose.material3.ColorScheme (1.4), in its order.
 ROLES = """primary onPrimary primaryContainer onPrimaryContainer inversePrimary

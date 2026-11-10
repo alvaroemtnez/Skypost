@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!-- Seed of the generated colour scheme (scripts/gen_colors.py). -->
-    <color name="icon_background">#2563C9</color>
+    <color name="icon_background">#26386E</color>
     <!-- surface and primary of ui/theme/Color.kt LightColors. -->
     <color name="splash_background">#FAF8FE</color>
-    <color name="splash_glyph">#4A5E8B</color>
+    <color name="splash_glyph">#4F5D8C</color>
 </resources>

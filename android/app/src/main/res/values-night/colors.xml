@@ -2,5 +2,5 @@
 <resources>
     <!-- surface and primary of ui/theme/Color.kt DarkColors. -->
     <color name="splash_background">#0D0E12</color>
-    <color name="splash_glyph">#B7C6EE</color>
+    <color name="splash_glyph">#BBC5EE</color>
 </resources>
