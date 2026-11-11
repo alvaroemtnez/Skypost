@@ -4,6 +4,7 @@ import androidx.compose.foundation.clickable
 import kotlinx.coroutines.launch
 import io.alvaroedo.skypost.ui.components.copyToClipboard
 import io.alvaroedo.skypost.ui.components.MenuItem
+import io.alvaroedo.skypost.ui.components.SkyDropdownMenu
 import io.alvaroedo.skypost.model.Delivery
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.material3.SnackbarResult
@@ -53,7 +54,6 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Checkbox
-import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledIconButton
@@ -231,7 +231,7 @@ fun ChatScreen(
                         IconButton(onClick = { menu = true }) {
                             Icon(painterResource(R.drawable.ic_more_vert), stringResource(R.string.more_options))
                         }
-                        DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                        SkyDropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                             // Greyed out while Settings turns encryption on for every chat.
                             DropdownMenuItem(
                                 text = {
@@ -489,7 +489,7 @@ private fun Bubble(
                     }
                 }
             }
-            DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+            SkyDropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                 if (m.outgoing && m.delivery == Delivery.FAILED) {
                     DropdownMenuItem(
                         text = { Text(stringResource(R.string.retry)) },
@@ -502,8 +502,8 @@ private fun Bubble(
                     )
                 }
                 MenuItem(R.string.copy, R.drawable.ic_content_copy) { menu = false; onCopy() }
-                MenuItem(R.string.select, R.drawable.ic_check_box) { menu = false; onToggle() }
-                MenuItem(R.string.delete, R.drawable.ic_delete) { menu = false; onDelete() }
+                MenuItem(R.string.select, R.drawable.ic_select) { menu = false; onToggle() }
+                MenuItem(R.string.delete, R.drawable.ic_delete, destructive = true) { menu = false; onDelete() }
             }
         }
         if (failed) {

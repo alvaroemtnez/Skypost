@@ -14,10 +14,13 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -32,7 +35,6 @@ import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
 import io.alvaroedo.skypost.data.Repository
-import io.alvaroedo.skypost.model.ChatKind
 import io.alvaroedo.skypost.model.VerifyResult
 import io.alvaroedo.skypost.ui.AppViewModel
 import io.alvaroedo.skypost.ui.chat.ChatScreen
@@ -41,20 +43,20 @@ import io.alvaroedo.skypost.ui.chats.ChatListScreen
 import io.alvaroedo.skypost.ui.chats.ChatListViewModel
 import io.alvaroedo.skypost.ui.components.ImportDialog
 import io.alvaroedo.skypost.ui.components.LocalSnackbar
-import io.alvaroedo.skypost.ui.identity.QrScreen
-import io.alvaroedo.skypost.ui.newchat.NewChatOfScreen
-import io.alvaroedo.skypost.ui.newchat.NewChatScreen
+import io.alvaroedo.skypost.ui.identity.QrDialog
+import io.alvaroedo.skypost.ui.identity.QrPopup
+import io.alvaroedo.skypost.ui.newchat.NewChatSheet
 import io.alvaroedo.skypost.ui.newchat.NewChatViewModel
 import io.alvaroedo.skypost.ui.onboarding.OnboardingScreen
 import io.alvaroedo.skypost.ui.pharos.PharosAdminScreen
 import io.alvaroedo.skypost.ui.pharos.PharosAdminViewModel
-import io.alvaroedo.skypost.ui.pharos.PharosScreen
+import io.alvaroedo.skypost.ui.pharos.PharosSheet
 import io.alvaroedo.skypost.ui.pharos.PharosViewModel
 import io.alvaroedo.skypost.ui.scan.ScanScreen
 import io.alvaroedo.skypost.location.Locator
 import io.alvaroedo.skypost.radio.RadioLink
 import io.alvaroedo.skypost.ui.settings.BlockedScreen
-import io.alvaroedo.skypost.ui.settings.RadioSettingsScreen
+import io.alvaroedo.skypost.ui.settings.RadioSheet
 import io.alvaroedo.skypost.ui.settings.SettingsScreen
 import io.alvaroedo.skypost.ui.settings.SosContactsScreen
 import io.alvaroedo.skypost.ui.theme.SkypostTheme
@@ -93,25 +95,6 @@ data object Chats : NavKey
 @Serializable
 data class ChatRoute(val id: String) : NavKey
 
-@Serializable
-data object NewChat : NavKey
-
-@Serializable
-data class NewChatOf(val kind: String) : NavKey
-
-@Serializable
-data object PharosRoute : NavKey
-
-@Serializable
-data object MyCode : NavKey
-
-@Serializable
-data class GroupInvite(val uri: String, val name: String) : NavKey
-
-/** QR of a contact or Pharos, to pass it on. */
-@Serializable
-data class CardCode(val key: String) : NavKey
-
 /** Scan someone's QR in person to verify the contact or Pharos [key]. */
 @Serializable
 data class ScanVerify(val key: String) : NavKey
@@ -129,13 +112,13 @@ data object SosContactsRoute : NavKey
 data object ScanRoute : NavKey
 
 @Serializable
-data object RadioRoute : NavKey
-
-@Serializable
 data object ArchivedRoute : NavKey
 
 @Serializable
 data object BlockedRoute : NavKey
+
+/** The cards that open over the screens (bottom sheets), one at a time. */
+private enum class AppSheet { PHAROS, RADIO, NEW_CHAT }
 
 private const val SLIDE_MS = 250
 
@@ -155,10 +138,9 @@ private fun popTransform(): ContentTransform = ContentTransform(
     targetContentZIndex = -1f,
 )
 
-/** Replace the new-chat steps with the chat they opened. */
+/** Open a chat (from a card or an import): no duplicate on top. */
 private fun NavBackStack<NavKey>.openChat(id: String) {
-    removeAll { it is NewChat || it is NewChatOf }
-    add(ChatRoute(id))
+    if (lastOrNull() != ChatRoute(id)) add(ChatRoute(id))
 }
 
 @Composable
@@ -177,6 +159,30 @@ private fun AppRoot(repo: Repository, radioLink: RadioLink, locator: Locator, ap
         }
         // The chat list is the root, so system back from it leaves the app.
         val backStack = rememberNavBackStack(Chats)
+        var sheet by rememberSaveable { mutableStateOf<AppSheet?>(null) }
+        var qr by remember { mutableStateOf<QrPopup?>(null) }
+        val settings by repo.settings.collectAsStateWithLifecycle()
+        val contacts by repo.contacts.collectAsStateWithLifecycle()
+        val pharos by repo.pharos.collectAsStateWithLifecycle()
+        val myCodeTitle = stringResource(R.string.my_code)
+        val showQrTitle = stringResource(R.string.show_qr)
+        val inviteTitle = stringResource(R.string.group_invite)
+        val res = LocalResources.current
+        val showMyCode = {
+            qr = QrPopup(myCodeTitle, me.card.alias, me.uri, detail = me.card.callsign, safetyNumber = me.safetyNumber)
+        }
+        /** QR of a contact or Pharos, to pass it on. */
+        val showCard: (String) -> Unit = { key ->
+            val card = contacts.firstOrNull { it.card.key == key }?.let { it.card to it.safetyNumber }
+                ?: pharos.firstOrNull { it.card.key == key }?.let { it.card to it.safetyNumber }
+            card?.let { (c, safety) ->
+                qr = QrPopup(showQrTitle, c.alias, repo.uriOf(c), detail = c.callsign, safetyNumber = safety, body = res.getString(R.string.card_code_body, c.alias))
+            }
+        }
+        val go: (NavKey) -> Unit = { key ->
+            sheet = null
+            backStack.add(key)
+        }
         NavDisplay(
             backStack = backStack,
             onBack = { backStack.removeLastOrNull() },
@@ -193,13 +199,13 @@ private fun AppRoot(repo: Repository, radioLink: RadioLink, locator: Locator, ap
                         vm = viewModel { ChatListViewModel(repo) },
                         onSos = appVm::sos,
                         onOpenChat = { backStack.add(ChatRoute(it)) },
-                        onNewChat = { backStack.add(NewChat) },
-                        onPharos = { backStack.add(PharosRoute) },
-                        onMyCode = { backStack.add(MyCode) },
+                        onNewChat = { sheet = AppSheet.NEW_CHAT },
+                        onPharos = { sheet = AppSheet.PHAROS },
+                        onMyCode = showMyCode,
                         onSettings = { backStack.add(SettingsRoute) },
                         onSosSettings = { backStack.add(SosContactsRoute) },
                         radio = radio,
-                        onRadio = { backStack.add(RadioRoute) },
+                        onRadio = { sheet = AppSheet.RADIO },
                         onArchived = { backStack.add(ArchivedRoute) },
                     )
                 }
@@ -226,37 +232,8 @@ private fun AppRoot(repo: Repository, radioLink: RadioLink, locator: Locator, ap
                 entry<ChatRoute> { key ->
                     ChatScreen(
                         vm = viewModel { ChatViewModel(repo, key.id, locator) },
-                        onInvite = { uri, name -> backStack.add(GroupInvite(uri, name)) },
-                        onShowCode = { backStack.add(CardCode(it)) },
-                        onScanVerify = { backStack.add(ScanVerify(it)) },
-                        onBack = { backStack.removeLastOrNull() },
-                    )
-                }
-                entry<NewChat> {
-                    NewChatScreen(
-                        vm = viewModel { NewChatViewModel(repo) },
-                        onKind = { backStack.add(NewChatOf(it.name)) },
-                        onPharos = { backStack.add(PharosRoute) },
-                        onBack = { backStack.removeLastOrNull() },
-                    )
-                }
-                entry<NewChatOf> { key ->
-                    NewChatOfScreen(
-                        kind = ChatKind.valueOf(key.kind),
-                        vm = viewModel { NewChatViewModel(repo) },
-                        onCode = appVm::offer,
-                        onScan = { backStack.add(ScanRoute) },
-                        onOpenChat = { backStack.openChat(it) },
-                        onBack = { backStack.removeLastOrNull() },
-                    )
-                }
-                entry<PharosRoute> {
-                    PharosScreen(
-                        vm = viewModel { PharosViewModel(repo) },
-                        onCode = appVm::offer,
-                        onScan = { backStack.add(ScanRoute) },
-                        onShowCode = { backStack.add(CardCode(it)) },
-                        onAdmin = { backStack.add(PharosAdminRoute(it)) },
+                        onInvite = { uri, name -> qr = QrPopup(inviteTitle, name, uri, secret = true) },
+                        onShowCode = showCard,
                         onScanVerify = { backStack.add(ScanVerify(it)) },
                         onBack = { backStack.removeLastOrNull() },
                     )
@@ -267,58 +244,16 @@ private fun AppRoot(repo: Repository, radioLink: RadioLink, locator: Locator, ap
                         onBack = { backStack.removeLastOrNull() },
                     )
                 }
-                entry<CardCode> { key ->
-                    val contacts by repo.contacts.collectAsStateWithLifecycle()
-                    val pharos by repo.pharos.collectAsStateWithLifecycle()
-                    val card = contacts.firstOrNull { it.card.key == key.key }?.let { it.card to it.safetyNumber }
-                        ?: pharos.firstOrNull { it.card.key == key.key }?.let { it.card to it.safetyNumber }
-                    if (card == null) {
-                        // Removed meanwhile: nothing to show.
-                        LaunchedEffect(Unit) { backStack.removeLastOrNull() }
-                    } else {
-                        QrScreen(
-                            title = stringResource(R.string.show_qr),
-                            heading = card.first.alias,
-                            detail = card.first.callsign,
-                            uri = repo.uriOf(card.first),
-                            safetyNumber = card.second,
-                            body = stringResource(R.string.card_code_body, card.first.alias),
-                            onBack = { backStack.removeLastOrNull() },
-                        )
-                    }
-                }
-                entry<MyCode> {
-                    QrScreen(
-                        title = stringResource(R.string.my_code),
-                        heading = me.card.alias,
-                        detail = me.card.callsign,
-                        uri = me.uri,
-                        safetyNumber = me.safetyNumber,
-                        onBack = { backStack.removeLastOrNull() },
-                    )
-                }
-                entry<GroupInvite> { key ->
-                    QrScreen(
-                        title = stringResource(R.string.group_invite),
-                        heading = key.name,
-                        uri = key.uri,
-                        secret = true,
-                        onBack = { backStack.removeLastOrNull() },
-                    )
-                }
                 entry<SettingsRoute> {
                     SettingsScreen(
                         repo = repo,
-                        onMyCode = { backStack.add(MyCode) },
-                        onPharos = { backStack.add(PharosRoute) },
+                        onMyCode = showMyCode,
+                        onPharos = { sheet = AppSheet.PHAROS },
                         onSosContacts = { backStack.add(SosContactsRoute) },
-                        onRadio = { backStack.add(RadioRoute) },
+                        onRadio = { sheet = AppSheet.RADIO },
                         onBlocked = { backStack.add(BlockedRoute) },
                         onBack = { backStack.removeLastOrNull() },
                     )
-                }
-                entry<RadioRoute> {
-                    RadioSettingsScreen(radio, onBack = { backStack.removeLastOrNull() })
                 }
                 entry<SosContactsRoute> {
                     SosContactsScreen(repo = repo, onBack = { backStack.removeLastOrNull() })
@@ -350,11 +285,46 @@ private fun AppRoot(repo: Repository, radioLink: RadioLink, locator: Locator, ap
                 }
             },
         )
+        when (sheet) {
+            AppSheet.PHAROS -> PharosSheet(
+                vm = viewModel { PharosViewModel(repo) },
+                onDismiss = { sheet = null },
+                onCode = appVm::offer,
+                onScan = { go(ScanRoute) },
+                onShowCode = showCard,
+                onAdmin = { go(PharosAdminRoute(it)) },
+                onScanVerify = { go(ScanVerify(it)) },
+            )
+            AppSheet.RADIO -> RadioSheet(
+                state = radio,
+                settings = settings,
+                onSetRadio = repo::setRadio,
+                onDismiss = { sheet = null },
+            )
+            AppSheet.NEW_CHAT -> NewChatSheet(
+                vm = viewModel { NewChatViewModel(repo) },
+                onDismiss = { sheet = null },
+                onCode = appVm::offer,
+                onScan = { go(ScanRoute) },
+                onPharos = { sheet = AppSheet.PHAROS },
+                onOpenChat = { id ->
+                    sheet = null
+                    backStack.openChat(id)
+                },
+            )
+            null -> {}
+        }
+        qr?.let { QrDialog(it, onDismiss = { qr = null }) }
         pending?.let { s ->
             ImportDialog(
                 scanned = s.scanned,
                 inPerson = s.inPerson,
-                onConfirm = { appVm.confirmImport()?.let { backStack.openChat(it) } },
+                onConfirm = {
+                    appVm.confirmImport()?.let {
+                        sheet = null
+                        backStack.openChat(it)
+                    }
+                },
                 onDismiss = appVm::dismissImport,
             )
         }

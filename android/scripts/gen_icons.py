@@ -5,7 +5,8 @@ drawables into app/src/main/res/drawable/.
     python3 scripts/gen_icons.py          # (re)generate every icon below
 
 Add an icon: append (drawable name, symbol name, mirror in RTL) to ICONS and
-run the script. Browse names at https://fonts.google.com/icons.
+run the script; a fourth element "fill1" takes the filled glyph (as
+MeshConnect's script does). Browse names at https://fonts.google.com/icons.
 """
 
 from __future__ import annotations
@@ -30,7 +31,6 @@ ICONS = [
     ("ic_keep_off", "keep_off", False),
     ("ic_mark_unread", "mark_chat_unread", False),
     ("ic_mark_read", "mark_chat_read", False),
-    ("ic_check_box", "check_box", False),
     ("ic_block", "block", False),
     ("ic_delete", "delete", False),
     ("ic_chat", "chat", False),
@@ -64,13 +64,17 @@ ICONS = [
     ("ic_send", "send", True),
     ("ic_settings", "settings", False),
     ("ic_share", "share", False),
-    ("ic_sms", "sms", False),
     ("ic_sos", "sos", False),
     ("ic_verified", "verified", False),
     ("ic_verified_user", "verified_user", False),
+    ("ic_chat_bubble", "chat_bubble", False, "fill1"),
+    ("ic_search", "search", False),
+    ("ic_select", "checklist", True),
+    ("ic_expand_more", "expand_more", False),
+    ("ic_tune", "tune", False),
 ]
 
-URL = "https://fonts.gstatic.com/s/i/short-term/release/materialsymbolsoutlined/{}/default/24px.svg"
+URL = "https://fonts.gstatic.com/s/i/short-term/release/materialsymbolsoutlined/{}/{}/24px.svg"
 OUT = Path(__file__).resolve().parents[1] / "app" / "src" / "main" / "res" / "drawable"
 # Lint flags paths longer than this (VectorPath); these icons are tiny anyway.
 LONG_PATH = 800
@@ -93,8 +97,8 @@ TEMPLATE = """<?xml version="1.0" encoding="utf-8"?>
 
 
 def main() -> None:
-    for name, symbol, mirror in ICONS:
-        svg = urllib.request.urlopen(URL.format(symbol), timeout=30).read().decode()
+    for name, symbol, mirror, *style in ICONS:
+        svg = urllib.request.urlopen(URL.format(symbol, style[0] if style else "default"), timeout=30).read().decode()
         if 'viewBox="0 -960 960 960"' not in svg:
             raise SystemExit(f"{symbol}: unexpected viewBox")
         paths = re.findall(r'<path d="([^"]+)"', svg)

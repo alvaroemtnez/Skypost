@@ -1,26 +1,26 @@
 package io.alvaroedo.skypost.ui.newchat
 
 import androidx.activity.compose.rememberLauncherForActivityResult
-import io.alvaroedo.skypost.ui.components.SwipeRow
-import io.alvaroedo.skypost.ui.components.VerifiedBadge
-import io.alvaroedo.skypost.ui.components.MenuItem
-import io.alvaroedo.skypost.model.Recent
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -28,20 +28,19 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -50,52 +49,84 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.alvaroedo.skypost.R
 import io.alvaroedo.skypost.model.ChatKind
+import io.alvaroedo.skypost.model.Recent
 import io.alvaroedo.skypost.ui.components.Avatar
-import io.alvaroedo.skypost.ui.components.LocalSnackbar
+import io.alvaroedo.skypost.ui.components.MenuItem
 import io.alvaroedo.skypost.ui.components.PickPhone
+import io.alvaroedo.skypost.ui.components.SettingsTileRow
+import io.alvaroedo.skypost.ui.components.SkyDropdownMenu
+import io.alvaroedo.skypost.ui.components.SwipeRow
+import io.alvaroedo.skypost.ui.components.VerifiedBadge
 import io.alvaroedo.skypost.ui.components.clipboardText
 import io.alvaroedo.skypost.ui.components.icon
 import io.alvaroedo.skypost.ui.components.label
 import io.alvaroedo.skypost.ui.components.readPickedPhone
-import kotlinx.coroutines.launch
 
+/** The rows inside the sheet sit on its colour, not on a surface band. */
+@Composable
+private fun clearItem() = ListItemDefaults.colors(containerColor = Color.Transparent)
+
+/**
+ * New chat, as a card over the chat list (MeshConnect's channel sheet): first
+ * which kind, then, in the same card, the contact, group or address. The
+ * phone's contact picker is its own full-screen activity, so it covers the
+ * card rather than stacking on it, and the card is there when it returns.
+ *
+ * [onCode] takes a pasted code (false if it is not one); [onScan] and
+ * [onPharos] close the card and go to their screens; [onOpenChat] opens the
+ * chat (the caller closes the card).
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun NewChatScaffold(title: String, onBack: () -> Unit, content: LazyListScope.() -> Unit) {
-    Scaffold(
-        snackbarHost = { SnackbarHost(LocalSnackbar.current) },
-        topBar = {
-            TopAppBar(
-                title = { Text(title) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(painterResource(R.drawable.ic_arrow_back), stringResource(R.string.back))
-                    }
-                },
+fun NewChatSheet(
+    vm: NewChatViewModel,
+    onDismiss: () -> Unit,
+    onCode: (String?) -> Boolean,
+    onScan: () -> Unit,
+    onPharos: () -> Unit,
+    onOpenChat: (String) -> Unit,
+) {
+    var kind by rememberSaveable { mutableStateOf<ChatKind?>(null) }
+    val hasPharos by vm.hasPharos.collectAsStateWithLifecycle()
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Column(Modifier.navigationBarsPadding()) {
+        Row(Modifier.fillMaxWidth().padding(start = 4.dp, end = 16.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            if (kind != null) {
+                IconButton(onClick = { kind = null }) {
+                    Icon(painterResource(R.drawable.ic_arrow_back), stringResource(R.string.back))
+                }
+            } else {
+                Spacer(Modifier.width(12.dp))
+            }
+            Text(
+                stringResource(kind?.label() ?: R.string.new_chat),
+                style = MaterialTheme.typography.titleLarge,
+                modifier = Modifier.padding(start = 4.dp),
             )
-        },
-    ) { padding ->
-        LazyColumn(Modifier.padding(padding), contentPadding = PaddingValues(bottom = 24.dp), content = content)
+        }
+        val k = kind
+        if (k == null) {
+            LazyColumn(contentPadding = PaddingValues(bottom = 24.dp)) {
+                items(ChatKind.entries) { entry ->
+                    val blocked = entry.bridged && !hasPharos
+                    SettingsTileRow(
+                        title = stringResource(entry.label()),
+                        subtitle = stringResource(if (blocked) R.string.needs_pharos else entry.description()),
+                        icon = entry.icon(),
+                        onClick = { if (blocked) onPharos() else kind = entry },
+                    )
+                }
+            }
+        } else {
+            NewChatOf(k, vm, onCode, onScan, onOpenChat)
+        }
+        }
     }
 }
 
-/** Step 1: which kind of chat. */
 @Composable
-fun NewChatScreen(vm: NewChatViewModel, onKind: (ChatKind) -> Unit, onPharos: () -> Unit, onBack: () -> Unit) {
-    val hasPharos by vm.hasPharos.collectAsStateWithLifecycle()
-    NewChatScaffold(stringResource(R.string.new_chat), onBack) {
-        items(ChatKind.entries) { kind ->
-            val blocked = kind.bridged && !hasPharos
-            ListItem(
-                modifier = Modifier.clickable { if (blocked) onPharos() else onKind(kind) },
-                leadingContent = { Icon(painterResource(kind.icon()), null) },
-                headlineContent = { Text(stringResource(kind.label())) },
-                supportingContent = {
-                    Text(stringResource(if (blocked) R.string.needs_pharos else kind.description()))
-                },
-            )
-        }
-    }
+private fun StepList(content: LazyListScope.() -> Unit) {
+    LazyColumn(contentPadding = PaddingValues(bottom = 24.dp), content = content)
 }
 
 private fun ChatKind.description(): Int = when (this) {
@@ -108,27 +139,24 @@ private fun ChatKind.description(): Int = when (this) {
 
 /** Step 2: pick or add the contact, group or bridged address. */
 @Composable
-fun NewChatOfScreen(
+private fun NewChatOf(
     kind: ChatKind,
     vm: NewChatViewModel,
     onCode: (String?) -> Boolean,
     onScan: () -> Unit,
     onOpenChat: (String) -> Unit,
-    onBack: () -> Unit,
 ) {
     val context = LocalContext.current
-    val snackbar = LocalSnackbar.current
-    val scope = rememberCoroutineScope()
-    val notACode = stringResource(R.string.code_not_recognised)
-    val offer: (String?) -> Unit = { text -> if (!onCode(text)) scope.launch { snackbar.showSnackbar(notACode) } }
+    // A paste that was not a code says so under the button (a snackbar would sit under the card).
+    var bad by remember { mutableStateOf(false) }
     val scan = onScan
-    val paste = { offer(clipboardText(context)) }
+    val paste = { bad = !onCode(clipboardText(context)) }
     var forget by remember { mutableStateOf<Forget?>(null) }
 
     when (kind) {
         ChatKind.DIRECT -> {
             val contacts by vm.contacts.collectAsStateWithLifecycle()
-            NewChatScaffold(stringResource(R.string.kind_direct), onBack) {
+            StepList {
                 header(R.string.contacts)
                 if (contacts.isEmpty()) hint(R.string.contacts_empty)
                 items(contacts, key = { it.card.key }) { c ->
@@ -144,13 +172,13 @@ fun NewChatOfScreen(
                     )
                 }
                 item { HorizontalDivider() }
-                codeActions(R.string.scan_contact, scan, paste)
+                codeActions(R.string.scan_contact, scan, paste, bad)
             }
         }
         ChatKind.GROUP -> {
             val groups by vm.groups.collectAsStateWithLifecycle()
             var naming by rememberSaveable { mutableStateOf(false) }
-            NewChatScaffold(stringResource(R.string.kind_group), onBack) {
+            StepList {
                 header(R.string.groups)
                 if (groups.isEmpty()) hint(R.string.groups_empty)
                 items(groups, key = { it.id }) { g ->
@@ -170,9 +198,10 @@ fun NewChatOfScreen(
                         modifier = Modifier.clickable { naming = true },
                         leadingContent = { Icon(painterResource(R.drawable.ic_add), null) },
                         headlineContent = { Text(stringResource(R.string.group_create)) },
+                        colors = clearItem(),
                     )
                 }
-                codeActions(R.string.scan_group, scan, paste)
+                codeActions(R.string.scan_group, scan, paste, bad)
             }
             if (naming) {
                 GroupNameDialog(onDismiss = { naming = false }) { name ->
@@ -181,13 +210,13 @@ fun NewChatOfScreen(
                 }
             }
         }
-        ChatKind.SIGNAL, ChatKind.WHATSAPP -> PhoneChat(kind, vm, onOpenChat, onBack)
+        ChatKind.SIGNAL, ChatKind.WHATSAPP -> PhoneChat(kind, vm, onOpenChat)
         ChatKind.MESHCORE -> {
             val recents by vm.recents.collectAsStateWithLifecycle()
             val blockedKeys by vm.blockedKeys.collectAsStateWithLifecycle()
-            NewChatScaffold(stringResource(R.string.kind_meshcore), onBack) {
+            StepList {
                 recentItems(recents.filter { it.kind == ChatKind.MESHCORE }, blockedKeys, vm, onOpenChat)
-                codeActions(R.string.scan_meshcore, scan, paste)
+                codeActions(R.string.scan_meshcore, scan, paste, bad)
                 hint(R.string.meshcore_hint)
             }
         }
@@ -197,23 +226,38 @@ fun NewChatOfScreen(
             onDismissRequest = { forget = null },
             title = { Text(stringResource(R.string.delete_named, f.name)) },
             text = { Text(stringResource(f.body)) },
-            confirmButton = { TextButton(onClick = { f.action(); forget = null }) { Text(stringResource(R.string.delete)) } },
+            confirmButton = {
+                Button(
+                    onClick = { f.action(); forget = null },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.error,
+                        contentColor = MaterialTheme.colorScheme.onError,
+                    ),
+                ) { Text(stringResource(R.string.delete)) }
+            },
             dismissButton = { TextButton(onClick = { forget = null }) { Text(stringResource(R.string.cancel)) } },
         )
     }
 }
 
-private fun LazyListScope.codeActions(scanLabel: Int, onScan: () -> Unit, onPaste: () -> Unit) {
+private fun LazyListScope.codeActions(scanLabel: Int, onScan: () -> Unit, onPaste: () -> Unit, bad: Boolean) {
     item {
         ListItem(
             modifier = Modifier.clickable(onClick = onScan),
             leadingContent = { Icon(painterResource(R.drawable.ic_qr_code_scanner), null) },
             headlineContent = { Text(stringResource(scanLabel)) },
+            colors = clearItem(),
         )
         ListItem(
             modifier = Modifier.clickable(onClick = onPaste),
             leadingContent = { Icon(painterResource(R.drawable.ic_content_paste), null) },
             headlineContent = { Text(stringResource(R.string.paste_code)) },
+            supportingContent = if (bad) {
+                { Text(stringResource(R.string.code_not_recognised), color = MaterialTheme.colorScheme.error) }
+            } else {
+                null
+            },
+            colors = clearItem(),
         )
     }
 }
@@ -230,12 +274,12 @@ private fun LazyListScope.header(text: Int) = item {
 private fun LazyListScope.hint(text: Int) = item {
     ListItem(
         headlineContent = { Text(stringResource(text)) },
-        colors = ListItemDefaults.colors(headlineColor = MaterialTheme.colorScheme.onSurfaceVariant),
+        colors = ListItemDefaults.colors(containerColor = Color.Transparent, headlineColor = MaterialTheme.colorScheme.onSurfaceVariant),
     )
 }
 
 @Composable
-private fun PhoneChat(kind: ChatKind, vm: NewChatViewModel, onOpenChat: (String) -> Unit, onBack: () -> Unit) {
+private fun PhoneChat(kind: ChatKind, vm: NewChatViewModel, onOpenChat: (String) -> Unit) {
     val context = LocalContext.current
     var number by rememberSaveable { mutableStateOf("") }
     var name by rememberSaveable { mutableStateOf("") }
@@ -248,13 +292,14 @@ private fun PhoneChat(kind: ChatKind, vm: NewChatViewModel, onOpenChat: (String)
     val valid = vm.address(kind, number) != null
     val recents by vm.recents.collectAsStateWithLifecycle()
     val blockedKeys by vm.blockedKeys.collectAsStateWithLifecycle()
-    NewChatScaffold(stringResource(kind.label()), onBack) {
+    StepList {
         recentItems(recents.filter { it.kind == kind }, blockedKeys, vm, onOpenChat)
         item {
             ListItem(
                 modifier = Modifier.clickable { pick.launch(Unit) },
                 leadingContent = { Icon(painterResource(R.drawable.ic_contacts), null) },
                 headlineContent = { Text(stringResource(R.string.pick_phone_contact)) },
+                colors = clearItem(),
             )
             HorizontalDivider()
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -357,10 +402,11 @@ private fun EntryRow(
     verified: Boolean = false,
 ) {
     var menu by remember { mutableStateOf(false) }
-    SwipeRow(onStartSwipe = null, onEndSwipe = onDelete) {
+    SwipeRow(onStartSwipe = null, onEndSwipe = onDelete, endDestructive = true, background = MaterialTheme.colorScheme.surfaceContainerLow) {
         Box {
             ListItem(
                 modifier = Modifier.combinedClickable(onClick = { if (!blocked) onOpen() }, onLongClick = { menu = true }),
+                colors = clearItem(),
                 leadingContent = { Avatar(title, kind, 40.dp) },
                 headlineContent = { Text(title) },
                 supportingContent = {
@@ -375,7 +421,7 @@ private fun EntryRow(
                     }
                 },
             )
-            DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+            SkyDropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                 if (!blocked) {
                     MenuItem(R.string.start_chat, R.drawable.ic_chat) {
                         menu = false
@@ -386,7 +432,7 @@ private fun EntryRow(
                     menu = false
                     onBlock()
                 }
-                MenuItem(R.string.delete, R.drawable.ic_delete) {
+                MenuItem(R.string.delete, R.drawable.ic_delete, destructive = true) {
                     menu = false
                     onDelete()
                 }

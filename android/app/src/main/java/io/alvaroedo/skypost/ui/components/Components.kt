@@ -19,7 +19,6 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Button
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -39,6 +38,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -51,9 +52,7 @@ import io.alvaroedo.skypost.model.Auth
 import io.alvaroedo.skypost.model.ChatKind
 import io.alvaroedo.skypost.model.ChatMessage
 import io.alvaroedo.skypost.model.Delivery
-import io.alvaroedo.skypost.model.Pharos
 import io.alvaroedo.skypost.model.Scanned
-import io.alvaroedo.skypost.radio.RadioState
 import io.alvaroedo.skypost.ui.theme.extraColors
 import androidx.compose.material3.SnackbarHostState
 import java.time.Instant
@@ -69,7 +68,7 @@ val LocalSnackbar = staticCompositionLocalOf { SnackbarHostState() }
 fun ChatKind.icon(): Int = when (this) {
     ChatKind.DIRECT -> R.drawable.ic_person
     ChatKind.GROUP -> R.drawable.ic_group
-    ChatKind.SIGNAL -> R.drawable.ic_sms
+    ChatKind.SIGNAL -> R.drawable.ic_chat_bubble
     ChatKind.WHATSAPP -> R.drawable.ic_call
     ChatKind.MESHCORE -> R.drawable.ic_hub
 }
@@ -83,23 +82,32 @@ fun ChatKind.label(): Int = when (this) {
     ChatKind.MESHCORE -> R.string.kind_meshcore
 }
 
-/** Initials in a tonal circle, with a small badge for the kind of chat. */
+/** The avatar in the chat list (MeshConnect's size): big enough for two initials. */
+val LIST_AVATAR_SIZE = 52.dp
+
+/**
+ * Initials in a tonal circle, with a small badge for the kind of chat. Two
+ * letters when the circle is list-sized ([AvatarInitials]), one below.
+ */
 @Composable
-fun Avatar(name: String, kind: ChatKind, size: Dp = 48.dp) {
+fun Avatar(name: String, kind: ChatKind, size: Dp = LIST_AVATAR_SIZE) {
     val colors = MaterialTheme.colorScheme
     val (bg, fg) = when (kind) {
         ChatKind.DIRECT, ChatKind.GROUP -> colors.primaryContainer to colors.onPrimaryContainer
         ChatKind.SIGNAL, ChatKind.WHATSAPP -> colors.secondaryContainer to colors.onSecondaryContainer
         ChatKind.MESHCORE -> colors.tertiaryContainer to colors.onTertiaryContainer
     }
+    val glyph = if (size >= LIST_AVATAR_SIZE) AvatarInitials.of(name) else AvatarInitials.one(name)
     Box(Modifier.size(size)) {
         Box(
             Modifier.size(size).background(bg, CircleShape),
             contentAlignment = Alignment.Center,
         ) {
             Text(
-                name.trim().take(1).uppercase(Locale.ROOT).ifEmpty { "?" },
+                glyph,
                 style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                fontSize = (size.value * (if (glyph.length > 1 && !glyph[0].isSurrogate()) 0.36f else 0.42f)).sp,
                 color = fg,
             )
         }
@@ -110,18 +118,22 @@ fun Avatar(name: String, kind: ChatKind, size: Dp = 48.dp) {
             ChatKind.WHATSAPP -> x.whatsapp to x.onBrand
             ChatKind.MESHCORE -> x.meshcore to x.onBrand
         }
+        val badgeSize = (size * 0.4f).coerceIn(16.dp, 22.dp)
         Surface(
             shape = CircleShape,
             color = badge,
             border = BorderStroke(1.5.dp, colors.surface),
-            modifier = Modifier.align(Alignment.BottomEnd).offset(x = 2.dp, y = 2.dp).size(20.dp),
+            modifier = Modifier.align(Alignment.BottomEnd).offset(x = 2.dp, y = 2.dp).size(badgeSize),
         ) {
-            Icon(
-                painterResource(kind.icon()),
-                contentDescription = stringResource(kind.label()),
-                tint = onBadge,
-                modifier = Modifier.padding(3.dp),
-            )
+            // A smaller glyph than the badge, so it keeps clear of the ring.
+            Box(contentAlignment = Alignment.Center) {
+                Icon(
+                    painterResource(kind.icon()),
+                    contentDescription = stringResource(kind.label()),
+                    tint = onBadge,
+                    modifier = Modifier.size(badgeSize * 0.55f),
+                )
+            }
         }
     }
 }
@@ -169,59 +181,6 @@ fun heardAgo(millis: Long?, now: Long = System.currentTimeMillis()): String {
         min < 1 -> stringResource(R.string.pharos_heard_now)
         min < 120 -> pluralStringResource(R.plurals.pharos_heard_min, min, min)
         else -> pluralStringResource(R.plurals.pharos_heard_h, min / 60, min / 60)
-    }
-}
-
-/** A Pharos heard longer ago than this counts as silent (grey indicator). */
-const val HEARD_RECENTLY_MS = 60 * 60_000L
-
-/**
- * Colour for the SNR the Pharos last reported for us, by the lanes it allows:
- * green ≥ −10 dB (fast lanes), yellow ≥ −18 (Turbo), orange ≥ −24 (Normal),
- * red below (Slow only). Grey when there is no recent report.
- */
-@Composable
-fun signalColor(snrDb: Int?): Color {
-    val x = MaterialTheme.extraColors
-    return when {
-        snrDb == null -> MaterialTheme.colorScheme.outline
-        snrDb >= -10 -> x.signalGood
-        snrDb >= -18 -> x.signalFair
-        snrDb >= -24 -> x.signalPoor
-        else -> x.signalBad
-    }
-}
-
-/**
- * Top-bar radio indicator: grey when no radio is connected, orange with audio
- * only (frequency set by hand on the radio), green with audio and CAT.
- */
-@Composable
-fun RadioIndicator(state: RadioState, onClick: () -> Unit) {
-    val x = MaterialTheme.extraColors
-    val (tint, desc) = when (state) {
-        RadioState.DISCONNECTED, RadioState.CONNECTING -> MaterialTheme.colorScheme.outline to R.string.radio_disconnected
-        RadioState.AUDIO_ONLY -> x.signalPoor to R.string.radio_audio_only
-        RadioState.READY, RadioState.TRANSMITTING -> x.signalGood to R.string.radio_ready
-    }
-    val text = stringResource(desc)
-    IconButton(onClick = onClick, modifier = Modifier.semantics { contentDescription = text }) {
-        Icon(painterResource(R.drawable.ic_radio), contentDescription = null, tint = tint)
-    }
-}
-
-/** Top-bar "signal" indicator: grey unless the active Pharos was heard recently, then by SNR. */
-@Composable
-fun PharosIndicator(active: Pharos?, onClick: () -> Unit, now: Long = System.currentTimeMillis()) {
-    val snr = active?.snrDb?.takeIf { active.lastHeardMillis?.let { now - it < HEARD_RECENTLY_MS } == true }
-    val tint = signalColor(snr)
-    val desc = if (active == null) {
-        stringResource(R.string.pharos_none)
-    } else {
-        stringResource(R.string.pharos_indicator, active.card.alias, heardAgo(active.lastHeardMillis, now))
-    }
-    IconButton(onClick = onClick, modifier = Modifier.semantics { contentDescription = desc }) {
-        Icon(painterResource(R.drawable.ic_cell_tower), contentDescription = null, tint = tint)
     }
 }
 

@@ -7,6 +7,7 @@ import io.alvaroedo.skypost.model.Chat
 import io.alvaroedo.skypost.model.ChatKind
 import io.alvaroedo.skypost.model.DeletedChats
 import io.alvaroedo.skypost.model.Pharos
+import io.alvaroedo.skypost.radio.RadioModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -28,7 +29,22 @@ data class ChatListUi(
     val archivedUnread: Boolean = false,
     /** Selected chats (multi-select mode when not empty). */
     val selected: Set<String> = emptySet(),
+    /** The search typed in the top bar; blank = no search. */
+    val query: String = "",
+    /** The radio's short name for the top bar ("QMX+"), null if none chosen. */
+    val radioName: String? = null,
+    /** The radio is a custom one (shown as "Custom" when it has no name). */
+    val radioCustom: Boolean = false,
 )
+
+/** A chat matches a search by its name, its detail (callsign, number) or its last message. */
+internal fun Chat.matches(query: String): Boolean {
+    val q = query.trim()
+    if (q.isEmpty()) return true
+    return title.contains(q, ignoreCase = true) ||
+        detail?.contains(q, ignoreCase = true) == true ||
+        last?.text?.contains(q, ignoreCase = true) == true
+}
 
 /** Pinned first (in the order they were pinned), then the most recent. */
 internal fun List<Chat>.ordered(): List<Chat> =
@@ -43,10 +59,12 @@ internal fun List<Chat>.ordered(): List<Chat> =
 class ChatListViewModel(private val repo: Repository, private val archived: Boolean = false) : ViewModel() {
     private val filter = MutableStateFlow<ChatKind?>(null)
     private val selected = MutableStateFlow<Set<String>>(emptySet())
+    private val query = MutableStateFlow("")
+    private val view = combine(filter, query, ::Pair)
 
-    val ui: StateFlow<ChatListUi> = combine(repo.chats, repo.pharos, repo.settings, filter, selected) { all, pharos, _, f, sel ->
+    val ui: StateFlow<ChatListUi> = combine(repo.chats, repo.pharos, repo.settings, view, selected) { all, pharos, settings, (f, q), sel ->
         val here = all.filter { it.archived == archived }
-        val shown = if (f == null) here else here.filter { it.kind == f }
+        val shown = (if (f == null) here else here.filter { it.kind == f }).filter { it.matches(q) }
         val arch = all.filter { it.archived }
         ChatListUi(
             chats = shown.ordered(),
@@ -57,11 +75,18 @@ class ChatListViewModel(private val repo: Repository, private val archived: Bool
             archivedCount = arch.size,
             archivedUnread = arch.any { it.unread > 0 || it.markedUnread },
             selected = sel.filterTo(mutableSetOf()) { id -> here.any { it.id == id } },
+            query = q,
+            radioName = settings.radioShortName,
+            radioCustom = settings.radio == RadioModel.CUSTOM,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ChatListUi())
 
     fun setFilter(kind: ChatKind?) {
         filter.value = kind
+    }
+
+    fun setQuery(text: String) {
+        query.value = text
     }
 
     fun toggleSelected(id: String) = selected.update { if (id in it) it - id else it + id }

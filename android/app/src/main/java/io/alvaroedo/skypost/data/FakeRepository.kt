@@ -1,5 +1,7 @@
 package io.alvaroedo.skypost.data
 
+import io.alvaroedo.skypost.radio.CustomRadio
+import io.alvaroedo.skypost.radio.RadioModel
 import io.alvaroedo.skypost.core.Card
 import io.alvaroedo.skypost.core.KeryxCore
 import io.alvaroedo.skypost.core.ParsedUri
@@ -745,6 +747,9 @@ class FakeRepository(
     }
 
     override fun setPingInterval(minutes: Int) = _settings.update { it.copy(pingIntervalMin = minutes) }
+
+    override fun setRadio(model: RadioModel?, custom: CustomRadio) =
+        _settings.update { it.copy(radio = model, customRadio = custom.copy(name = custom.name.trim().take(CustomRadio.MAX_NAME))) }
 
     // Stand-in for keryx::backup (phase 2: sealed with the passphrase, keys
     // included). This one is NOT encrypted: it only checks the passphrase,

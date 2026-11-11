@@ -3,22 +3,22 @@ package io.alvaroedo.skypost.ui.settings
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
@@ -27,7 +27,6 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -47,8 +46,12 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.alvaroedo.skypost.BuildConfig
 import io.alvaroedo.skypost.R
 import io.alvaroedo.skypost.data.Repository
+import io.alvaroedo.skypost.radio.RadioModel
+import io.alvaroedo.skypost.ui.components.GroupLabel
 import io.alvaroedo.skypost.ui.components.LocalSnackbar
-import io.alvaroedo.skypost.ui.components.SettingRow
+import io.alvaroedo.skypost.ui.components.SettingsCard
+import io.alvaroedo.skypost.ui.components.SettingsTileRow
+import io.alvaroedo.skypost.ui.components.SubTopBar
 import io.alvaroedo.skypost.ui.components.openUrl
 import io.alvaroedo.skypost.ui.onboarding.PassphraseDialog
 import kotlinx.coroutines.launch
@@ -57,7 +60,11 @@ private val PING_CHOICES = listOf(0, 30, 60, 120)
 
 private const val SOURCE_URL = "https://code.alvaroedo.io/alvaroemtnez/Skypost"
 
-@OptIn(ExperimentalMaterial3Api::class)
+/**
+ * Settings as MeshConnect lays them out: groups of rounded cards, each row an
+ * icon disc, a title and what it is set to. Pharos and Radio open the same
+ * cards as the chat list's top bar.
+ */
 @Composable
 fun SettingsScreen(
     repo: Repository,
@@ -96,123 +103,123 @@ fun SettingsScreen(
     }
     val openDoc = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { restoreFrom = it }
 
+    val pharos by repo.pharos.collectAsStateWithLifecycle()
+    val active = pharos.firstOrNull { it.active && !it.blocked }
+    val customRadio = stringResource(R.string.radio_custom)
+
     Scaffold(
         snackbarHost = { SnackbarHost(snackbar) },
-        topBar = {
-            TopAppBar(
-                title = { Text(stringResource(R.string.settings)) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(painterResource(R.drawable.ic_arrow_back), stringResource(R.string.back))
-                    }
-                },
-            )
-        },
+        topBar = { SubTopBar(stringResource(R.string.settings), onBack) },
     ) { padding ->
-        LazyColumn(Modifier.padding(padding), contentPadding = PaddingValues(bottom = 24.dp)) {
-            item {
-                Section(R.string.settings_profile)
-                SettingRow(
-                    modifier = Modifier.clickable { editProfile = true },
-                    leadingContent = { Icon(painterResource(R.drawable.ic_person), null) },
-                    headlineContent = { Text(identity?.card?.alias.orEmpty()) },
-                    supportingContent = {
-                        Text(identity?.card?.callsign ?: stringResource(R.string.no_callsign))
-                    },
+        Column(Modifier.padding(padding).fillMaxSize().verticalScroll(rememberScrollState())) {
+            GroupLabel(stringResource(R.string.settings_profile))
+            SettingsCard {
+                SettingsTileRow(
+                    title = identity?.card?.alias.orEmpty(),
+                    subtitle = identity?.card?.callsign ?: stringResource(R.string.no_callsign),
+                    icon = R.drawable.ic_person,
+                    onClick = { editProfile = true },
                 )
-                SettingRow(
-                    modifier = Modifier.clickable(onClick = onMyCode),
-                    leadingContent = { Icon(painterResource(R.drawable.ic_qr_code), null) },
-                    headlineContent = { Text(stringResource(R.string.my_code)) },
-                    supportingContent = { Text(stringResource(R.string.my_code_settings_body)) },
+                SettingsTileRow(
+                    title = stringResource(R.string.my_code),
+                    subtitle = stringResource(R.string.my_code_settings_body),
+                    icon = R.drawable.ic_qr_code,
+                    onClick = onMyCode,
                 )
+            }
 
-                Section(R.string.settings_safety)
-                SettingRow(
-                    modifier = Modifier.clickable(onClick = onSosContacts),
-                    leadingContent = { Icon(painterResource(R.drawable.ic_sos), null) },
-                    headlineContent = { Text(stringResource(R.string.sos_contacts)) },
-                    supportingContent = {
-                        val n = settings.sosChats?.size
-                        Text(
-                            if (n == null) {
-                                stringResource(R.string.sos_contacts_auto)
-                            } else {
-                                pluralStringResource(R.plurals.sos_contacts_count, n, n)
-                            },
-                        )
+            GroupLabel(stringResource(R.string.settings_safety))
+            SettingsCard {
+                val n = settings.sosChats?.size
+                SettingsTileRow(
+                    title = stringResource(R.string.sos_contacts),
+                    subtitle = if (n == null) {
+                        stringResource(R.string.sos_contacts_auto)
+                    } else {
+                        pluralStringResource(R.plurals.sos_contacts_count, n, n)
                     },
+                    icon = R.drawable.ic_sos,
+                    onClick = onSosContacts,
                 )
-                SettingRow(
-                    modifier = Modifier.clickable {
-                        if (settings.encryptAll) repo.setEncryptAll(false) else confirmEncryptAll = true
-                    },
-                    leadingContent = { Icon(painterResource(R.drawable.ic_lock), null) },
-                    headlineContent = { Text(stringResource(R.string.encrypt_all)) },
-                    supportingContent = { Text(stringResource(R.string.encrypt_all_body)) },
-                    trailingContent = {
+                SettingsTileRow(
+                    title = stringResource(R.string.encrypt_all),
+                    subtitle = stringResource(R.string.encrypt_all_body),
+                    icon = R.drawable.ic_lock,
+                    onClick = { if (settings.encryptAll) repo.setEncryptAll(false) else confirmEncryptAll = true },
+                    trailing = {
                         Switch(
                             checked = settings.encryptAll,
                             onCheckedChange = { on -> if (on) confirmEncryptAll = true else repo.setEncryptAll(false) },
                         )
                     },
                 )
-
-                SettingRow(
-                    modifier = Modifier.clickable(onClick = onBlocked),
-                    leadingContent = { Icon(painterResource(R.drawable.ic_block), null) },
-                    headlineContent = { Text(stringResource(R.string.blocked_list)) },
-                    supportingContent = { Text(stringResource(R.string.blocked_list_body)) },
-                )
-
-                Section(R.string.pharos_title)
-                SettingRow(
-                    modifier = Modifier.clickable(onClick = onPharos),
-                    leadingContent = { Icon(painterResource(R.drawable.ic_cell_tower), null) },
-                    headlineContent = { Text(stringResource(R.string.pharos_manage)) },
-                )
-                SettingRow(
-                    modifier = Modifier.clickable { pickPing = true },
-                    leadingContent = { Icon(painterResource(R.drawable.ic_schedule), null) },
-                    headlineContent = { Text(stringResource(R.string.ping_interval)) },
-                    supportingContent = { Text(pingLabel(settings.pingIntervalMin)) },
-                )
-
-                Section(R.string.settings_radio)
-                SettingRow(
-                    modifier = Modifier.clickable(onClick = onRadio),
-                    leadingContent = { Icon(painterResource(R.drawable.ic_radio), null) },
-                    headlineContent = { Text(stringResource(R.string.settings_radio_rig)) },
-                    supportingContent = { Text(stringResource(R.string.settings_band_body)) },
-                )
-
-                Section(R.string.settings_backup)
-                SettingRow(
-                    modifier = Modifier.clickable { askExportPass = true },
-                    leadingContent = { Icon(painterResource(R.drawable.ic_backup), null) },
-                    headlineContent = { Text(stringResource(R.string.backup_export)) },
-                    supportingContent = { Text(stringResource(R.string.backup_export_body)) },
-                )
-                SettingRow(
-                    modifier = Modifier.clickable { openDoc.launch(arrayOf("*/*")) },
-                    leadingContent = { Icon(painterResource(R.drawable.ic_restore), null) },
-                    headlineContent = { Text(stringResource(R.string.backup_restore)) },
-                    supportingContent = { Text(stringResource(R.string.backup_restore_body)) },
-                )
-
-                Section(R.string.settings_about)
-                SettingRow(
-                    leadingContent = { Icon(painterResource(R.drawable.ic_info), null) },
-                    headlineContent = { Text(stringResource(R.string.app_name)) },
-                    supportingContent = { Text(stringResource(R.string.about_body, BuildConfig.VERSION_NAME)) },
-                )
-                SettingRow(
-                    modifier = Modifier.clickable { openUrl(context, SOURCE_URL) },
-                    leadingContent = { Icon(painterResource(R.drawable.ic_code), null) },
-                    headlineContent = { Text(stringResource(R.string.about_source)) },
-                    supportingContent = { Text(SOURCE_URL) },
+                SettingsTileRow(
+                    title = stringResource(R.string.blocked_list),
+                    subtitle = stringResource(R.string.blocked_list_body),
+                    icon = R.drawable.ic_block,
+                    onClick = onBlocked,
                 )
             }
+
+            GroupLabel(stringResource(R.string.settings_link))
+            SettingsCard {
+                SettingsTileRow(
+                    title = stringResource(R.string.pharos_title),
+                    subtitle = active?.let { listOfNotNull(it.card.alias, it.card.callsign).joinToString(" · ") }
+                        ?: stringResource(R.string.pharos_none),
+                    icon = R.drawable.ic_cell_tower,
+                    onClick = onPharos,
+                )
+                SettingsTileRow(
+                    title = stringResource(R.string.ping_interval),
+                    subtitle = pingLabel(settings.pingIntervalMin),
+                    icon = R.drawable.ic_schedule,
+                    onClick = { pickPing = true },
+                )
+                SettingsTileRow(
+                    title = stringResource(R.string.settings_radio),
+                    subtitle = when (settings.radio) {
+                        null -> stringResource(R.string.radio_none_chosen)
+                        RadioModel.CUSTOM -> settings.customRadio.name.ifBlank { customRadio }
+                        else -> settings.radio?.fullName
+                    },
+                    icon = R.drawable.ic_radio,
+                    onClick = onRadio,
+                )
+            }
+
+            GroupLabel(stringResource(R.string.settings_backup))
+            SettingsCard {
+                SettingsTileRow(
+                    title = stringResource(R.string.backup_export),
+                    subtitle = stringResource(R.string.backup_export_body),
+                    icon = R.drawable.ic_backup,
+                    onClick = { askExportPass = true },
+                )
+                SettingsTileRow(
+                    title = stringResource(R.string.backup_restore),
+                    subtitle = stringResource(R.string.backup_restore_body),
+                    icon = R.drawable.ic_restore,
+                    onClick = { openDoc.launch(arrayOf("*/*")) },
+                )
+            }
+
+            GroupLabel(stringResource(R.string.settings_about))
+            SettingsCard {
+                SettingsTileRow(
+                    title = stringResource(R.string.app_name),
+                    subtitle = stringResource(R.string.about_body, BuildConfig.VERSION_NAME),
+                    icon = R.drawable.ic_info,
+                    onClick = null,
+                )
+                SettingsTileRow(
+                    title = stringResource(R.string.about_source),
+                    subtitle = SOURCE_URL,
+                    icon = R.drawable.ic_code,
+                    onClick = { openUrl(context, SOURCE_URL) },
+                )
+            }
+            Spacer(Modifier.height(32.dp))
         }
     }
 
@@ -313,16 +320,6 @@ fun SettingsScreen(
 @Composable
 private fun pingLabel(min: Int): String =
     if (min == 0) stringResource(R.string.ping_off) else pluralStringResource(R.plurals.ping_every, min, min)
-
-@Composable
-private fun Section(text: Int) {
-    Text(
-        stringResource(text),
-        style = MaterialTheme.typography.titleSmall,
-        color = MaterialTheme.colorScheme.primary,
-        modifier = Modifier.padding(start = 16.dp, top = 24.dp, bottom = 8.dp),
-    )
-}
 
 @Composable
 private fun ProfileDialog(

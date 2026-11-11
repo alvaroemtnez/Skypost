@@ -1,6 +1,8 @@
 package io.alvaroedo.skypost.model
 
 import io.alvaroedo.skypost.core.Card
+import io.alvaroedo.skypost.radio.CustomRadio
+import io.alvaroedo.skypost.radio.RadioModel
 import kotlinx.serialization.Serializable
 
 /** The five kinds of conversation, in filter-chip order. */
@@ -170,7 +172,23 @@ data class Settings(
     val encryptAll: Boolean = false,
     /** Chats the SOS goes to; null = automatic (every group). */
     val sosChats: Set<String>? = null,
-)
+    /** The radio in use; null = not chosen yet. */
+    val radio: RadioModel? = null,
+    /** Its description when [radio] is [RadioModel.CUSTOM]. */
+    val customRadio: CustomRadio = CustomRadio(),
+) {
+    /**
+     * What the top bar calls the radio: "QMX+", or the custom name. Null when
+     * none is chosen, or a custom radio has no name (the UI then says "Custom"
+     * in the app's language).
+     */
+    val radioShortName: String?
+        get() = when (radio) {
+            null -> null
+            RadioModel.CUSTOM -> customRadio.name.ifBlank { null }
+            else -> radio.shortName
+        }
+}
 
 /** Something scanned, pasted or opened from a `skypost:` / `meshcore://` link. */
 sealed interface Scanned {

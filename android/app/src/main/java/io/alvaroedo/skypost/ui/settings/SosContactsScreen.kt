@@ -6,25 +6,21 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material3.Checkbox
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.alvaroedo.skypost.R
+import io.alvaroedo.skypost.ui.components.SubTopBar
 import io.alvaroedo.skypost.data.Repository
 import io.alvaroedo.skypost.model.ChatKind
 import io.alvaroedo.skypost.ui.components.Avatar
@@ -34,7 +30,6 @@ import io.alvaroedo.skypost.ui.components.label
  * Who the SOS button alerts: automatic (every group) or a chosen set of
  * chats of any kind; bridged ones go through the Pharos.
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SosContactsScreen(repo: Repository, onBack: () -> Unit) {
     val chats by repo.chats.collectAsStateWithLifecycle()
@@ -43,16 +38,7 @@ fun SosContactsScreen(repo: Repository, onBack: () -> Unit) {
     val auto = chosen == null
 
     Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text(stringResource(R.string.sos_contacts)) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(painterResource(R.drawable.ic_arrow_back), stringResource(R.string.back))
-                    }
-                },
-            )
-        },
+        topBar = { SubTopBar(stringResource(R.string.sos_contacts), onBack) },
     ) { padding ->
         LazyColumn(Modifier.padding(padding), contentPadding = PaddingValues(bottom = 24.dp)) {
             item {

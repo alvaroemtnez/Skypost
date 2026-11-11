@@ -18,7 +18,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
@@ -33,7 +32,6 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.RadioButton
 import androidx.compose.foundation.layout.size
 import androidx.compose.ui.text.TextStyle
@@ -60,6 +58,26 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.alvaroedo.skypost.R
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ListItemDefaults
+import androidx.compose.material3.Surface
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import io.alvaroedo.skypost.model.Pharos
+import io.alvaroedo.skypost.ui.components.CardSection
+import io.alvaroedo.skypost.ui.components.IconDisc
+import io.alvaroedo.skypost.ui.components.MenuAction
+import io.alvaroedo.skypost.ui.components.PanelCard
+import io.alvaroedo.skypost.ui.components.SettingsCard
+import io.alvaroedo.skypost.ui.components.SettingsTileRow
+import io.alvaroedo.skypost.ui.components.SubTopBar
+import io.alvaroedo.skypost.ui.components.heardAgo
 import io.alvaroedo.skypost.model.AdminCommand
 import io.alvaroedo.skypost.model.AdminEntry
 import io.alvaroedo.skypost.model.Party
@@ -89,7 +107,6 @@ private data class Ask(
 )
 
 /** Gear beside the active Pharos: quick remote management (decision 0021). */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PharosAdminScreen(vm: PharosAdminViewModel, onBack: () -> Unit) {
     val ui by vm.ui.collectAsStateWithLifecycle()
@@ -124,50 +141,72 @@ fun PharosAdminScreen(vm: PharosAdminViewModel, onBack: () -> Unit) {
         if (vm.needsWarning(c)) warnFor = { call = vm.send(c) } else call = vm.send(c)
     }
 
+    val open: (AdminList) -> Unit = { l ->
+        if (vm.needsWarning(l.command)) {
+            warnFor = { list = l; vm.send(l.command) }
+        } else {
+            list = l
+            vm.send(l.command)
+        }
+    }
+    val admin = p?.admin == true
+
     Scaffold(
         snackbarHost = { SnackbarHost(snackbar) },
         topBar = {
-            TopAppBar(
-                title = { Text(stringResource(R.string.admin_title, p?.card?.alias.orEmpty())) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(painterResource(R.drawable.ic_arrow_back), stringResource(R.string.back))
+            SubTopBar(
+                title = stringResource(R.string.admin_title, p?.card?.alias.orEmpty()),
+                subtitle = p?.card?.callsign,
+                onBack = onBack,
+                menu = buildList {
+                    if (admin) {
+                        add(MenuAction(stringResource(R.string.admin_refresh), R.drawable.ic_refresh) { vm.send(AdminCommand.Status) })
+                    } else if (ui.encryptAll) {
+                        add(MenuAction(stringResource(R.string.admin_sign_in), R.drawable.ic_login) { login = true })
                     }
                 },
             )
         },
     ) { padding ->
-        LazyColumn(Modifier.padding(padding), contentPadding = PaddingValues(bottom = 24.dp)) {
-            item {
-                RoleCard(admin = p?.admin == true, encryptAll = ui.encryptAll, onSignIn = { login = true })
-            }
-            if (p?.admin == true) {
-                item {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Header(R.string.admin_switches, Modifier.weight(1f))
-                        IconButton(onClick = { vm.send(AdminCommand.Status) }) {
-                            Icon(painterResource(R.drawable.ic_refresh), stringResource(R.string.admin_refresh))
+        Column(
+            Modifier.padding(padding).fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Spacer(Modifier.height(4.dp))
+            IdentityCard(p, admin)
+            if (!admin) {
+                PanelCard(stringResource(R.string.admin_not), R.drawable.ic_admin) {
+                    Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Text(stringResource(if (ui.encryptAll) R.string.admin_sign_in_body else R.string.admin_sign_in_plain))
+                        Button(onClick = { login = true }, enabled = ui.encryptAll) {
+                            Icon(painterResource(R.drawable.ic_login), null)
+                            Text(stringResource(R.string.admin_sign_in), Modifier.padding(start = 8.dp))
                         }
                     }
                 }
-                item {
+            } else {
+                SettingsCard(inset = 0.dp) {
+                    SettingsTileRow(
+                        title = stringResource(R.string.admin_status),
+                        subtitle = stringResource(R.string.admin_status_body),
+                        icon = R.drawable.ic_info,
+                        onClick = { run(AdminCommand.Status) },
+                    )
+                }
+                CardSection(
+                    title = stringResource(R.string.admin_switches),
+                    subtitle = ui.switches?.let { on ->
+                        PharosSwitch.entries.filter { it in on }.map { stringResource(it.title()) }.joinToString(" · ")
+                            .ifEmpty { stringResource(R.string.admin_switches_none) }
+                    } ?: stringResource(R.string.admin_switches_unknown),
+                    icon = R.drawable.ic_tune,
+                    initiallyExpanded = true,
+                ) {
                     // The refresh's feedback: between the title and the switches.
                     if (ui.statusLoading) LinearProgressIndicator(Modifier.fillMaxWidth().padding(horizontal = 16.dp))
                     Switches(ui.switches) { s, on -> confirmSwitch = s to on }
                 }
-                item {
-                    Header(R.string.admin_commands)
-                    val open: (AdminList) -> Unit = { l ->
-                        if (vm.needsWarning(l.command)) {
-                            warnFor = { list = l; vm.send(l.command) }
-                        } else {
-                            list = l
-                            vm.send(l.command)
-                        }
-                    }
-                    Command(R.drawable.ic_info, R.string.admin_status, R.string.admin_status_body) {
-                        run(AdminCommand.Status)
-                    }
+                CardSection(stringResource(R.string.admin_people), stringResource(R.string.admin_people_body), R.drawable.ic_group) {
                     Command(R.drawable.ic_group, R.string.admin_clients, R.string.admin_clients_body) { open(AdminList.USERS) }
                     Command(R.drawable.ic_person_add, R.string.admin_requests, R.string.admin_requests_body) {
                         if (vm.needsWarning(AdminCommand.Requests)) {
@@ -184,29 +223,38 @@ fun PharosAdminScreen(vm: PharosAdminViewModel, onBack: () -> Unit) {
                             listOf(R.string.admin_allow_action to { t -> (t as? AdminTarget.Contact)?.let { AdminCommand.Allow(it) } }),
                         )
                     }
+                }
+                CardSection(stringResource(R.string.admin_blocked), stringResource(R.string.admin_blocking_body), R.drawable.ic_block) {
                     Command(R.drawable.ic_block, R.string.admin_blocked, R.string.admin_blocked_body) { open(AdminList.BLOCKED) }
                     Command(R.drawable.ic_add_circle, R.string.admin_block, R.string.admin_block_body) {
                         ask = Ask(R.string.admin_block, anyone, listOf(R.string.block to { t -> AdminCommand.Block(t, true) }))
                     }
+                }
+                CardSection(stringResource(R.string.admin_admins), stringResource(R.string.admin_admins_section_body), R.drawable.ic_admin) {
                     Command(R.drawable.ic_admin, R.string.admin_admins, R.string.admin_admins_body) { open(AdminList.ADMINS) }
                     Command(R.drawable.ic_add_moderator, R.string.admin_add, R.string.admin_add_body) {
                         ask = Ask(R.string.admin_add, anyone, listOf(R.string.admin_add_action to { t -> AdminCommand.AddAdmin(t) }))
                     }
                 }
             }
-            item { Header(R.string.admin_replies) }
-            if (ui.log.isEmpty()) {
-                item { ListItem(headlineContent = { Text(stringResource(R.string.admin_replies_empty)) }) }
+            PanelCard(stringResource(R.string.admin_replies), R.drawable.ic_chat) {
+                if (ui.log.isEmpty()) {
+                    Text(
+                        stringResource(R.string.admin_replies_empty),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                    )
+                }
+                ui.log.forEach { LogEntry(it) }
             }
-            items(ui.log, key = { it.id }) { LogEntry(it) }
-            item {
-                Text(
-                    stringResource(R.string.admin_ssh_note),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(16.dp),
-                )
-            }
+            Text(
+                stringResource(R.string.admin_ssh_note),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 8.dp),
+            )
+            Spacer(Modifier.height(24.dp))
         }
     }
 
@@ -394,37 +442,53 @@ fun PharosAdminScreen(vm: PharosAdminViewModel, onBack: () -> Unit) {
     }
 }
 
+/**
+ * Which Pharos and what we may do on it, at the top (MeshConnect's repeater
+ * identity card with its grant chip).
+ */
 @Composable
-private fun RoleCard(admin: Boolean, encryptAll: Boolean, onSignIn: () -> Unit) {
-    ElevatedCard(Modifier.fillMaxWidth().padding(16.dp)) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Icon(painterResource(R.drawable.ic_admin), null, tint = MaterialTheme.colorScheme.primary)
+private fun IdentityCard(p: Pharos?, admin: Boolean) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+    ) {
+        Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+            IconDisc(R.drawable.ic_cell_tower, size = 48.dp, highlighted = true)
+            Spacer(Modifier.width(16.dp))
+            Column(Modifier.weight(1f)) {
                 Text(
-                    stringResource(if (admin) R.string.admin_you_are else R.string.admin_not),
+                    p?.card?.alias.orEmpty(),
                     style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
-            }
-            if (!admin) {
-                Text(stringResource(if (encryptAll) R.string.admin_sign_in_body else R.string.admin_sign_in_plain))
-                Button(onClick = onSignIn, enabled = encryptAll) {
-                    Icon(painterResource(R.drawable.ic_login), null)
-                    Text(stringResource(R.string.admin_sign_in), Modifier.padding(start = 8.dp))
+                p?.card?.callsign?.let {
+                    Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
+                p?.let {
+                    Text(heardAgo(it.lastHeardMillis), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+            Spacer(Modifier.width(8.dp))
+            Surface(
+                shape = CircleShape,
+                color = if (admin) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondaryContainer,
+            ) {
+                Text(
+                    stringResource(if (admin) R.string.grant_admin else R.string.grant_user),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = if (admin) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSecondaryContainer,
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                )
             }
         }
     }
 }
 
+/** Rows inside a card sit on its colour. */
 @Composable
-private fun Header(text: Int, modifier: Modifier = Modifier) {
-    Text(
-        stringResource(text),
-        style = MaterialTheme.typography.titleSmall,
-        color = MaterialTheme.colorScheme.primary,
-        modifier = modifier.padding(start = 16.dp, top = 16.dp, bottom = 8.dp),
-    )
-}
+private fun clear() = ListItemDefaults.colors(containerColor = Color.Transparent)
 
 /** A command: the icon stays centred on the title and subtitle, however many lines. */
 @Composable
@@ -470,13 +534,14 @@ private fun PharosSwitch.body(): Int = when (this) {
 @Composable
 private fun Switches(known: Set<PharosSwitch>?, onFlip: (PharosSwitch, Boolean) -> Unit) {
     if (known == null) {
-        ListItem(headlineContent = { Text(stringResource(R.string.admin_switches_unknown)) })
+        ListItem(headlineContent = { Text(stringResource(R.string.admin_switches_unknown)) }, colors = clear())
         return
     }
     Column {
         PharosSwitch.entries.forEach { s ->
             val on = s in known
             ListItem(
+                colors = clear(),
                 modifier = Modifier.clickable { onFlip(s, !on) },
                 headlineContent = { Text(stringResource(s.title())) },
                 supportingContent = { Text(stringResource(s.body())) },
@@ -634,6 +699,7 @@ private fun AdminReply.shown(): String = when (this) {
 @Composable
 private fun LogEntry(e: AdminEntry) {
     ListItem(
+        colors = clear(),
         overlineContent = { Text(shortTime(e.atMillis)) },
         headlineContent = { Text(e.command.shown()) },
         supportingContent = {

@@ -1,5 +1,7 @@
 package io.alvaroedo.skypost.data
 
+import io.alvaroedo.skypost.radio.CustomRadio
+import io.alvaroedo.skypost.radio.RadioModel
 import io.alvaroedo.skypost.core.Card
 import io.alvaroedo.skypost.model.AdminCommand
 import io.alvaroedo.skypost.model.AdminEntry
@@ -209,6 +211,9 @@ interface Repository {
     suspend fun ping(): Boolean
 
     fun setPingInterval(minutes: Int)
+
+    /** The radio in use, and its description if it is a custom one. */
+    fun setRadio(model: RadioModel?, custom: CustomRadio)
 
     /** Passphrase-encrypted backup of identity, contacts, groups, Pharos list and settings. */
     suspend fun exportBackup(passphrase: String): ByteArray

@@ -15,8 +15,8 @@ Kotlin + Jetpack Compose Material 3. Package `io.alvaroedo.skypost`, min SDK 26.
 - Colours: never hard-code; use `MaterialTheme.colorScheme`. The pre-12
   palette is generated (`scripts/gen_colors.py`), do not edit `Color.kt`.
   The only hand-picked colours are `ui/theme/ExtraColors.kt`
-  (`MaterialTheme.extraColors`): emergency red, the SNR traffic light and
-  the Signal/WhatsApp/MeshCore badge colours.
+  (`MaterialTheme.extraColors`): emergency red and the
+  Signal/WhatsApp/MeshCore badge colours.
 - Icons: Material Symbols vector drawables in `res/drawable`, not material-icons.
   Add them to `scripts/gen_icons.py` and run it; lint fails on unused ones.
 - Edge-to-edge is on: pad with window insets.
@@ -24,6 +24,11 @@ Kotlin + Jetpack Compose Material 3. Package `io.alvaroedo.skypost`, min SDK 26.
 - `./build.sh test` must stay at zero lint warnings.
 - UI (decision 0017): `ui/onboarding`, `ui/chats`, `ui/chat`, `ui/newchat`,
   `ui/pharos`, `ui/identity`, `ui/settings`, shared bits in `ui/components`.
+  Look and patterns follow MeshConnect (decision 0023): reuse
+  `ui/components` (`SubTopBar`, `SkyDropdownMenu`/`MenuRow`, `SettingsCard`,
+  `CardSection`, `QuickAction`, `InfoTile`, `SwipeRow`) rather than stock
+  `TopAppBar`/`DropdownMenu`. Pharos, radio and new chat are bottom sheets
+  held in `MainActivity` (`AppSheet`); QR codes are `QrDialog` popups.
   Each screen takes its ViewModel; `AppViewModel` holds the identity gate and
   pending imports.
 - `data/Repository.kt` is all the UI talks to; `FakeRepository` until phase 2.
