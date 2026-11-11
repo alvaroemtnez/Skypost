@@ -20,7 +20,10 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.foundation.text.BasicText
+import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -34,6 +37,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.takeOrElse
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
@@ -41,6 +45,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import io.alvaroedo.skypost.R
 
 /*
@@ -257,6 +262,8 @@ fun InfoTile(
     modifier: Modifier = Modifier,
     mono: Boolean = false,
     valueColor: Color = Color.Unspecified,
+    /** Keep the value on one line, shrinking the text if it has to. */
+    fit: Boolean = false,
     leading: (@Composable () -> Unit)? = null,
 ) {
     Surface(
@@ -278,12 +285,23 @@ fun InfoTile(
                         it()
                         Spacer(Modifier.width(8.dp))
                     }
-                    Text(
-                        value,
-                        style = if (mono) MaterialTheme.typography.bodyMedium else MaterialTheme.typography.titleMedium,
-                        fontFamily = if (mono) FontFamily.Monospace else null,
-                        color = valueColor,
-                    )
+                    val style = if (mono) MaterialTheme.typography.bodyMedium else MaterialTheme.typography.titleMedium
+                    if (fit) {
+                        BasicText(
+                            value,
+                            style = style.copy(color = valueColor.takeOrElse { LocalContentColor.current }),
+                            maxLines = 1,
+                            softWrap = false,
+                            autoSize = TextAutoSize.StepBased(minFontSize = 10.sp, maxFontSize = style.fontSize),
+                        )
+                    } else {
+                        Text(
+                            value,
+                            style = style,
+                            fontFamily = if (mono) FontFamily.Monospace else null,
+                            color = valueColor,
+                        )
+                    }
                 }
             }
         }

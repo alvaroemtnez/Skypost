@@ -52,6 +52,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -63,6 +64,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Card
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.Surface
@@ -74,8 +76,6 @@ import io.alvaroedo.skypost.ui.components.CardSection
 import io.alvaroedo.skypost.ui.components.IconDisc
 import io.alvaroedo.skypost.ui.components.MenuAction
 import io.alvaroedo.skypost.ui.components.PanelCard
-import io.alvaroedo.skypost.ui.components.SettingsCard
-import io.alvaroedo.skypost.ui.components.SettingsTileRow
 import io.alvaroedo.skypost.ui.components.SubTopBar
 import io.alvaroedo.skypost.ui.components.heardAgo
 import io.alvaroedo.skypost.model.AdminCommand
@@ -159,9 +159,7 @@ fun PharosAdminScreen(vm: PharosAdminViewModel, onBack: () -> Unit) {
                 subtitle = p?.card?.callsign,
                 onBack = onBack,
                 menu = buildList {
-                    if (admin) {
-                        add(MenuAction(stringResource(R.string.admin_refresh), R.drawable.ic_refresh) { vm.send(AdminCommand.Status) })
-                    } else if (ui.encryptAll) {
+                    if (!admin && ui.encryptAll) {
                         add(MenuAction(stringResource(R.string.admin_sign_in), R.drawable.ic_login) { login = true })
                     }
                 },
@@ -185,26 +183,27 @@ fun PharosAdminScreen(vm: PharosAdminViewModel, onBack: () -> Unit) {
                     }
                 }
             } else {
-                SettingsCard(inset = 0.dp) {
-                    SettingsTileRow(
-                        title = stringResource(R.string.admin_status),
-                        subtitle = stringResource(R.string.admin_status_body),
-                        icon = R.drawable.ic_info,
-                        onClick = { run(AdminCommand.Status) },
-                    )
+                // Status and switches come from the same command: opening either asks the
+                // Pharos (MeshConnect's repeater settings), Update asks again.
+                val askStatus: () -> Unit = {
+                    if (vm.needsWarning(AdminCommand.Status)) warnFor = { vm.send(AdminCommand.Status) } else vm.send(AdminCommand.Status)
+                }
+                CardSection(stringResource(R.string.admin_status), stringResource(R.string.admin_status_body), R.drawable.ic_info) {
+                    AskedOnOpen(loading = ui.statusLoading, hasAnswer = ui.status != null, onAsk = askStatus) {
+                        ui.status?.let { StatusBody(it, withSwitches = false) }
+                    }
                 }
                 CardSection(
                     title = stringResource(R.string.admin_switches),
                     subtitle = ui.switches?.let { on ->
                         PharosSwitch.entries.filter { it in on }.map { stringResource(it.title()) }.joinToString(" · ")
                             .ifEmpty { stringResource(R.string.admin_switches_none) }
-                    } ?: stringResource(R.string.admin_switches_unknown),
+                    } ?: stringResource(R.string.admin_switches_body),
                     icon = R.drawable.ic_tune,
-                    initiallyExpanded = true,
                 ) {
-                    // The refresh's feedback: between the title and the switches.
-                    if (ui.statusLoading) LinearProgressIndicator(Modifier.fillMaxWidth().padding(horizontal = 16.dp))
-                    Switches(ui.switches) { s, on -> confirmSwitch = s to on }
+                    AskedOnOpen(loading = ui.statusLoading, hasAnswer = ui.switches != null, onAsk = askStatus, padded = false) {
+                        Switches(ui.switches) { s, on -> confirmSwitch = s to on }
+                    }
                 }
                 CardSection(stringResource(R.string.admin_people), stringResource(R.string.admin_people_body), R.drawable.ic_group) {
                     Command(R.drawable.ic_group, R.string.admin_clients, R.string.admin_clients_body) { open(AdminList.USERS) }
@@ -237,7 +236,12 @@ fun PharosAdminScreen(vm: PharosAdminViewModel, onBack: () -> Unit) {
                     }
                 }
             }
-            PanelCard(stringResource(R.string.admin_replies), R.drawable.ic_chat) {
+            // Folded: the raw replies are for checking what went over the air.
+            CardSection(
+                stringResource(R.string.admin_replies),
+                pluralStringResource(R.plurals.admin_replies_count, ui.log.size, ui.log.size),
+                R.drawable.ic_chat,
+            ) {
                 if (ui.log.isEmpty()) {
                     Text(
                         stringResource(R.string.admin_replies_empty),
@@ -481,6 +485,57 @@ private fun IdentityCard(p: Pharos?, admin: Boolean) {
                     color = if (admin) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSecondaryContainer,
                     modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
                 )
+            }
+        }
+    }
+}
+
+/**
+ * A card section filled by asking the Pharos: it asks when opened (composed
+ * only while open), shows the last answer, says when it is waiting or the
+ * answer is late, and ends with Update to ask again.
+ */
+@Composable
+private fun AskedOnOpen(
+    loading: Boolean,
+    hasAnswer: Boolean,
+    onAsk: () -> Unit,
+    padded: Boolean = true,
+    content: @Composable () -> Unit,
+) {
+    LaunchedEffect(Unit) { if (!loading) onAsk() }
+    var late by remember { mutableStateOf(false) }
+    LaunchedEffect(loading) {
+        late = false
+        if (loading) {
+            delay(PharosAdminViewModel.REPLY_TIMEOUT_MS)
+            late = true
+        }
+    }
+    val side = if (padded) 16.dp else 0.dp
+    Column(Modifier.padding(horizontal = side)) { if (hasAnswer) content() }
+    Column(Modifier.padding(horizontal = 16.dp)) {
+        when {
+            loading && late -> Text(
+                stringResource(R.string.admin_timeout),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.error,
+                modifier = Modifier.padding(vertical = 8.dp),
+            )
+            loading -> Row(Modifier.padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+                Text(
+                    stringResource(R.string.admin_waiting),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(start = 12.dp),
+                )
+            }
+        }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+            TextButton(onClick = onAsk, enabled = !loading || late) {
+                Icon(painterResource(R.drawable.ic_refresh), null, Modifier.size(18.dp))
+                Text(stringResource(R.string.admin_update), Modifier.padding(start = 6.dp))
             }
         }
     }
@@ -784,7 +839,7 @@ private fun Waiting() {
 
 /** The status as label and value rows, then each switch on or off. */
 @Composable
-private fun StatusBody(r: AdminReply.Status) {
+private fun StatusBody(r: AdminReply.Status, withSwitches: Boolean = true) {
     val rows = listOf(
         R.string.status_registered to r.registered,
         R.string.status_requests to r.requests,
@@ -798,6 +853,7 @@ private fun StatusBody(r: AdminReply.Status) {
             Text(value.toString(), style = MaterialTheme.typography.titleMedium)
         }
     }
+    if (!withSwitches) return
     HorizontalDivider(Modifier.padding(vertical = 8.dp))
     PharosSwitch.entries.forEach { s ->
         val on = s in r.switches

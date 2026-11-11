@@ -1,6 +1,8 @@
 package io.alvaroedo.skypost.ui.chats
 
 import androidx.lifecycle.ViewModel
+import java.text.Normalizer
+import java.util.Locale
 import androidx.lifecycle.viewModelScope
 import io.alvaroedo.skypost.data.Repository
 import io.alvaroedo.skypost.model.Chat
@@ -37,13 +39,21 @@ data class ChatListUi(
     val radioCustom: Boolean = false,
 )
 
+private val marks = Regex("\\p{Mn}+")
+
+/**
+ * Text for searching: lower case, accents and other marks dropped ("Góriz" →
+ * "goriz", "Àlvar" → "alvar", "ñ" → "n"), so a search typed without them still
+ * finds it, as people do on a phone keyboard.
+ */
+internal fun searchKey(text: String): String =
+    Normalizer.normalize(text, Normalizer.Form.NFD).replace(marks, "").lowercase(Locale.ROOT)
+
 /** A chat matches a search by its name, its detail (callsign, number) or its last message. */
 internal fun Chat.matches(query: String): Boolean {
-    val q = query.trim()
+    val q = searchKey(query.trim())
     if (q.isEmpty()) return true
-    return title.contains(q, ignoreCase = true) ||
-        detail?.contains(q, ignoreCase = true) == true ||
-        last?.text?.contains(q, ignoreCase = true) == true
+    return listOfNotNull(title, detail, last?.text).any { searchKey(it).contains(q) }
 }
 
 /** Pinned first (in the order they were pinned), then the most recent. */

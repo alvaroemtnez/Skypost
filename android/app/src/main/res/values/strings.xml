@@ -198,7 +198,7 @@
     <string name="admin_sign_in_sent">Password sent, encrypted</string>
     <string name="admin_password">Admin password</string>
     <string name="admin_status">Status</string>
-    <string name="admin_status_body">Switches, users, requests and queued messages</string>
+    <string name="admin_status_body">Users, requests and queued messages</string>
     <string name="admin_clients">Users</string>
     <string name="admin_clients_body">Radio users of this Pharos, and when they were last heard</string>
     <string name="admin_accept">Accept</string>
@@ -303,7 +303,6 @@
     <string name="switch_requests">Access requests</string>
     <string name="switch_open_body">Anyone can use it. Off: only registered users and accepted contacts</string>
     <string name="switch_open">Open to anyone</string>
-    <string name="admin_refresh">Ask the Pharos</string>
     <string name="admin_switches_unknown">Not known yet: ask the Pharos with the refresh button.</string>
     <string name="admin_switches">Switches</string>
     <string name="have_code">I have a code</string>
@@ -393,6 +392,11 @@
     <string name="cat_civ">Icom CI-V</string>
     <string name="grant_admin">Admin</string>
     <string name="grant_user">User</string>
+    <string name="admin_update">Update</string>
+    <string name="admin_switches_body">Who may use it, emergency and stealth</string>
+    <string name="registration_pending_short">Awaiting approval</string>
+    <string name="registration_refused_short">Refused</string>
+    <string name="registration_needs_code_short">Needs a code</string>
     <string name="admin_switches_none">All off</string>
     <string name="admin_people">People</string>
     <string name="admin_people_body">Users, access requests, allowed contacts</string>
@@ -401,6 +405,10 @@
     <string name="settings_about">About</string>
     <string name="about_body">Version %1$s. HF radio messaging for everyone.</string>
     <string name="about_source">Source code</string>
+    <plurals name="admin_replies_count">
+        <item quantity="one">%d command sent</item>
+        <item quantity="other">%d commands sent</item>
+    </plurals>
     <plurals name="chats_delete_title">
         <item quantity="one">Delete %d chat?</item>
         <item quantity="other">Delete %d chats?</item>

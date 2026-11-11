@@ -26,6 +26,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Badge
@@ -46,7 +47,6 @@ import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -58,7 +58,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.graphics.rememberGraphicsLayer
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -89,6 +90,9 @@ import io.alvaroedo.skypost.ui.components.SkyDropdownMenu
 import io.alvaroedo.skypost.ui.components.SosButton
 import io.alvaroedo.skypost.ui.components.SwipeRow
 import io.alvaroedo.skypost.ui.components.TopBarSearch
+import io.alvaroedo.skypost.ui.components.clearBarColors
+import io.alvaroedo.skypost.ui.components.frostSource
+import io.alvaroedo.skypost.ui.components.frostedBehind
 import io.alvaroedo.skypost.ui.components.label
 import io.alvaroedo.skypost.ui.components.rememberWithLocation
 import io.alvaroedo.skypost.ui.components.shortTime
@@ -130,7 +134,14 @@ fun ChatListScreen(
     LaunchedEffect(query) { vm.setQuery(query) }
     val snackbar = LocalSnackbar.current
     val scope = rememberCoroutineScope()
-    val scroll = TopAppBarDefaults.enterAlwaysScrollBehavior()
+    // The bar stays; the list scrolls under it and the bar frosts (Signal's way).
+    val listState = rememberLazyListState()
+    val frost = rememberGraphicsLayer()
+    val frostRamp = with(LocalDensity.current) { 32.dp.toPx() }
+    val frostProgress = {
+        if (listState.firstVisibleItemIndex > 0) 1f else listState.firstVisibleItemScrollOffset / frostRamp
+    }
+    val barModifier = Modifier.frostedBehind(frost, frostProgress)
     val sosSent = stringResource(R.string.sos_sent)
     val sosNowhere = stringResource(R.string.sos_nowhere)
     val sosNoPosition = stringResource(R.string.sos_sent_no_position)
@@ -164,17 +175,16 @@ fun ChatListScreen(
     )
 
     Scaffold(
-        modifier = Modifier.nestedScroll(scroll.nestedScrollConnection),
         snackbarHost = { SnackbarHost(snackbar) },
         topBar = {
             if (selecting) {
-                SelectionBar(ui, vm, onPin = pin, onDelete = { confirmDelete = it })
+                SelectionBar(ui, vm, onPin = pin, onDelete = { confirmDelete = it }, modifier = barModifier)
             } else {
                 MainTopBar(
                     title = { Text(stringResource(if (archived) R.string.archived_chats else R.string.app_name)) },
                     search = search,
                     searchIconEndDp = if (archived) 28f else 76f,
-                    scrollBehavior = scroll,
+                    modifier = barModifier,
                     navigationIcon = {
                         if (archived) {
                             IconButton(onClick = onBack) {
@@ -215,9 +225,12 @@ fun ChatListScreen(
             }
         },
     ) { padding ->
-        Column(Modifier.padding(padding).fillMaxSize()) {
-            if (!archived) FilterRow(ui.filter, ui.counts, vm::setFilter)
-            if (ui.chats.isEmpty() && (archived || ui.archivedCount == 0 || ui.query.isNotBlank())) {
+        // Full height, under the bar: the top padding goes inside the list so rows can pass beneath it.
+        val top = padding.calculateTopPadding()
+        val bottom = padding.calculateBottomPadding()
+        if (ui.chats.isEmpty() && (archived || ui.archivedCount == 0 || ui.query.isNotBlank())) {
+            Column(Modifier.padding(padding).fillMaxSize()) {
+                if (!archived) FilterRow(ui.filter, ui.counts, vm::setFilter)
                 EmptyChats(
                     when {
                         ui.query.isNotBlank() -> R.string.search_no_chats
@@ -227,45 +240,50 @@ fun ChatListScreen(
                     showNewChat = ui.filter == null && !archived && ui.query.isBlank(),
                     onNewChat = onNewChat,
                 )
-            } else {
-                // Room at the bottom so the new-chat and SOS buttons never hide the last row.
-                LazyColumn(contentPadding = PaddingValues(bottom = 168.dp)) {
-                    items(ui.chats, key = { it.id }) { chat ->
-                        val unread = chat.markedUnread || chat.unread > 0
-                        SwipeRow(
-                            // Right: read/unread. Left: archive/unarchive (MeshConnect's pair).
-                            onStartSwipe = { vm.setMarkedUnread(setOf(chat.id), !unread) },
-                            onEndSwipe = { vm.setArchived(setOf(chat.id), !chat.archived) },
-                            startIcon = if (unread) R.drawable.ic_mark_read else R.drawable.ic_mark_unread,
-                            endIcon = if (chat.archived) R.drawable.ic_unarchive else R.drawable.ic_archive,
-                            enabled = !selecting,
-                        ) {
-                            ChatRow(
-                                chat = chat,
-                                selecting = selecting,
-                                selected = chat.id in ui.selected,
-                                onClick = { if (selecting) vm.toggleSelected(chat.id) else onOpenChat(chat.id) },
-                                onToggleSelected = { vm.toggleSelected(chat.id) },
-                                onArchive = { vm.setArchived(setOf(chat.id), !chat.archived) },
-                                onDelete = { confirmDelete = setOf(chat.id) },
-                                onUnread = { vm.setMarkedUnread(setOf(chat.id), !unread) },
-                                onPin = { pin(chat) },
-                                onSelect = { vm.toggleSelected(chat.id) },
-                                onBlock = { vm.setBlocked(chat.id, !chat.blocked) },
-                            )
-                        }
+            }
+        } else {
+            // Room at the bottom so the new-chat and SOS buttons never hide the last row.
+            LazyColumn(
+                state = listState,
+                contentPadding = PaddingValues(top = top, bottom = bottom + 168.dp),
+                modifier = Modifier.fillMaxSize().frostSource(frost),
+            ) {
+                if (!archived) item(key = "filters") { FilterRow(ui.filter, ui.counts, vm::setFilter) }
+                items(ui.chats, key = { it.id }) { chat ->
+                    val unread = chat.markedUnread || chat.unread > 0
+                    SwipeRow(
+                        // Right: read/unread. Left: archive/unarchive (MeshConnect's pair).
+                        onStartSwipe = { vm.setMarkedUnread(setOf(chat.id), !unread) },
+                        onEndSwipe = { vm.setArchived(setOf(chat.id), !chat.archived) },
+                        startIcon = if (unread) R.drawable.ic_mark_read else R.drawable.ic_mark_unread,
+                        endIcon = if (chat.archived) R.drawable.ic_unarchive else R.drawable.ic_archive,
+                        enabled = !selecting,
+                    ) {
+                        ChatRow(
+                            chat = chat,
+                            selecting = selecting,
+                            selected = chat.id in ui.selected,
+                            onClick = { if (selecting) vm.toggleSelected(chat.id) else onOpenChat(chat.id) },
+                            onToggleSelected = { vm.toggleSelected(chat.id) },
+                            onArchive = { vm.setArchived(setOf(chat.id), !chat.archived) },
+                            onDelete = { confirmDelete = setOf(chat.id) },
+                            onUnread = { vm.setMarkedUnread(setOf(chat.id), !unread) },
+                            onPin = { pin(chat) },
+                            onSelect = { vm.toggleSelected(chat.id) },
+                            onBlock = { vm.setBlocked(chat.id, !chat.blocked) },
+                        )
                     }
-                    if (!archived && ui.archivedCount > 0 && ui.query.isBlank()) {
-                        item(key = "archived") {
-                            ListItem(
-                                modifier = Modifier.clickable(onClick = onArchived),
-                                leadingContent = { Icon(painterResource(R.drawable.ic_archive), null) },
-                                headlineContent = { Text(stringResource(R.string.archived_count, ui.archivedCount)) },
-                                trailingContent = {
-                                    if (ui.archivedUnread) UnreadDot()
-                                },
-                            )
-                        }
+                }
+                if (!archived && ui.archivedCount > 0 && ui.query.isBlank()) {
+                    item(key = "archived") {
+                        ListItem(
+                            modifier = Modifier.clickable(onClick = onArchived),
+                            leadingContent = { Icon(painterResource(R.drawable.ic_archive), null) },
+                            headlineContent = { Text(stringResource(R.string.archived_count, ui.archivedCount)) },
+                            trailingContent = {
+                                if (ui.archivedUnread) UnreadDot()
+                            },
+                        )
                     }
                 }
             }
@@ -344,11 +362,19 @@ fun ChatListScreen(
 /** Contextual top bar while chats are selected. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun SelectionBar(ui: ChatListUi, vm: ChatListViewModel, onPin: (Chat) -> Unit, onDelete: (Set<String>) -> Unit) {
+private fun SelectionBar(
+    ui: ChatListUi,
+    vm: ChatListViewModel,
+    onPin: (Chat) -> Unit,
+    onDelete: (Set<String>) -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val chosen = ui.chats.filter { it.id in ui.selected }
     val allUnread = chosen.all { it.markedUnread || it.unread > 0 }
     val allArchived = chosen.all { it.archived }
     TopAppBar(
+        modifier = modifier,
+        colors = clearBarColors(),
         navigationIcon = {
             IconButton(onClick = vm::clearSelection) {
                 Icon(painterResource(R.drawable.ic_close), stringResource(R.string.cancel))

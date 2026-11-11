@@ -28,6 +28,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -231,7 +232,7 @@ private fun ActivePart(
     Row(Modifier.fillMaxWidth().padding(top = 16.dp)) {
         QuickAction(R.drawable.ic_sensors, stringResource(if (pinging) R.string.pinging else R.string.ping_short), enabled = !pinging, onClick = onPing)
         // Manage is the one that leads to a whole screen: filled, so it stands out.
-        QuickAction(R.drawable.ic_settings, stringResource(R.string.manage), on = true, onClick = onAdmin)
+        QuickAction(R.drawable.ic_tune, stringResource(R.string.manage), on = true, onClick = onAdmin)
         QuickAction(R.drawable.ic_qr_code, stringResource(R.string.qr_short), onClick = onShowCode)
         QuickAction(R.drawable.ic_verified, stringResource(R.string.verify_short), on = false, onClick = onDetails)
     }
@@ -244,25 +245,28 @@ private fun ActivePart(
         )
     }
     Spacer(Modifier.height(12.dp))
+    // Two short facts side by side; the bridges, which run long, get a line of their own.
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         InfoTile(
             stringResource(R.string.pharos_hears_you),
             snr?.let { stringResource(R.string.db_value, it) } ?: stringResource(R.string.pharos_not_heard),
             Modifier.weight(1f),
+            fit = true,
             leading = { SignalBars(pharosBars(snr), live = snr != null) },
         )
         InfoTile(
-            stringResource(R.string.pharos_bridges),
-            p.bridges.sortedBy { it.ordinal }.map { stringResource(it.label()) }.joinToString(" · ").ifEmpty { "—" },
+            stringResource(R.string.pharos_registration),
+            stringResource(p.registration.shortLabel()),
             Modifier.weight(1f),
+            fit = true,
+            valueColor = if (p.registration == Registration.REFUSED) MaterialTheme.colorScheme.error else Color.Unspecified,
         )
     }
     Spacer(Modifier.height(8.dp))
     InfoTile(
-        stringResource(R.string.pharos_registration),
-        stringResource(p.registration.label()),
+        stringResource(R.string.pharos_bridges),
+        p.bridges.sortedBy { it.ordinal }.map { stringResource(it.label()) }.joinToString(" · ").ifEmpty { "—" },
         Modifier.fillMaxWidth(),
-        valueColor = if (p.registration == Registration.REFUSED) MaterialTheme.colorScheme.error else androidx.compose.ui.graphics.Color.Unspecified,
     )
     if (p.registration == Registration.NEEDS_CODE) {
         SheetActionRow(R.drawable.ic_key, stringResource(R.string.access_code_enter), onClick = onEnterCode)
@@ -339,6 +343,15 @@ private fun PharosAccess.label(): Int = when {
     requests -> R.string.pharos_access_requests
     code -> R.string.pharos_access_code
     else -> R.string.pharos_access_closed
+}
+
+/** The registration in a few words, for the card's tile. */
+private fun Registration.shortLabel(): Int = when (this) {
+    Registration.REGISTERED -> R.string.registration_ok
+    Registration.PENDING -> R.string.registration_pending_short
+    Registration.REFUSED -> R.string.registration_refused_short
+    Registration.NEEDS_CODE -> R.string.registration_needs_code_short
+    Registration.NOT_REGISTERED -> R.string.registration_none
 }
 
 private fun Registration.label(): Int = when (this) {

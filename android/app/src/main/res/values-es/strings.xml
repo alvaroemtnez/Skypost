@@ -189,7 +189,7 @@
     <string name="card_code_body">Enséñaselo a quien quiera escribir a %1$s. Confiará en él tanto como tú: si hay dudas, que compare el código de seguridad con %1$s.</string>
     <string name="sos_hold_hint">Mantén pulsado el botón SOS 3 segundos</string>
     <string name="sos_hold_description">SOS. Mantén pulsado 3 segundos</string>
-    <string name="admin_title">Administrar %1$s</string>
+    <string name="admin_title">Gestionar %1$s</string>
     <string name="admin_not">No administras este Pharos</string>
     <string name="admin_sign_in">Entrar como administrador</string>
     <string name="admin_sign_in_body">Escribe su contraseña de administración. Va cifrada, porque el cifrado de emergencia está activado.</string>
@@ -197,7 +197,7 @@
     <string name="admin_sign_in_sent">Contraseña enviada, cifrada</string>
     <string name="admin_password">Contraseña de administración</string>
     <string name="admin_status">Estado</string>
-    <string name="admin_status_body">Interruptores, usuarios, solicitudes y mensajes en cola</string>
+    <string name="admin_status_body">Usuarios, solicitudes y mensajes en cola</string>
     <string name="admin_clients">Usuarios</string>
     <string name="admin_clients_body">Usuarios de radio de este Pharos y cuándo se les oyó</string>
     <string name="admin_accept">Aceptar</string>
@@ -302,7 +302,6 @@
     <string name="switch_requests">Solicitudes de acceso</string>
     <string name="switch_open_body">Cualquiera puede usarlo. Apagado: solo usuarios registrados y contactos aceptados</string>
     <string name="switch_open">Abierto a cualquiera</string>
-    <string name="admin_refresh">Preguntar al Pharos</string>
     <string name="admin_switches_unknown">Aún no se saben: pregunta al Pharos con el botón de actualizar.</string>
     <string name="admin_switches">Interruptores</string>
     <string name="have_code">Tengo un código</string>
@@ -364,7 +363,7 @@
     <string name="search_chats">Buscar chats</string>
     <string name="search_no_chats">Ningún chat coincide</string>
     <string name="chats_delete_body">Sus mensajes se borran de este teléfono. Los contactos y grupos se quedan.</string>
-    <string name="manage">Administrar</string>
+    <string name="manage">Gestionar</string>
     <string name="ping_short">Comprobar</string>
     <string name="qr_short">Código QR</string>
     <string name="verify_short">Verificar</string>
@@ -392,6 +391,11 @@
     <string name="cat_civ">Icom CI-V</string>
     <string name="grant_admin">Admin</string>
     <string name="grant_user">Usuario</string>
+    <string name="admin_update">Actualizar</string>
+    <string name="admin_switches_body">Quién puede usarlo, emergencia y sigilo</string>
+    <string name="registration_pending_short">Esperando aprobación</string>
+    <string name="registration_refused_short">Rechazado</string>
+    <string name="registration_needs_code_short">Necesita código</string>
     <string name="admin_switches_none">Todos apagados</string>
     <string name="admin_people">Personas</string>
     <string name="admin_people_body">Usuarios, solicitudes de acceso, contactos autorizados</string>
@@ -400,6 +404,11 @@
     <string name="settings_about">Acerca de</string>
     <string name="about_body">Versión %1$s. Mensajería por radio HF para todos.</string>
     <string name="about_source">Código fuente</string>
+    <plurals name="admin_replies_count">
+        <item quantity="one">%d orden enviada</item>
+        <item quantity="many">%d órdenes enviadas</item>
+        <item quantity="other">%d órdenes enviadas</item>
+    </plurals>
     <plurals name="chats_delete_title">
         <item quantity="one">¿Eliminar %d chat?</item>
         <item quantity="many">¿Eliminar %d chats?</item>

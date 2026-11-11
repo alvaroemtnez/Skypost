@@ -36,6 +36,8 @@ data class PharosAdminUi(
     val requestsLoading: Boolean = false,
     /** A status (the switches' refresh) was asked for and has not arrived. */
     val statusLoading: Boolean = false,
+    /** The last status the Pharos sent (counts and switches); null before any. */
+    val status: AdminReply.Status? = null,
     /** The Pharos's users were asked for and have not arrived. */
     val clientsLoading: Boolean = false,
     /** Accept or refuse sent for these request numbers, the Pharos has not answered. */
@@ -110,6 +112,7 @@ class PharosAdminViewModel(private val repo: Repository, private val key: String
             requests = requestsFrom(log),
             requestsLoading = waiting(log, AdminCommand.Requests),
             statusLoading = waiting(log, AdminCommand.Status),
+            status = log.lastOrNull { it.reply is AdminReply.Status }?.reply as? AdminReply.Status,
             clientsLoading = waiting(log, AdminCommand.Clients),
             adminsLoading = waiting(log, AdminCommand.Admins),
             blockedLoading = waiting(log, AdminCommand.Blocked),

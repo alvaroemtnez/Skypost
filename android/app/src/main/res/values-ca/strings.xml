@@ -189,7 +189,7 @@
     <string name="card_code_body">Mostra\'l a qui vulga escriure a %1$s. Hi confiarà tant com tu: si hi ha dubtes, que compare el codi de seguretat amb %1$s.</string>
     <string name="sos_hold_hint">Mantín premut el botó SOS 3 segons</string>
     <string name="sos_hold_description">SOS. Mantín premut 3 segons</string>
-    <string name="admin_title">Administrar %1$s</string>
+    <string name="admin_title">Gestionar %1$s</string>
     <string name="admin_not">No administres este Pharos</string>
     <string name="admin_sign_in">Entrar com a administrador</string>
     <string name="admin_sign_in_body">Escriu la seua contrasenya d\'administració. Va xifrada, perquè el xifratge d\'emergència està activat.</string>
@@ -197,7 +197,7 @@
     <string name="admin_sign_in_sent">Contrasenya enviada, xifrada</string>
     <string name="admin_password">Contrasenya d\'administració</string>
     <string name="admin_status">Estat</string>
-    <string name="admin_status_body">Interruptors, usuaris, sol·licituds i missatges en cua</string>
+    <string name="admin_status_body">Usuaris, sol·licituds i missatges en cua</string>
     <string name="admin_clients">Usuaris</string>
     <string name="admin_clients_body">Usuaris de ràdio d\'este Pharos i quan se\'ls va escoltar</string>
     <string name="admin_accept">Acceptar</string>
@@ -302,7 +302,6 @@
     <string name="switch_requests">Sol·licituds d\'accés</string>
     <string name="switch_open_body">Qualsevol pot fer-lo servir. Apagat: només usuaris registrats i contactes acceptats</string>
     <string name="switch_open">Obert a qualsevol</string>
-    <string name="admin_refresh">Preguntar al Pharos</string>
     <string name="admin_switches_unknown">Encara no se saben: pregunta al Pharos amb el botó d\'actualitzar.</string>
     <string name="admin_switches">Interruptors</string>
     <string name="have_code">Tinc un codi</string>
@@ -364,7 +363,7 @@
     <string name="search_chats">Buscar xats</string>
     <string name="search_no_chats">Cap xat coincideix</string>
     <string name="chats_delete_body">Els seus missatges s\'esborren d\'este telèfon. Els contactes i els grups es queden.</string>
-    <string name="manage">Administrar</string>
+    <string name="manage">Gestionar</string>
     <string name="ping_short">Comprovar</string>
     <string name="qr_short">Codi QR</string>
     <string name="verify_short">Verificar</string>
@@ -392,6 +391,11 @@
     <string name="cat_civ">Icom CI-V</string>
     <string name="grant_admin">Admin</string>
     <string name="grant_user">Usuari</string>
+    <string name="admin_update">Actualitzar</string>
+    <string name="admin_switches_body">Qui pot usar-lo, emergència i sigil</string>
+    <string name="registration_pending_short">Esperant aprovació</string>
+    <string name="registration_refused_short">Rebutjat</string>
+    <string name="registration_needs_code_short">Cal un codi</string>
     <string name="admin_switches_none">Tots apagats</string>
     <string name="admin_people">Persones</string>
     <string name="admin_people_body">Usuaris, sol·licituds d\'accés, contactes autoritzats</string>
@@ -400,6 +404,11 @@
     <string name="settings_about">Quant a</string>
     <string name="about_body">Versió %1$s. Missatgeria per ràdio HF per a tothom.</string>
     <string name="about_source">Codi font</string>
+    <plurals name="admin_replies_count">
+        <item quantity="one">%d ordre enviada</item>
+        <item quantity="many">%d ordres enviades</item>
+        <item quantity="other">%d ordres enviades</item>
+    </plurals>
     <plurals name="chats_delete_title">
         <item quantity="one">Eliminar %d xat?</item>
         <item quantity="many">Eliminar %d xats?</item>

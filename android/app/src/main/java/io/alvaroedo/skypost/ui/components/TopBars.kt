@@ -25,7 +25,6 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -39,6 +38,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.drawscope.clipPath
@@ -148,7 +148,8 @@ fun SearchButton(search: TopBarSearch) {
 
 /**
  * The chat list's bar: page-coloured (no band), title on the left, then
- * [actions]; with [search], its field covers the bar while active.
+ * [actions]; with [search], its field covers the bar while active. Its own
+ * colour is clear: [modifier] paints it ([frostedBehind]).
  * [searchIconEndDp] is where the glass sits from the end, for the reveal.
  */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -157,15 +158,29 @@ fun MainTopBar(
     title: @Composable () -> Unit,
     search: TopBarSearch?,
     searchIconEndDp: Float,
-    scrollBehavior: TopAppBarScrollBehavior? = null,
+    modifier: Modifier = Modifier,
     navigationIcon: @Composable () -> Unit = {},
     actions: @Composable RowScope.() -> Unit,
 ) {
     Box {
-        TopAppBar(title = title, navigationIcon = navigationIcon, actions = actions, scrollBehavior = scrollBehavior)
+        TopAppBar(
+            title = title,
+            navigationIcon = navigationIcon,
+            actions = actions,
+            modifier = modifier,
+            colors = clearBarColors(),
+        )
         if (search != null) SearchOverlay(search, searchIconEndDp, Modifier.matchParentSize())
     }
 }
+
+/** A top bar with no colour of its own, for a modifier to paint. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun clearBarColors() = TopAppBarDefaults.topAppBarColors(
+    containerColor = Color.Transparent,
+    scrolledContainerColor = Color.Transparent,
+)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

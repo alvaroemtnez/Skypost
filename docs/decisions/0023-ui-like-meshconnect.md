@@ -17,7 +17,10 @@ Skypost borrows MeshConnect's patterns, ported by hand into `ui/components`
   MeshConnect's row sizes, a rounded long-press menu (Delete in red, the
   checklist icon for Select), swipe right for read/unread and left for
   archive, a red confirmation before deleting, and search that grows out of
-  the top bar. New chat is a floating button above SOS. The filter chips stay
+  the top bar. New chat is a floating button above SOS. Search ignores
+  accents and case. The bar never scrolls away: the list passes under it
+  and the bar frosts as it does, Signal's way (`Frost.kt`, blur from
+  Android 12, a denser tint before). The filter chips stay
   text-only, unlike MeshConnect's.
 - **Status in the top bar:** signal bars plus the active Pharos's name, and
   the radio icon plus its short name (`RadioModel`: QDX, QMX, QMX+, G90, or
@@ -32,7 +35,8 @@ Skypost borrows MeshConnect's patterns, ported by hand into `ui/components`
   colour of the page.
 - **Settings** use grouped rounded cards with icon discs. **Pharos admin**
   follows MeshConnect's repeater screens: an identity card with a grant chip,
-  then folding card sections.
+  then folding card sections, all folded on entry. Status and switches ask
+  the Pharos when opened and end with Update; the replies log stays folded.
 
 Colour, logo and wording stay Skypost's own, and so do SOS, the stock
 phrases and the composer.
