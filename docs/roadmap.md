@@ -69,7 +69,9 @@ Design: decisions [0015](decisions/0015-identities.md), [0016](decisions/0016-ph
 - [x] Try the debug APK on a phone
 - [ ] `keryx-ffi` crate (UniFFI) + cargo-ndk build into `jniLibs`
 - [ ] **Important:** once backups go through the core, verify they are really encrypted (`keryx::backup`): open an exported `.skb` and check no alias, key, contact or setting is readable; a wrong passphrase must fail. Until then the stand-in backup is NOT encrypted, although Settings says it is
-- [ ] Radio foreground service: USB permission, CAT (usb-serial-for-android), USB audio routing; drive the top-bar radio indicator (grey / orange audio only / green audio + CAT)
+- [x] UI in step with MeshConnect: chat list, cards for Pharos/radio/new chat, QR popups, settings and Pharos admin in cards ([0023](decisions/0023-ui-like-meshconnect.md))
+- [ ] Radio foreground service: USB permission, CAT (usb-serial-for-android) using the chosen `RadioModel`/`CustomRadio`, USB audio routing; drive the top-bar radio status (faded / connecting pulse / connected)
+- [ ] Widgets, once the radio service and real repository exist (they would only show fake data now). Keep them unlike MeshConnect's so the two apps are not confused, e.g. a Skypost status widget (Pharos bars and when it was last heard, radio short name, unread count; a tap opens the app) and an "Estoy bien" widget that opens the app on a confirmation, never sending straight from the home screen. No SOS widget unless it keeps the 3 s hold and the confirmation
 - [ ] Audio-only radios (no CAT): make setting the frequency by hand easy (show band and dial frequency, check it, remind on band changes)
 - [x] GNSS position for Estoy bien, positions and SOS (`location/Locator.kt`, platform LocationManager, no Google services)
 - [ ] GNSS time for JS8 slot sync

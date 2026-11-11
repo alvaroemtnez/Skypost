@@ -198,14 +198,16 @@ offset in ACKs.
 
 ## 9. App UX
 
-One Material 3 chat app ([0017](decisions/0017-chat-app-ui.md)).
+One Material 3 chat app ([0017](decisions/0017-chat-app-ui.md)), laid out
+like its sibling MeshConnect ([0023](decisions/0023-ui-like-meshconnect.md)).
 
 - **First run:** create an identity (alias, optional callsign) or restore an
   encrypted backup.
 - **Chat list:** direct, group, Signal, WhatsApp and MeshCore chats mixed,
-  with filter chips; a red SOS button floating bottom right (confirm step).
-  Top bar: "Pharos heard" indicator (grey, or coloured by the SNR it last
-  reported), new chat, overflow for my QR and settings.
+  with filter chips; a red SOS button floating bottom right (held, then
+  confirmed) with the new-chat button above it. Top bar: radio (icon and
+  short name, e.g. QMX+), Pharos (signal bars for the SNR it last reported,
+  and its name), search, overflow for my QR (a popup) and settings.
 - **Chat:** bubbles; received messages show a shield (signed) or padlock
   (encrypted); sent ones show a clock, then a tick when the contact or Pharos
   ACKed. Composer with quick messages (stock phrases, *Estoy bien* + position)
@@ -215,12 +217,15 @@ One Material 3 chat app ([0017](decisions/0017-chat-app-ui.md)).
   paste), Signal/WhatsApp (phone contact picker, typed number or recent),
   MeshCore (scan or paste its QR, or recent). Bridged chats need a trusted
   Pharos. Lists: swipe left to forget, hold to chat, block or delete.
-- **Chat list gestures:** archive, pin (3), mark unread, multi-select,
-  swipe to archive or delete (with undo), block contacts and groups.
+- **Chat list gestures:** swipe right for read/unread, left to archive;
+  hold for a menu (read, pin (3), archive, block, select, delete); delete
+  asks first, then offers undo.
 - **Blocking:** contacts, groups, bridged contacts and Pharos; blocked
   stations get no ACKs and no answers to pings (enforced in `keryx`).
-- **Pharos screen** (from the indicator): trusted Pharos list, discovery,
-  verification, registration state, ping.
+- **Pharos card** (a sheet, from the top bar or Settings): the active Pharos
+  with check, manage (opens the admin screen), QR and verify; trusted Pharos
+  list, discovery, registration state. **Radio card:** state, and which radio
+  (QDX, QMX, QMX+, G90 or a custom one with its CAT). New chat is a card too.
 - **Settings:** profile, my QR, emergency contacts, emergency encryption for
   every chat, radio, ping interval, backup and restore, about.
 - **SOS:** signed plaintext, so any listener can read and relay it; goes to
