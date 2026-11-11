@@ -17,6 +17,10 @@ Figures used in the design, with where they come from. Checked October 2026.
   AudioRecord capture, foreground decoding service. Beta.
   [JS8Call-improved/Android-port](https://github.com/JS8Call-improved/Android-port)
 - Payload bits per frame: **not verified** (assumed 72).
+- Measured floors with JS8Call-improved's own decoder (bad77ff), 2500 Hz,
+  AWGN 50 %: Slow −22.6, Normal −19.8, Fast −16.8, JS8 40 −13.9 dB; fading
+  90 %: about −16.5, −14.4, −10.6, −7.3 dB. The published figures above are
+  3–5.5 dB optimistic. [highway-modems.md](highway-modems.md)
 
 ## Mercury (Rhizomatica)
 
@@ -27,6 +31,16 @@ Figures used in the design, with where they come from. Checked October 2026.
 - DATAC15: 200 Hz, 30-byte payload, ~68 bit/s, AWGN 90 % point ≈ −9.5 dB;
   goodput DATAC1 ≈ 50 B/s, DATAC17 ≈ 98 B/s, QAM16C2 ≈ 142 B/s; QAM16C2
   PAPR ≈ 10 dB. [MODES.md](https://github.com/Rhizomatica/mercury/blob/mercuryv2/docs/MODES.md)
+
+## XARA (VARA HF protocol reimplementation)
+
+- MIT-licensed Rust reimplementation of VARA HF 4.9.0 / FM 4.4.0 by x0rro;
+  releases 0.1.0–0.1.3 (21–31 Oct 2026), then discontinued upstream (repo
+  still public); forks exist. 16 levels at 2300 Hz, 18–7050 bit/s; levels
+  1–4 are single-tone FSK. [xara](https://github.com/x0rro/xara),
+  [Zero Retries 0267](https://www.zeroretries.org/p/zero-retries-0267)
+- VARA displays SNR normalised to its OFDM levels: FSK readings are about
+  6.4 dB below true SNR. Full study: [highway-modems.md](highway-modems.md).
 
 ## Reticulum / LXMF
 

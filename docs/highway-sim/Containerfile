@@ -1,0 +1,7 @@
+FROM registry.fedoraproject.org/fedora:44
+RUN dnf -y install --setopt=install_weak_deps=False \
+      gcc gcc-c++ make git rust cargo pkgconf-pkg-config \
+      qt6-qtbase-devel boost-devel fftw-devel \
+      alsa-lib-devel pulseaudio-libs-devel \
+      python3-numpy python3-scipy && dnf clean all
+WORKDIR /work

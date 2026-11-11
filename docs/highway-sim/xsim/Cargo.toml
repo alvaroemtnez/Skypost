@@ -1,0 +1,17 @@
+[package]
+name = "xsim"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+xara-phy = { path = "/src/xara/crates/xara-phy" }
+xara-arq = { path = "/src/xara/crates/xara-arq" }
+xara = { path = "/src/xara/crates/xara" }
+num-complex = "0.4"
+
+[profile.release]
+opt-level = 3
+
+# Standalone: not part of the Skypost workspace.
+[workspace]

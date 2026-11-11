@@ -14,6 +14,7 @@ Done in the repo:
 To do:
 - [x] Regenerate golden vectors for the `keryx-v0` salt (rename, decision 0011) and check only key-dependent bytes moved
 - [ ] Revisit the lane set (five lanes may be too many) and the logic between them; name them after
+- [ ] Re-derive the JS8 lane floors and margin from Phase 0 logs: simulated with JS8Call-improved's decoder they are 3–5.5 dB worse than the published floors in `keryx::lane`, and fading needs 4–6 dB more for 90 % ([highway-modems.md](highway-modems.md) §6.5); calibrate reported against true SNR
 - [ ] Verify the JS8Call 3.x API (port, message types, `TDRIFT`) and fix `js8api.py`
 - [ ] Bench test: two radios into attenuators/dummy loads, signed and encrypted
 - [ ] Choose dial frequencies (see `spec/band-plan.md`)
@@ -99,13 +100,20 @@ Design: decisions [0015](decisions/0015-identities.md), [0016](decisions/0016-ph
 Write down here what is undecided, with the context, so it is not lost.
 Each one becomes a decision record when settled.
 
-- **JS8 as the control channel, Mercury as "highways" (owner, 2026-10-20).**
+- **JS8 as the control channel, a fast modem as "highways" (owner, 2026-10-20).**
   Like TETRA's control channel: JS8 Normal is the default lane for
   everything; JS8 Slow is the forced fallback and the lane for control
   traffic (discovery, pings, ACKs of control frames, highway setup). When the
-  reported SNR is high enough and both ends can, the stations open a Mercury
+  reported SNR is high enough and both ends can, the stations open a
   "highway" on a separate dial frequency for the bulk of a session, then
-  return to JS8. To decide:
+  return to JS8. Which modem: see the study
+  [highway-modems.md](highway-modems.md) (2026-11-11). It simulated XARA (the
+  VARA HF protocol), Mercury and JS8 on CCIR and NVIS channels, end to end
+  where possible. It recommends XARA, forked for Skypost-only links, as
+  primary candidate with Mercury as fallback, pending four checks (its §9).
+  It also proposes when to open a highway (about −5 dB true SNR and a queue of
+  roughly 200 B or more) and per-radio transmit caps (QDX: XARA level 4).
+  To decide:
   - Default lane: Normal for messages, with Slow forced for control traffic
     and as the last fallback? (Today: Normal first, Slow for discovery,
     pings and their ACKs.)
@@ -154,7 +162,8 @@ Each one becomes a decision record when settled.
 
 ## Phase 3 — fast lane
 
-- [ ] Mercury over its TCP interface for G90-class stations
+- [ ] Choose the highway modem: run the checks in [highway-modems.md](highway-modems.md) §9 (QDX bench keying of XARA levels 1–4, XARA over the air on NVIS, PEP-limited rerun, fork ownership), then supersede or confirm [0005](decisions/0005-mercury-fast-lane.md)
+- [ ] Highway modem built into Pharos and the app (XARA crates or Mercury), for G90-class stations and, with XARA, QDX transmit up to level 4
 - [ ] Test QMX+ SSB with OFDM
 
 ## Phase 4 — voice

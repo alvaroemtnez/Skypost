@@ -33,3 +33,6 @@ core/crates/pharos/base.toml
 .idea/
 *.iml
 .DS_Store
+
+# Highway simulation results are data, keep them
+!docs/highway-sim/results/**/*.jsonl

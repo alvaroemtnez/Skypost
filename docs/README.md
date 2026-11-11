@@ -11,4 +11,5 @@ Start with [design.md](design.md). Then, as needed:
 - [regulatory-es.md](regulatory-es.md) — Spanish rules and open questions
 - [hardware.md](hardware.md) — radios, kits, base, Android USB
 - [research-notes.md](research-notes.md) — figures and their sources
+- [highway-modems.md](highway-modems.md) — XARA (VARA HF protocol) vs Mercury vs JS8, simulated; highway recommendation
 - [decisions/](decisions/) — why things are the way they are

@@ -1,0 +1,9 @@
+[
+{"kind":"mfsk","mode":100,"n":100,"snr":[-18,0,1]},
+{"kind":"mfsk","mode":103,"n":100,"snr":[-20,-2,1]},
+{"kind":"datac","mode":"DATAC15","n":100,"snr":[-14,4,1]},
+{"kind":"datac","mode":"DATAC4","n":100,"snr":[-10,8,1]},
+{"kind":"datac","mode":"DATAC3","n":100,"snr":[-8,10,1]},
+{"kind":"datac","mode":"DATAC1","n":100,"snr":[-4,16,1]},
+{"kind":"datac","mode":"DATAC17","n":100,"snr":[0,22,1]}
+]
