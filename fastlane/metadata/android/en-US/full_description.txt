@@ -1,0 +1,21 @@
+Skypost lets a family keep in touch over HF radio when there is no internet and no phone signal: a phone and a small HF radio in the field, and optionally a base station at home.
+
+<b>What you need</b>
+<ul>
+<li>An amateur radio licence: transmitting on HF requires one.</li>
+<li>An HF radio connected to the phone by USB (OTG), such as a QDX or a G90.</li>
+</ul>
+
+<b>How it works</b>
+<ul>
+<li>Messages travel on the 40, 60 and 80 m bands by near-vertical incidence (NVIS), which covers a region of a few hundred kilometres without repeaters.</li>
+<li>A robust mode based on the JS8 waveform decodes very weak signals.</li>
+<li>Messages are signed, so you know who sent them. They go as plain text by default, as amateur radio rules ask; encryption is for emergencies, where the rules allow it.</li>
+<li>Quick messages and an SOS that is held and confirmed, designed to be easy to use under stress.</li>
+<li>A family member's base station (Pharos, a separate program for a Raspberry Pi) can pass messages on to Signal, WhatsApp and MeshCore.</li>
+</ul>
+
+<b>Private by design</b>
+The app has no internet permission at all: it talks only to your radio. No accounts, no tracking, no ads.
+
+Skypost is in development and not ready for everyday use yet. Free software, AGPL-3.0-or-later.

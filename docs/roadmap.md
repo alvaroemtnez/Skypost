@@ -94,6 +94,22 @@ Design: decisions [0015](decisions/0015-identities.md), [0016](decisions/0016-ph
   systemd units), then create a Forgejo release named after the tag whose notes
   are that version's section of `CHANGELOG.md` (start the file; Keep a
   Changelog format)
+- [ ] Release signing key, made once and kept offline; its certificate's SHA-256
+  published in a `docs/verifying.md` ([releasing.md](releasing.md), "The signing key")
+- [x] Reproducible release builds: `build.sh release` signs Gradle's output as it is,
+  no dependency metadata block; checked against F-Droid's build at `d3c6693`
+  ([decision 0024](decisions/0024-reproducible-builds.md))
+- [x] F-Droid groundwork: recipe (`packaging/fdroid/`), fastlane store text in English,
+  Spanish and Valencian, and the icon ([releasing.md](releasing.md), "F-Droid")
+- [ ] F-Droid: phone screenshots; submit not before 18 January 2027 (three months of
+  development), with the first release worth installing, `Binaries:` and
+  `AllowedAPKSigningKeys:` in the recipe, and the reproducibility check run again
+- [ ] When the Rust core lands: recipe and build changes listed in
+  [releasing.md](releasing.md), "When the Rust core lands" (C toolchain, NDK, remapped
+  paths, only the ABIs the core is built for)
+- [ ] Accrescent, when sign-up opens: a `build.sh accrescent` (bundletool APK set),
+  domain proof by DNS, permission notes for the reviewer ([releasing.md](releasing.md),
+  "Accrescent")
 
 ## Open design questions
 

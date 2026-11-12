@@ -1,0 +1,25 @@
+Categories:
+  - Internet
+License: AGPL-3.0-or-later
+AuthorName: Álvaro Edo Martínez
+WebSite: https://code.alvaroedo.io/alvaroemtnez/Skypost
+SourceCode: https://code.alvaroedo.io/alvaroemtnez/Skypost
+IssueTracker: https://code.alvaroedo.io/alvaroemtnez/Skypost/issues
+
+AutoName: Skypost
+
+RepoType: git
+Repo: https://code.alvaroedo.io/alvaroemtnez/Skypost.git
+
+Builds:
+  - versionName: 0.1.0
+    versionCode: 1
+    commit: v0.1.0
+    subdir: android/app
+    gradle:
+      - yes
+
+AutoUpdateMode: Version
+UpdateCheckMode: Tags ^v[0-9.]+$
+CurrentVersion: 0.1.0
+CurrentVersionCode: 1
