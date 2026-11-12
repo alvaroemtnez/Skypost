@@ -41,6 +41,14 @@ android {
         buildConfig = true
     }
 
+    // No dependency metadata block in the APK or bundle. AGP otherwise adds one to the APK
+    // signing block, encrypted with a key only Google can read: an opaque blob F-Droid
+    // objects to, and it serves only Google Play.
+    dependenciesInfo {
+        includeInApk = false
+        includeInBundle = false
+    }
+
     androidResources {
         // English (default), Spanish and Valencian; drop the other
         // translations libraries bring.

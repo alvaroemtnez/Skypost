@@ -169,7 +169,11 @@ build_release() {
         return
     fi
 
-    local args=(sign --ks "$SKYPOST_KEYSTORE" --out "$DIST_DIR/skypost-release.apk")
+    # Sign Gradle's output exactly as it is: no zipalign, and no realignment by apksigner
+    # (Gradle already aligns it: 4 bytes, 16 KB pages for native libraries). Then the
+    # signature can be copied onto F-Droid's build of the same commit, which is how F-Droid
+    # checks the build is reproducible and ships our signature (docs/releasing.md).
+    local args=(sign --alignment-preserved true --ks "$SKYPOST_KEYSTORE" --out "$DIST_DIR/skypost-release.apk")
     [ -n "${SKYPOST_KEY_ALIAS:-}" ] && args+=(--ks-key-alias "$SKYPOST_KEY_ALIAS")
     # Passwords are read from the environment if set, otherwise apksigner asks for them.
     [ -n "${SKYPOST_KEYSTORE_PASS:-}" ] && args+=(--ks-pass env:SKYPOST_KEYSTORE_PASS)
