@@ -94,6 +94,11 @@ Design: decisions [0015](decisions/0015-identities.md), [0016](decisions/0016-ph
   systemd units), then create a Forgejo release named after the tag whose notes
   are that version's section of `CHANGELOG.md` (start the file; Keep a
   Changelog format)
+- [ ] Betas in the same flow: a tag `vX.Y.Z-beta.N` builds and publishes the same
+  way, marked as a pre-release (Obtainium offers it only with *Include
+  prereleases*), with X.Y.Z's versionCode and notes, and an F-Droid recipe that
+  follows `^v[0-9.]+$` only. MeshConnect (`tools/release-version.sh`), HFPredict
+  and pat-desktop do this: copy one of them
 - [ ] Release signing key, made once and kept offline; its certificate's SHA-256
   published in a `docs/verifying.md` ([releasing.md](releasing.md), "The signing key")
 - [x] Reproducible release builds: `build.sh release` signs Gradle's output as it is,
