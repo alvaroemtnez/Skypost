@@ -184,6 +184,8 @@ Each one becomes a decision record when settled.
 ## Phase 3 — fast lane
 
 - [ ] Choose the highway modem: run the checks in [highway-modems.md](highway-modems.md) §9 (QDX bench keying of XARA levels 1–4, XARA over the air on NVIS, PEP-limited rerun, fork ownership), then supersede or confirm [0005](decisions/0005-mercury-fast-lane.md)
+- [x] XARA keying: Skypost's own, from a published recipe, never VARA's 2027 tables ([0025](decisions/0025-own-highway-keying.md), [highway-modems.md](highway-modems.md) §10)
+- [ ] If XARA: spec page and vectors for the Skypost keying; run the §9 on-air checks on it
 - [ ] Highway modem built into Pharos and the app (XARA crates or Mercury), for G90-class stations and, with XARA, QDX transmit up to level 4
 - [ ] Test QMX+ SSB with OFDM
 

@@ -58,6 +58,8 @@ clean frames at the modem's rate (XARA 48 kHz, JS8 12 kHz, Mercury 8 kHz)
   Mercury's own bench does). `arq_analyze.py`: compares it with Mercury's
   published bench (`results/mercury-bench/`).
 - `plans/`: the sweeps that produced `results/`.
+- `vara-2027/`: the check of VARA's 2027 tables (highway-modems §10). Code
+  only; it needs VARA's installers, which are never committed.
 - `results/arq.jsonl`, `results/arq-analysis.md`: end-to-end ARQ runs and
   the comparison with Mercury.
 - `results/`: raw per-point results (`*.jsonl`, one line per system, mode,

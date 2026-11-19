@@ -42,6 +42,12 @@ open a highway. Everything measured can be rerun with
 - **Recommendation:** make XARA (forked for Skypost-only links) the primary
   highway candidate, keep Mercury as the fallback behind the same interface,
   and run the four checks in section 9 before deciding.
+- **VARA's 2027 waveform changes nothing for us (section 10, added
+  19 November 2026).** VARA HF 4.9.1 and FM 4.4.1 switch to new tables on
+  1 January 2027. The modem is the same and no faster; only the tables
+  differ, and those can't be rebuilt without VARA's files. A XARA highway
+  uses its own published, reproducible tables instead
+  ([decision 0025](decisions/0025-own-highway-keying.md)).
 
 ## 2. Candidates
 
@@ -430,21 +436,145 @@ Before deciding, run these four checks:
    Mercury's own 2.0 carousel end to end on NVIS. Mercury publishes no NVIS
    bench.
 4. **Decide who maintains the fork,** and track the XARA forks for a month.
+   XaraNext (section 10) is a fifth candidate.
+
+The fork uses Skypost's own keying, not VARA's legacy or 2027 tables
+(section 10, [decision 0025](decisions/0025-own-highway-keying.md)).
 
 **Follow-ups regardless of the modem:**
 - Re-derive the JS8 lane floors and margin in `keryx::lane` and
   `spec/arq-and-lanes.md` from Phase 0 logs, using section 6.5 as the prior.
 - Calibrate the reported SNR against these true-SNR figures.
 
-## 10. Watch list (new information that would change this)
+## 10. VARA's 2027 waveform and keyings
+
+Added 19 November 2026, after XaraNext appeared. The analysis can be rerun
+with [highway-sim/vara-2027/](highway-sim/vara-2027/README.md), given VARA's
+installers. VARA's files themselves are never committed.
+
+### 10.1 What a keying is
+
+Several steps of the VARA waveform are driven by tables. Both ends must use
+the same tables, or they can't hear each other:
+
+- **Channel interleaver:** shuffles a frame's coded bits before sending, so
+  a fade (a burst of errors) ends up as scattered errors the FEC can fix.
+- **Turbo interleaver:** the shuffle inside the turbo code itself.
+- **Marker section:** where the known reference symbols (pilots) sit in each
+  carrier, used to measure the channel.
+- **Phase tables:** a fixed rotation per carrier and symbol (OFDM and PSK),
+  so carriers don't all peak at once.
+- **Control seed offset:** the connect, ACK and break codewords are generated
+  from seeds. With another offset, a receiver doesn't recognise a connect
+  request at all.
+
+XaraNext calls one full set of these a *keying*. The tables look random
+because any shuffle with no pattern spreads errors well. But they are fixed:
+every station uses exactly the same ones, every run. Two keyings are like
+two shuffles of the same deck. Both are good, but a frame dealt with one
+can't be read with the other.
+
+### 10.2 The three keyings
+
+| Keying | Used by | Where the tables come from |
+|---|---|---|
+| Legacy | VARA HF up to 4.9.0, FM up to 4.4.0; 4.9.1/4.4.1 before 2027; xara | computed: VB6 `Rnd` started with `Randomize 43` |
+| 2027 | VARA HF 4.9.1 and FM 4.4.1 once the PC clock reaches 1 January 2027 | data files shipped in VARA's install |
+| Named | XaraNext's `xara-keygen` | computed from a published name (SplitMix64 + FNV-1a, XaraNext `docs/keying.md`) |
+
+Stations on different keyings ignore each other completely, so from 2027
+VARA 4.9.1 can't talk to VARA 4.9.0 and older, nor to xara.
+
+**XaraNext** (1.3, an anonymous fork of xara 0.1.3, MIT) adds the 2027
+keying and named keyings. It says it has connected to VARA HF 4.9.1 and FM
+4.4.1 on air under the 2027 keying. Named keyings are tested xara-to-xara in
+simulation only. Its diff against xara 0.1.3 touches only table loading,
+control-seed plumbing, the CLI and packaging. The FEC, the decoders, the
+level table and the ARQ are unchanged.
+
+### 10.3 What we checked (19 November 2026)
+
+The VARA HF 4.9.1 and FM 4.4.1 installers were unpacked with `innoextract`
+(Inno Setup), without running any VARA code. Results:
+
+- **Legacy tables are fully determined by a tiny recipe.** VARA's legacy
+  files (`Binary4–6.dat` HF, `Binary3–4.dat` FM) are byte-for-byte xara's
+  output of VB6 `Rnd` from seed 43. That is why xara never needed VARA's
+  files.
+- **The 2027 tables have the same structure.** They load in XaraNext's
+  loader (checksums and permutations valid). All 17 records per bandwidth
+  have the same sizes as legacy; only the order inside a record changed
+  (turbo interleaver first). Frame layout, FEC and levels are unchanged.
+- **No VB6 `Rnd` stream produces them.** VB6 `Rnd` is a 24-bit LCG with full
+  period, so any table it makes, whatever the seed, `Randomize` value or
+  skip, starts from one of 2^24 states. All 2^24 were searched against the
+  first values of `Mod1.dat`, `Mod2.dat` and record 0 of `Binary1/2.dat`,
+  for:
+  - direct draws;
+  - every 2nd, 3rd or 4th draw;
+  - `CInt` rounding instead of `Int`;
+  - xara's draw-and-reject permutation;
+  - three Fisher–Yates shuffles.
+
+  Every variant found zero matches. The positive controls (legacy files, a
+  shuffle made from a known state) each found exactly their state.
+  XaraNext's claim that the 2027 tables "cannot be generated" holds as far
+  as it can be tested. Another RNG, or a cryptographic one, was not tested
+  and would need reverse-engineering VARA.
+- **No FEC gain.** The 2027 turbo interleavers are plain random
+  permutations: S-spread 1, as for legacy and for a random shuffle (a
+  designed S-random interleaver reaches about √(K/2), 7 to 37 at these
+  sizes). They are not QPP or another algebraic design: their second
+  differences take about 63 % distinct values, the random-permutation
+  figure of 1−1/e.
+- **`Aleatorio.dat`** ("random", new in both installers, dated 29 October
+  2026) is not random: 7.47 bit/byte, xz shrinks it to 54 %, and its bytes
+  repeat at lags of 18, 90 and 144 about 8× more than chance. It looks like
+  data obfuscated with a short key. It is not a source for the 2027 tables,
+  and XaraNext works on air without it.
+- **The ChangeLog** for HF 4.9.1 (4 November 2026) reads, in full: "New
+  changes, update all your stations to this new version." The FM ChangeLog
+  has no 4.4.1 entry. The new table files are dated 4 November, two weeks
+  after xara 0.1.0.
+
+**Reading:** the 2027 change replaces tables anyone could compute with
+tables nobody can, behind a date switch, in an otherwise identical modem. It
+adds no performance. Its effect is to cut off clean-room implementations
+and older VARA versions. Its only protocol side effect is a regression on
+FM: in the 2027 tables the connect frame differs between narrow and wide, so
+narrow and wide stations can no longer connect.
+
+### 10.4 What Skypost does
+
+[Decision 0025](decisions/0025-own-highway-keying.md): a XARA highway uses
+its **own keying, computed from a published recipe**, like legacy, with no
+shipped table files.
+
+- Same performance: every number in this study holds, because a good random
+  shuffle is as good as another.
+- Fully reproducible from the spec, so no VARA files, no Windows install, no
+  non-free dependency (F-Droid, Pharos), and a documented emission for the
+  Spanish rules.
+- VARA and Winlink stations can't connect to a Pharos or a field kit over
+  the highway, and VARA traffic doesn't trigger our control-code search.
+- Nobody else's release can break it.
+- Not encryption: anyone with the spec decodes everything.
+
+Legacy would also work and is proven on air against VARA. It is the
+fallback for bench work and debugging (for example with stock xara or
+VarAC) until our keying has been tested over the air.
+
+## 11. Watch list (new information that would change this)
 
 - **XARA:** does any fork become the maintained upstream (NR5P, sp2ong,
   haklein, randal007, others)? Does an Android build gain USB PTT? Does
   anyone publish XARA ↔ VARA or XARA ↔ XARA on-air measurements, or other
   independent VARA reimplementations?
 - **VARA's author (EA5HVK):** any statement or legal action, or VARA
-  changing its protocol (XARA tracks 4.9.0 only; Skypost-only links would
-  not care).
+  changing its protocol. It did with 4.9.1 (section 10); with our own
+  keying, Skypost-only links don't care.
+- **XaraNext:** on-air tests of named keyings, and whether it becomes the
+  maintained fork.
 - **Mercury:**
   - When 2.0 (the carousel) is released, and its compatibility promises.
   - Any faster FSK rungs for `mfsk_tx_only`.
@@ -456,11 +586,15 @@ Before deciding, run these four checks:
 - **Spanish regulations:** any requirement for openly published protocols
   (the XARA source is public either way).
 
-## 11. Sources
+## 12. Sources
 
 - XARA: github.com/x0rro/xara (discontinued notice); local clone 0.1.3;
   forks sp2ong, haklein, randal007, NR5P (nr5p.com/xara-fork.html); AUR
   `xara` 0.1.3.
+- XaraNext 1.3: owner's mirror of an anonymous repo, synced 19 November 2026
+  (`README.md`, `docs/keying.md`, diff against xara 0.1.3). VARA HF 4.9.1 and
+  VARA FM 4.4.1 installers (ChangeLogs, table files), analysed with
+  [highway-sim/vara-2027/](highway-sim/vara-2027/README.md).
 - Zero Retries 0267 (x0rro interview; KU0HN's tests: XARA HF 3,877/2,423
   bit/s at 5–6 % CPU against VARA's 5,817/1,203 at about 53 %).
 - VARA level table: sigidwiki.com/wiki/VARA_HF. VarAC on SL1/SL2 decoding
