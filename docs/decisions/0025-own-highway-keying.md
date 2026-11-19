@@ -26,7 +26,9 @@ compatibility.
   published in `docs/spec/`.** No table files are shipped or read, and
   nothing comes from VARA.
 - The recipe is **XaraNext's named-keying generator, version 1**, with a
-  fixed name (proposed: `skypost-1`). It is plain, documented code with no
+  fixed name: **`keryx-hw1`**. "hw" is the highway layer; the number counts
+  keying generations only, independent of the Keryx protocol version, and
+  changes only if the tables are ever replaced. It is plain, documented code with no
   hidden inputs, and anyone can rebuild the tables with `xara-keygen` to
   monitor or debug.
 - The keying is part of the wire format. It gets a spec page that restates
